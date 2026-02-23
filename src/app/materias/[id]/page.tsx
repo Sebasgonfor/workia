@@ -193,10 +193,7 @@ export default function SubjectDetailPage() {
                       <div key={cls.id} className="relative group">
                         <button
                           onClick={() => {
-                            // TODO: Navigate to board view
-                            toast("Tablero próximamente", {
-                              description: "El tablero de esta clase se implementará en la siguiente sesión.",
-                            });
+                            router.push(`/materias/${subjectId}/${cls.id}`);
                           }}
                           className="w-full text-left p-4 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
                         >

@@ -18,7 +18,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import type { Subject, ClassSession } from "@/types";
+import type { Subject, ClassSession, BoardEntry, Task } from "@/types";
 
 // ── Subjects ──
 
@@ -79,11 +79,22 @@ export function useSubjects() {
   const deleteSubject = useCallback(
     async (id: string) => {
       if (!user) return;
-      // Delete all classes in this subject first
+      const batch = writeBatch(db);
+      // Delete entries from each class
       const classesRef = collection(db, "users", user.uid, "subjects", id, "classes");
       const classesSnap = await getDocs(classesRef);
-      const batch = writeBatch(db);
-      classesSnap.docs.forEach((d) => batch.delete(d.ref));
+      for (const classDoc of classesSnap.docs) {
+        const entriesRef = collection(classDoc.ref, "entries");
+        const entriesSnap = await getDocs(entriesRef);
+        entriesSnap.docs.forEach((d) => batch.delete(d.ref));
+        batch.delete(classDoc.ref);
+      }
+      // Delete tasks linked to this subject
+      const tasksRef = collection(db, "users", user.uid, "tasks");
+      const tasksQ = query(tasksRef, where("subjectId", "==", id));
+      const tasksSnap = await getDocs(tasksQ);
+      tasksSnap.docs.forEach((d) => batch.delete(d.ref));
+      // Delete the subject itself
       batch.delete(doc(db, "users", user.uid, "subjects", id));
       await batch.commit();
     },
@@ -161,12 +172,188 @@ export function useClasses(subjectId: string | null) {
   const deleteClass = useCallback(
     async (id: string) => {
       if (!user || !subjectId) return;
-      await deleteDoc(
-        doc(db, "users", user.uid, "subjects", subjectId, "classes", id)
+      const batch = writeBatch(db);
+      const entriesRef = collection(
+        db, "users", user.uid, "subjects", subjectId, "classes", id, "entries"
       );
+      const entriesSnap = await getDocs(entriesRef);
+      entriesSnap.docs.forEach((d) => batch.delete(d.ref));
+      batch.delete(doc(db, "users", user.uid, "subjects", subjectId, "classes", id));
+      await batch.commit();
     },
     [user, subjectId]
   );
 
   return { classes, loading, addClass, updateClass, deleteClass };
+}
+
+// ── Board Entries ──
+
+export function useBoardEntries(subjectId: string | null, classId: string | null) {
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<BoardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user || !subjectId || !classId) {
+      setEntries([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(
+        db, "users", user.uid, "subjects", subjectId, "classes", classId, "entries"
+      ),
+      orderBy("order", "asc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        classSessionId: classId,
+        subjectId,
+        createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+        updatedAt: (d.data().updatedAt as Timestamp)?.toDate() || new Date(),
+      })) as BoardEntry[];
+      setEntries(data);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, subjectId, classId]);
+
+  const addEntry = useCallback(
+    async (data: { type: BoardEntry["type"]; content: string; tags: string[] }) => {
+      if (!user || !subjectId || !classId) return;
+      await addDoc(
+        collection(
+          db, "users", user.uid, "subjects", subjectId, "classes", classId, "entries"
+        ),
+        {
+          type: data.type,
+          content: data.content,
+          rawContent: data.content,
+          sourceImages: [],
+          tags: data.tags,
+          order: entries.length,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }
+      );
+    },
+    [user, subjectId, classId, entries.length]
+  );
+
+  const updateEntry = useCallback(
+    async (id: string, data: { type?: BoardEntry["type"]; content?: string; tags?: string[] }) => {
+      if (!user || !subjectId || !classId) return;
+      const updateData: Record<string, unknown> = { updatedAt: serverTimestamp() };
+      if (data.type !== undefined) updateData.type = data.type;
+      if (data.content !== undefined) {
+        updateData.content = data.content;
+        updateData.rawContent = data.content;
+      }
+      if (data.tags !== undefined) updateData.tags = data.tags;
+      await updateDoc(
+        doc(db, "users", user.uid, "subjects", subjectId, "classes", classId, "entries", id),
+        updateData
+      );
+    },
+    [user, subjectId, classId]
+  );
+
+  const deleteEntry = useCallback(
+    async (id: string) => {
+      if (!user || !subjectId || !classId) return;
+      await deleteDoc(
+        doc(db, "users", user.uid, "subjects", subjectId, "classes", classId, "entries", id)
+      );
+    },
+    [user, subjectId, classId]
+  );
+
+  return { entries, loading, addEntry, updateEntry, deleteEntry };
+}
+
+// ── Tasks ──
+
+export function useTasks() {
+  const { user } = useAuth();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "users", user.uid, "tasks"),
+      orderBy("dueDate", "asc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        dueDate: (d.data().dueDate as Timestamp)?.toDate() || new Date(),
+        createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+      })) as Task[];
+      setTasks(data);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const addTask = useCallback(
+    async (data: Omit<Task, "id" | "createdAt">) => {
+      if (!user) return;
+      await addDoc(collection(db, "users", user.uid, "tasks"), {
+        title: data.title,
+        subjectId: data.subjectId,
+        subjectName: data.subjectName,
+        description: data.description,
+        dueDate: Timestamp.fromDate(data.dueDate),
+        status: data.status,
+        priority: data.priority,
+        type: data.type,
+        sourceImageUrl: data.sourceImageUrl,
+        classSessionId: data.classSessionId,
+        createdAt: serverTimestamp(),
+      });
+    },
+    [user]
+  );
+
+  const updateTask = useCallback(
+    async (id: string, data: Partial<Omit<Task, "id" | "createdAt">>) => {
+      if (!user) return;
+      const updateData: Record<string, unknown> = {};
+      if (data.title !== undefined) updateData.title = data.title;
+      if (data.subjectId !== undefined) updateData.subjectId = data.subjectId;
+      if (data.subjectName !== undefined) updateData.subjectName = data.subjectName;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.dueDate !== undefined) updateData.dueDate = Timestamp.fromDate(data.dueDate);
+      if (data.status !== undefined) updateData.status = data.status;
+      if (data.priority !== undefined) updateData.priority = data.priority;
+      if (data.type !== undefined) updateData.type = data.type;
+      await updateDoc(doc(db, "users", user.uid, "tasks", id), updateData);
+    },
+    [user]
+  );
+
+  const deleteTask = useCallback(
+    async (id: string) => {
+      if (!user) return;
+      await deleteDoc(doc(db, "users", user.uid, "tasks", id));
+    },
+    [user]
+  );
+
+  return { tasks, loading, addTask, updateTask, deleteTask };
 }

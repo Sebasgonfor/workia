@@ -34,6 +34,7 @@ export interface Task {
   id: string;
   title: string;
   subjectId: string;
+  subjectName: string;
   description: string;
   dueDate: Date;
   status: "pending" | "in_progress" | "completed" | "overdue";
@@ -73,4 +74,25 @@ export const SUBJECT_COLORS = [
 export const SUBJECT_EMOJIS = [
   "📐", "💻", "📊", "🧪", "📚", "🎨", "⚡", "🔬", "📝", "🌍",
   "🧮", "🏛️", "💡", "🔧", "📈", "🎵", "🧬", "⚖️", "🤖", "📖",
+] as const;
+
+export const TASK_TYPES = [
+  { value: "taller", emoji: "🛠️", label: "Taller" },
+  { value: "quiz", emoji: "❓", label: "Quiz" },
+  { value: "parcial", emoji: "📝", label: "Parcial" },
+  { value: "proyecto", emoji: "🚀", label: "Proyecto" },
+  { value: "lectura", emoji: "📖", label: "Lectura" },
+  { value: "otro", emoji: "📌", label: "Otro" },
+] as const;
+
+export const TASK_PRIORITIES = [
+  { value: "high", color: "#ef4444", label: "Alta" },
+  { value: "medium", color: "#f59e0b", label: "Media" },
+  { value: "low", color: "#10b981", label: "Baja" },
+] as const;
+
+export const BOARD_ENTRY_TYPES = [
+  { value: "notes", icon: "FileText", label: "Apuntes" },
+  { value: "task", icon: "CheckSquare", label: "Tarea" },
+  { value: "resource", icon: "Paperclip", label: "Recurso" },
 ] as const;
