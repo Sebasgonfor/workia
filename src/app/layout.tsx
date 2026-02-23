@@ -33,6 +33,11 @@ export default function RootLayout({
     <html lang="es" className="dark">
       <head>
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="min-h-screen bg-background">
         <AuthProvider>

@@ -3,9 +3,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
-const PROMPT = `Eres un profesor universitario experto en crear flashcards de estudio.
+const PROMPT = `Eres un profesor universitario de INGENIERÍA experto en crear flashcards de estudio.
 
-A partir del siguiente contenido academico, genera flashcards de alta calidad para estudio con repeticion espaciada.
+A partir del siguiente contenido académico, genera flashcards de alta calidad para estudio con repetición espaciada.
 
 CONTENIDO:
 {content}
@@ -17,19 +17,22 @@ REGLAS:
 - Cada flashcard debe tener una pregunta clara y una respuesta concisa.
 - Tipos de flashcard:
   - "definition": Conceptos y definiciones
-  - "application": Aplicacion practica o ejercicios
+  - "application": Aplicación práctica o ejercicios
   - "comparison": Comparaciones entre conceptos
-  - "calculation": Formulas o calculos
+  - "calculation": Fórmulas o cálculos
+- ECUACIONES: Usa LaTeX en preguntas y respuestas. Inline: $...$ | Bloque: $$...$$
+  Ejemplo pregunta: "¿Cuál es la fórmula de la transformada de Laplace?"
+  Ejemplo respuesta: "$\\mathcal{L}\\{f(t)\\} = \\int_0^{\\infty} e^{-st} f(t) \\, dt$"
 - Las preguntas deben cubrir los conceptos clave del contenido.
-- Las respuestas deben ser precisas y estudiantiles (faciles de memorizar).
-- No repitas el mismo concepto en multiples flashcards.
+- Las respuestas deben ser precisas y estudiantiles (fáciles de memorizar).
+- No repitas el mismo concepto en múltiples flashcards.
 
-RESPONDE SOLO CON JSON VALIDO (sin markdown, sin backticks):
+RESPONDE SOLO CON JSON VÁLIDO (sin markdown, sin backticks):
 {
   "flashcards": [
     {
-      "question": "string",
-      "answer": "string",
+      "question": "string con $LaTeX$ si aplica",
+      "answer": "string con $LaTeX$ si aplica",
       "type": "definition|application|comparison|calculation"
     }
   ]

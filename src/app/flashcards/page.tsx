@@ -15,7 +15,8 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
-import { useSubjects, useFlashcards, useBoardEntries } from "@/lib/hooks";
+import { MarkdownMath } from "@/components/ui/markdown-math";
+import { useSubjects, useFlashcards } from "@/lib/hooks";
 import { REVIEW_RATINGS, FLASHCARD_TYPES } from "@/types";
 import type { Flashcard } from "@/types";
 import { toast } from "sonner";
@@ -255,9 +256,9 @@ export default function FlashcardsPage() {
                   <span className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-3">
                     {flipped ? "Respuesta" : "Pregunta"}
                   </span>
-                  <p className={`text-base leading-relaxed ${flipped ? "text-emerald-400" : "text-foreground"}`}>
-                    {flipped ? currentCard.answer : currentCard.question}
-                  </p>
+                  <div className={`text-base leading-relaxed ${flipped ? "text-emerald-400" : "text-foreground"}`}>
+                    <MarkdownMath content={flipped ? currentCard.answer : currentCard.question} />
+                  </div>
                   {!flipped && (
                     <p className="text-[10px] text-muted-foreground/50 mt-4">
                       Toca para ver respuesta

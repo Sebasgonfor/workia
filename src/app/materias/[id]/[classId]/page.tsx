@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -15,13 +15,21 @@ import {
   PenLine,
   Layers,
   Loader2,
+  ImagePlus,
+  X,
+  Sparkles,
+  AlertTriangle,
+  Check,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
-import { useSubjects, useClasses, useBoardEntries, useFlashcards } from "@/lib/hooks";
-import { BOARD_ENTRY_TYPES } from "@/types";
-import type { BoardEntry, Flashcard } from "@/types";
+import { MarkdownMath } from "@/components/ui/markdown-math";
+import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks } from "@/lib/hooks";
+import { uploadScanImage } from "@/lib/storage";
+import { useAuth } from "@/lib/auth-context";
+import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
+import type { BoardEntry, Task, Flashcard } from "@/types";
 import { toast } from "sonner";
 
 const ENTRY_ICONS = {
@@ -29,6 +37,42 @@ const ENTRY_ICONS = {
   task: CheckSquare,
   resource: Paperclip,
 } as const;
+
+type ScanType = "auto" | "notes" | "task";
+
+interface DetectedTask {
+  title: string;
+  description: string;
+  dueDate: string;
+  dateConfidence: string;
+  priority: string;
+  taskType: string;
+  selected: boolean;
+}
+
+interface ScanTaskResult {
+  type: "task";
+  tasks: DetectedTask[];
+  rawText: string;
+}
+
+interface ScanNotesResult {
+  type: "notes";
+  topic: string;
+  content: string;
+  tags: string[];
+}
+
+type ScanResult = ScanTaskResult | ScanNotesResult;
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -45,6 +89,7 @@ function timeAgo(date: Date): string {
 export default function BoardPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const subjectId = params.id as string;
   const classId = params.classId as string;
 
@@ -53,10 +98,12 @@ export default function BoardPage() {
   const { entries, loading, addEntry, updateEntry, deleteEntry } =
     useBoardEntries(subjectId, classId);
   const { addFlashcards } = useFlashcards(subjectId);
+  const { addTask } = useTasks();
 
   const subject = useMemo(() => subjects.find((s) => s.id === subjectId), [subjects, subjectId]);
   const classSession = useMemo(() => classes.find((c) => c.id === classId), [classes, classId]);
 
+  // Entry CRUD state
   const [showSheet, setShowSheet] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
@@ -68,6 +115,33 @@ export default function BoardPage() {
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
 
+  // Filter state
+  const [filter, setFilter] = useState<"all" | BoardEntry["type"]>("all");
+  const filteredEntries = filter === "all" ? entries : entries.filter((e) => e.type === filter);
+
+  // Scan state
+  const [showScan, setShowScan] = useState(false);
+  const [scanType, setScanType] = useState<ScanType>("auto");
+  const [scanImages, setScanImages] = useState<{ url: string; file: File }[]>([]);
+  const [processing, setProcessing] = useState(false);
+  const [processStep, setProcessStep] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Scan result state
+  const [showScanResult, setShowScanResult] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [savingScan, setSavingScan] = useState(false);
+
+  // Editable task fields (for multi-task editing)
+  const [editTasks, setEditTasks] = useState<DetectedTask[]>([]);
+  const [editingTaskIdx, setEditingTaskIdx] = useState(0);
+
+  // Editable notes fields
+  const [editNotesContent, setEditNotesContent] = useState("");
+  const [editNotesTags, setEditNotesTags] = useState("");
+
+  // Entry form
   const resetForm = () => { setEntryType("notes"); setContent(""); setTagsInput(""); setEditingId(null); };
   const openCreate = () => { resetForm(); setShowSheet(true); };
 
@@ -108,27 +182,16 @@ export default function BoardPage() {
   const handleGenerateFlashcards = async (entry: BoardEntry) => {
     setMenuOpen(null);
     setGeneratingId(entry.id);
-
     try {
       const response = await fetch("/api/flashcards/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: entry.content,
-          subjectName: subject?.name || "General",
-        }),
+        body: JSON.stringify({ content: entry.content, subjectName: subject?.name || "General" }),
       });
-
       const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Error al generar");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.error || "Error al generar");
       const generated = data.data.flashcards as { question: string; answer: string; type: string }[];
-      if (!generated || generated.length === 0) {
-        throw new Error("No se generaron flashcards");
-      }
-
+      if (!generated || generated.length === 0) throw new Error("No se generaron flashcards");
       await addFlashcards(
         generated.map((fc) => ({
           subjectId,
@@ -139,17 +202,162 @@ export default function BoardPage() {
           type: (fc.type as Flashcard["type"]) || "definition",
         }))
       );
-
       toast.success(`${generated.length} flashcards generadas`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error desconocido";
-      toast.error(msg);
+      toast.error(err instanceof Error ? err.message : "Error desconocido");
     } finally {
       setGeneratingId(null);
     }
   };
 
+  // ── Scan functions ──
+
+  const handleScanFiles = (files: FileList | null) => {
+    if (!files) return;
+    const newImages = Array.from(files).map((file) => ({
+      url: URL.createObjectURL(file),
+      file,
+    }));
+    setScanImages((prev) => [...prev, ...newImages]);
+  };
+
+  const removeScanImage = (index: number) => {
+    setScanImages((prev) => {
+      URL.revokeObjectURL(prev[index].url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleProcess = async () => {
+    if (scanImages.length === 0) { toast.error("Agrega al menos una imagen"); return; }
+    setProcessing(true);
+    setProcessStep("Preparando imagenes...");
+
+    try {
+      const base64Images = await Promise.all(scanImages.map((img) => fileToBase64(img.file)));
+      setProcessStep("Analizando con IA...");
+
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: base64Images,
+          type: scanType,
+          subjectName: subject?.name,
+          existingSubjects: subjects.map((s) => s.name),
+          currentDate: new Date().toISOString().split("T")[0],
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Error al procesar");
+
+      const result = data.data as ScanResult;
+      setScanResult(result);
+
+      if (result.type === "task" && result.tasks?.length > 0) {
+        setEditTasks(result.tasks.map((t) => ({ ...t, selected: true })));
+        setEditingTaskIdx(0);
+      } else if (result.type === "notes") {
+        setEditNotesContent(result.content || "");
+        setEditNotesTags((result.tags || []).join(", "));
+      }
+
+      setShowScan(false);
+      setShowScanResult(true);
+      toast.success(result.type === "task" ? `${result.tasks?.length || 0} tarea(s) detectada(s)` : "Apuntes procesados");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setProcessing(false);
+      setProcessStep("");
+    }
+  };
+
+  const handleSaveScanTasks = async () => {
+    const selected = editTasks.filter((t) => t.selected);
+    if (selected.length === 0) { toast.error("Selecciona al menos una tarea"); return; }
+
+    setSavingScan(true);
+    try {
+      let sourceImageUrl: string | null = null;
+      if (user && scanImages.length > 0) {
+        try {
+          const uploadPromise = uploadScanImage(user.uid, scanImages[0].file, 0);
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout")), 15000)
+          );
+          sourceImageUrl = await Promise.race([uploadPromise, timeoutPromise]);
+        } catch {
+          toast.error("Imagen no subida, guardando tareas sin imagen");
+        }
+      }
+
+      for (const task of selected) {
+        const dueDateObj = task.dueDate
+          ? new Date(task.dueDate + "T23:59:59")
+          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        await addTask({
+          title: task.title.trim(),
+          subjectId,
+          subjectName: subject?.name || "",
+          description: task.description.trim(),
+          dueDate: dueDateObj,
+          status: "pending",
+          priority: (task.priority as Task["priority"]) || "medium",
+          type: (task.taskType as Task["type"]) || "otro",
+          sourceImageUrl,
+          classSessionId: classId,
+        });
+      }
+
+      toast.success(`${selected.length} tarea(s) guardada(s)`);
+      clearScan();
+    } catch (err) {
+      console.error("Error guardando tareas:", err);
+      const msg = err instanceof Error && err.message.includes("permissions")
+        ? "Sin permisos. Revisa las reglas de Firebase."
+        : "Error al guardar tareas";
+      toast.error(msg);
+    } finally {
+      setSavingScan(false);
+    }
+  };
+
+  const handleSaveScanNotes = async () => {
+    if (!editNotesContent.trim()) { toast.error("El contenido es obligatorio"); return; }
+
+    setSavingScan(true);
+    try {
+      const tags = editNotesTags.split(",").map((t) => t.trim()).filter(Boolean);
+      await addEntry({ type: "notes", content: editNotesContent.trim(), tags });
+      toast.success("Apuntes guardados en el tablero");
+      clearScan();
+    } catch (err) {
+      console.error("Error guardando apuntes:", err);
+      toast.error("Error al guardar apuntes");
+    } finally {
+      setSavingScan(false);
+    }
+  };
+
+  const clearScan = () => {
+    setShowScanResult(false);
+    setScanResult(null);
+    setEditTasks([]);
+    setEditNotesContent("");
+    setEditNotesTags("");
+    scanImages.forEach((img) => URL.revokeObjectURL(img.url));
+    setScanImages([]);
+  };
+
+  const updateTaskField = (idx: number, field: string, value: string | boolean) => {
+    setEditTasks((prev) => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));
+  };
+
   const color = subject?.color || "#6366f1";
+  const currentTask = editTasks[editingTaskIdx];
 
   if (!classSession && !loading) {
     return (
@@ -182,11 +390,40 @@ export default function BoardPage() {
                 {entries.length} entrada{entries.length !== 1 ? "s" : ""}
               </p>
             </div>
-            <button onClick={openCreate} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target shrink-0">
-              <Plus className="w-5 h-5 text-primary-foreground" />
-            </button>
+            <div className="flex gap-2 shrink-0">
+              <button onClick={() => setShowScan(true)} className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center active:scale-95 transition-transform touch-target">
+                <Camera className="w-5 h-5 text-primary" />
+              </button>
+              <button onClick={openCreate} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target">
+                <Plus className="w-5 h-5 text-primary-foreground" />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Filters */}
+        {entries.length > 0 && (
+          <div className="px-4 pt-2 pb-1 flex gap-1.5 overflow-x-auto no-scrollbar">
+            {[
+              { key: "all" as const, label: "Todo" },
+              { key: "notes" as const, label: "Apuntes" },
+              { key: "task" as const, label: "Tareas" },
+              { key: "resource" as const, label: "Recursos" },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                  filter === f.key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="px-4">
           {loading ? (
@@ -204,7 +441,7 @@ export default function BoardPage() {
               <p className="text-xs text-muted-foreground/60 mb-5">Agrega apuntes, tareas o recursos</p>
               <div className="flex gap-2.5 justify-center">
                 <button
-                  onClick={() => router.push("/escanear")}
+                  onClick={() => setShowScan(true)}
                   className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-sm font-medium active:scale-[0.98] transition-transform touch-target"
                 >
                   <Camera className="w-4 h-4" /> Escanear
@@ -219,7 +456,7 @@ export default function BoardPage() {
             </div>
           ) : (
             <div className="space-y-2.5 mt-3">
-              {entries.map((entry) => {
+              {filteredEntries.map((entry) => {
                 const Icon = ENTRY_ICONS[entry.type];
                 const typeLabel = BOARD_ENTRY_TYPES.find((t) => t.value === entry.type)?.label || entry.type;
                 const isGenerating = generatingId === entry.id;
@@ -235,7 +472,9 @@ export default function BoardPage() {
                             <span className="text-[11px] font-semibold" style={{ color }}>{typeLabel}</span>
                             <span className="text-[11px] text-muted-foreground">{timeAgo(entry.createdAt)}</span>
                           </div>
-                          <p className="text-sm leading-relaxed line-clamp-3 whitespace-pre-wrap">{entry.content}</p>
+                          <div className="text-sm leading-relaxed line-clamp-4">
+                            <MarkdownMath content={entry.content} />
+                          </div>
                           {entry.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
                               {entry.tags.map((tag) => (
@@ -243,7 +482,6 @@ export default function BoardPage() {
                               ))}
                             </div>
                           )}
-                          {/* Generate flashcards button for notes entries */}
                           {entry.type === "notes" && entry.content.length > 30 && (
                             <button
                               onClick={() => handleGenerateFlashcards(entry)}
@@ -251,15 +489,9 @@ export default function BoardPage() {
                               className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
                             >
                               {isGenerating ? (
-                                <>
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                  Generando...
-                                </>
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Generando...</>
                               ) : (
-                                <>
-                                  <Layers className="w-3 h-3" />
-                                  Generar flashcards
-                                </>
+                                <><Layers className="w-3 h-3" /> Generar flashcards</>
                               )}
                             </button>
                           )}
@@ -302,6 +534,7 @@ export default function BoardPage() {
         </div>
       </div>
 
+      {/* Create/Edit Entry Sheet */}
       <Sheet open={showSheet} onClose={() => { setShowSheet(false); resetForm(); }} title={editingId ? "Editar entrada" : "Nueva entrada"}>
         <div className="space-y-4">
           <div>
@@ -324,13 +557,15 @@ export default function BoardPage() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Contenido</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              Contenido <span className="text-muted-foreground/50">— soporta $LaTeX$</span>
+            </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Escribe aqui..."
+              placeholder="Escribe aqui... Usa $ecuacion$ para math inline"
               rows={4}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
             />
           </div>
           <div>
@@ -339,7 +574,7 @@ export default function BoardPage() {
               type="text"
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="grafos, algoritmos"
+              placeholder="calculo-vectorial, integrales"
               className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -352,6 +587,274 @@ export default function BoardPage() {
           </button>
         </div>
       </Sheet>
+
+      {/* Scan Sheet */}
+      <Sheet open={showScan} onClose={() => setShowScan(false)} title="Escanear contenido">
+        <div className="space-y-4">
+          {/* Images */}
+          {scanImages.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed border-border bg-card/50 p-6 text-center">
+              <Camera className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground mb-3">Captura o sube imagenes</p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-[0.98] transition-transform"
+                >
+                  <Camera className="w-3.5 h-3.5" /> Camara
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-secondary text-foreground text-sm font-medium active:scale-[0.98] transition-transform"
+                >
+                  <ImagePlus className="w-3.5 h-3.5" /> Galeria
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {scanImages.map((img, i) => (
+                <div key={i} className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-border">
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => removeScanImage(i)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                className="shrink-0 w-20 h-20 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground"
+              >
+                <Camera className="w-4 h-4" />
+                <span className="text-[9px]">Mas</span>
+              </button>
+            </div>
+          )}
+
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => handleScanFiles(e.target.files)} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={(e) => handleScanFiles(e.target.files)} className="hidden" />
+
+          {/* Scan type */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Que buscar</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { value: "auto" as const, label: "Auto", icon: Sparkles },
+                { value: "notes" as const, label: "Apuntes", icon: FileText },
+                { value: "task" as const, label: "Tareas", icon: CheckSquare },
+              ].map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setScanType(t.value)}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    scanType === t.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <t.icon className="w-3.5 h-3.5" /> {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Context badge */}
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary/50 border border-border text-xs">
+            <span className="text-base">{subject?.emoji}</span>
+            <span className="text-muted-foreground">
+              {subject?.name} &middot; {classSession?.title}
+            </span>
+          </div>
+
+          <button
+            onClick={handleProcess}
+            disabled={scanImages.length === 0 || processing}
+            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {processing ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> {processStep}</>
+            ) : (
+              <><Sparkles className="w-4 h-4" /> Procesar con IA</>
+            )}
+          </button>
+        </div>
+      </Sheet>
+
+      {/* Scan Result: Tasks */}
+      {scanResult?.type === "task" && (
+        <Sheet
+          open={showScanResult}
+          onClose={() => { setShowScanResult(false); clearScan(); }}
+          title={`${editTasks.length} tarea(s) detectada(s)`}
+        >
+          <div className="space-y-3">
+            {/* Task list with checkboxes */}
+            <div className="space-y-2">
+              {editTasks.map((task, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => setEditingTaskIdx(idx)}
+                  className={`flex items-start gap-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
+                    editingTaskIdx === idx ? "border-primary bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <button
+                    onClick={(e) => { e.stopPropagation(); updateTaskField(idx, "selected", !task.selected); }}
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                      task.selected ? "bg-primary border-primary" : "border-border"
+                    }`}
+                  >
+                    {task.selected && <Check className="w-3 h-3 text-white" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{task.title || "Sin titulo"}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {task.dueDate || "Sin fecha"} &middot; {task.priority}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Edit selected task */}
+            {currentTask && (
+              <div className="space-y-3 pt-2 border-t border-border">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Editando tarea {editingTaskIdx + 1} de {editTasks.length}
+                </p>
+
+                {currentTask.dateConfidence === "low" && (
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    Fecha con baja confianza
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo</label>
+                  <input
+                    type="text"
+                    value={currentTask.title}
+                    onChange={(e) => updateTaskField(editingTaskIdx, "title", e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
+                    <input
+                      type="date"
+                      value={currentTask.dueDate}
+                      onChange={(e) => updateTaskField(editingTaskIdx, "dueDate", e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad</label>
+                    <select
+                      value={currentTask.priority}
+                      onChange={(e) => updateTaskField(editingTaskIdx, "priority", e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
+                    >
+                      {TASK_PRIORITIES.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {currentTask.description && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripcion</label>
+                    <textarea
+                      value={currentTask.description}
+                      onChange={(e) => updateTaskField(editingTaskIdx, "description", e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none text-sm"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {TASK_TYPES.map((t) => (
+                      <button
+                        key={t.value}
+                        onClick={() => updateTaskField(editingTaskIdx, "taskType", t.value)}
+                        className={`flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-medium transition-all ${
+                          currentTask.taskType === t.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                        }`}
+                      >
+                        <span>{t.emoji}</span> {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleSaveScanTasks}
+              disabled={savingScan || editTasks.filter((t) => t.selected).length === 0}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              {savingScan ? "Guardando..." : `Guardar ${editTasks.filter((t) => t.selected).length} tarea(s)`}
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {/* Scan Result: Notes */}
+      {scanResult?.type === "notes" && (
+        <Sheet
+          open={showScanResult}
+          onClose={() => { setShowScanResult(false); clearScan(); }}
+          title="Apuntes detectados"
+        >
+          <div className="space-y-3.5">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Preview</label>
+              <div className="p-3 rounded-xl bg-secondary/50 border border-border max-h-36 overflow-y-auto">
+                <MarkdownMath content={editNotesContent} className="text-xs" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Contenido <span className="text-muted-foreground/50">— editable, soporta $LaTeX$</span>
+              </label>
+              <textarea
+                value={editNotesContent}
+                onChange={(e) => setEditNotesContent(e.target.value)}
+                rows={5}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm leading-relaxed"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Tags</label>
+              <input
+                type="text"
+                value={editNotesTags}
+                onChange={(e) => setEditNotesTags(e.target.value)}
+                placeholder="separados por coma"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+
+            <button
+              onClick={handleSaveScanNotes}
+              disabled={savingScan}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              {savingScan ? "Guardando..." : "Guardar apuntes"}
+            </button>
+          </div>
+        </Sheet>
+      )}
 
       <Confirm open={!!deleteId} title="Eliminar entrada" message="Se eliminara esta entrada permanentemente." onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
     </AppShell>

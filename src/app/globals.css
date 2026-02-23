@@ -109,3 +109,36 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Markdown + KaTeX styles */
+.markdown-math h1, .markdown-math h2, .markdown-math h3 {
+  color: hsl(var(--foreground));
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+}
+.markdown-math h1 { font-size: 1.25rem; font-weight: 700; }
+.markdown-math h2 { font-size: 1.1rem; font-weight: 600; }
+.markdown-math h3 { font-size: 1rem; font-weight: 600; }
+.markdown-math p { margin-bottom: 0.5em; line-height: 1.6; }
+.markdown-math ul, .markdown-math ol { padding-left: 1.25em; margin-bottom: 0.5em; }
+.markdown-math li { margin-bottom: 0.2em; }
+.markdown-math strong { color: hsl(var(--primary)); font-weight: 600; }
+.markdown-math code {
+  background: hsl(var(--secondary));
+  padding: 0.15em 0.35em;
+  border-radius: 0.3em;
+  font-size: 0.85em;
+}
+.markdown-math blockquote {
+  border-left: 3px solid hsl(var(--primary));
+  padding-left: 0.75em;
+  margin: 0.5em 0;
+  color: hsl(var(--muted-foreground));
+}
+.markdown-math .katex-display {
+  margin: 0.75em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5em 0;
+}
+.markdown-math .katex { font-size: 1.05em; }
