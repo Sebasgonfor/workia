@@ -323,6 +323,7 @@ export function useTasks() {
         const data = snapshot.docs.map((d) => ({
           id: d.id,
           ...d.data(),
+          assignedDate: (d.data().assignedDate as Timestamp)?.toDate() || (d.data().createdAt as Timestamp)?.toDate() || new Date(),
           dueDate: (d.data().dueDate as Timestamp)?.toDate() || new Date(),
           createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
         })) as Task[];
@@ -346,6 +347,7 @@ export function useTasks() {
         subjectId: data.subjectId,
         subjectName: data.subjectName,
         description: data.description,
+        assignedDate: Timestamp.fromDate(data.assignedDate),
         dueDate: Timestamp.fromDate(data.dueDate),
         status: data.status,
         priority: data.priority,
@@ -366,6 +368,7 @@ export function useTasks() {
       if (data.subjectId !== undefined) updateData.subjectId = data.subjectId;
       if (data.subjectName !== undefined) updateData.subjectName = data.subjectName;
       if (data.description !== undefined) updateData.description = data.description;
+      if (data.assignedDate !== undefined) updateData.assignedDate = Timestamp.fromDate(data.assignedDate);
       if (data.dueDate !== undefined) updateData.dueDate = Timestamp.fromDate(data.dueDate);
       if (data.status !== undefined) updateData.status = data.status;
       if (data.priority !== undefined) updateData.priority = data.priority;

@@ -43,6 +43,7 @@ type ScanType = "auto" | "notes" | "task";
 interface DetectedTask {
   title: string;
   description: string;
+  assignedDate: string;
   dueDate: string;
   dateConfidence: string;
   priority: string;
@@ -50,20 +51,21 @@ interface DetectedTask {
   selected: boolean;
 }
 
-interface ScanTaskResult {
-  type: "task";
-  tasks: DetectedTask[];
-  rawText: string;
-}
-
-interface ScanNotesResult {
-  type: "notes";
+interface ScanNotesData {
   topic: string;
   content: string;
   tags: string[];
 }
 
-type ScanResult = ScanTaskResult | ScanNotesResult;
+interface ScanResult {
+  type: "task" | "notes" | "both";
+  tasks?: DetectedTask[];
+  notes?: ScanNotesData | null;
+  rawText?: string;
+  topic?: string;
+  content?: string;
+  tags?: string[];
+}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -255,17 +257,29 @@ export default function BoardPage() {
       const result = data.data as ScanResult;
       setScanResult(result);
 
-      if (result.type === "task" && result.tasks?.length > 0) {
-        setEditTasks(result.tasks.map((t) => ({ ...t, selected: true })));
+      const today = new Date().toISOString().split("T")[0];
+
+      // Handle tasks (from "task", "both", or "auto")
+      const tasks = result.tasks || [];
+      if (tasks.length > 0) {
+        setEditTasks(tasks.map((t) => ({ ...t, assignedDate: t.assignedDate || today, selected: true })));
         setEditingTaskIdx(0);
-      } else if (result.type === "notes") {
-        setEditNotesContent(result.content || "");
-        setEditNotesTags((result.tags || []).join(", "));
+      }
+
+      // Handle notes (from "notes", "both", or "auto")
+      const notesData = result.type === "both" ? result.notes : result.type === "notes" ? result : null;
+      if (notesData && notesData.content) {
+        setEditNotesContent(notesData.content);
+        setEditNotesTags((notesData.tags || []).join(", "));
       }
 
       setShowScan(false);
       setShowScanResult(true);
-      toast.success(result.type === "task" ? `${result.tasks?.length || 0} tarea(s) detectada(s)` : "Apuntes procesados");
+
+      const parts: string[] = [];
+      if (tasks.length > 0) parts.push(`${tasks.length} tarea(s)`);
+      if (notesData?.content) parts.push("apuntes");
+      toast.success(`Detectado: ${parts.join(" + ") || "contenido procesado"}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -297,12 +311,16 @@ export default function BoardPage() {
         const dueDateObj = task.dueDate
           ? new Date(task.dueDate + "T23:59:59")
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const assignedDateObj = task.assignedDate
+          ? new Date(task.assignedDate + "T00:00:00")
+          : new Date();
 
         await addTask({
           title: task.title.trim(),
           subjectId,
           subjectName: subject?.name || "",
           description: task.description.trim(),
+          assignedDate: assignedDateObj,
           dueDate: dueDateObj,
           status: "pending",
           priority: (task.priority as Task["priority"]) || "medium",
@@ -312,13 +330,21 @@ export default function BoardPage() {
         });
       }
 
-      toast.success(`${selected.length} tarea(s) guardada(s)`);
+      // If "both" mode, also save notes as board entry
+      if (scanResult?.type === "both" && editNotesContent.trim()) {
+        const tags = editNotesTags.split(",").map((t) => t.trim()).filter(Boolean);
+        await addEntry({ type: "notes", content: editNotesContent.trim(), tags });
+      }
+
+      const parts: string[] = [`${selected.length} tarea(s)`];
+      if (scanResult?.type === "both" && editNotesContent.trim()) parts.push("apuntes");
+      toast.success(`${parts.join(" + ")} guardado(s)`);
       clearScan();
     } catch (err) {
-      console.error("Error guardando tareas:", err);
+      console.error("Error guardando:", err);
       const msg = err instanceof Error && err.message.includes("permissions")
         ? "Sin permisos. Revisa las reglas de Firebase."
-        : "Error al guardar tareas";
+        : "Error al guardar";
       toast.error(msg);
     } finally {
       setSavingScan(false);
@@ -681,12 +707,12 @@ export default function BoardPage() {
         </div>
       </Sheet>
 
-      {/* Scan Result: Tasks */}
-      {scanResult?.type === "task" && (
+      {/* Scan Result: Tasks (from "task" or "both") */}
+      {(scanResult?.type === "task" || scanResult?.type === "both") && editTasks.length > 0 && (
         <Sheet
           open={showScanResult}
           onClose={() => { setShowScanResult(false); clearScan(); }}
-          title={`${editTasks.length} tarea(s) detectada(s)`}
+          title={scanResult.type === "both" ? `${editTasks.length} tarea(s) + apuntes` : `${editTasks.length} tarea(s) detectada(s)`}
         >
           <div className="space-y-3">
             {/* Task list with checkboxes */}
@@ -743,7 +769,16 @@ export default function BoardPage() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Asignada</label>
+                    <input
+                      type="date"
+                      value={currentTask.assignedDate}
+                      onChange={(e) => updateTaskField(editingTaskIdx, "assignedDate", e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Entrega</label>
                     <input
                       type="date"
                       value={currentTask.dueDate}
@@ -751,17 +786,23 @@ export default function BoardPage() {
                       className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad</label>
-                    <select
-                      value={currentTask.priority}
-                      onChange={(e) => updateTaskField(editingTaskIdx, "priority", e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-                    >
-                      {TASK_PRIORITIES.map((p) => (
-                        <option key={p.value} value={p.value}>{p.label}</option>
-                      ))}
-                    </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {TASK_PRIORITIES.map((p) => (
+                      <button
+                        key={p.value}
+                        onClick={() => updateTaskField(editingTaskIdx, "priority", p.value)}
+                        className={`py-2 rounded-xl text-xs font-medium transition-all ${
+                          currentTask.priority === p.value ? "text-white" : "bg-secondary text-muted-foreground"
+                        }`}
+                        style={currentTask.priority === p.value ? { backgroundColor: p.color } : undefined}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -796,19 +837,31 @@ export default function BoardPage() {
               </div>
             )}
 
+            {/* Notes preview when both detected */}
+            {scanResult?.type === "both" && editNotesContent.trim() && (
+              <div className="pt-2 border-t border-border space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Apuntes detectados (se guardaran tambien)</p>
+                <div className="p-2.5 rounded-xl bg-secondary/50 border border-border max-h-28 overflow-y-auto">
+                  <MarkdownMath content={editNotesContent} className="text-xs" />
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleSaveScanTasks}
               disabled={savingScan || editTasks.filter((t) => t.selected).length === 0}
               className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
             >
-              {savingScan ? "Guardando..." : `Guardar ${editTasks.filter((t) => t.selected).length} tarea(s)`}
+              {savingScan ? "Guardando..." : scanResult?.type === "both" && editNotesContent.trim()
+                ? `Guardar ${editTasks.filter((t) => t.selected).length} tarea(s) + apuntes`
+                : `Guardar ${editTasks.filter((t) => t.selected).length} tarea(s)`}
             </button>
           </div>
         </Sheet>
       )}
 
-      {/* Scan Result: Notes */}
-      {scanResult?.type === "notes" && (
+      {/* Scan Result: Notes only (no tasks detected) */}
+      {((scanResult?.type === "notes") || (scanResult?.type === "both" && editTasks.length === 0)) && editNotesContent.trim() && (
         <Sheet
           open={showScanResult}
           onClose={() => { setShowScanResult(false); clearScan(); }}

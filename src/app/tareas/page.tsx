@@ -7,10 +7,13 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
+  Calendar,
+  CalendarCheck,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
+import { MarkdownMath } from "@/components/ui/markdown-math";
 import { useSubjects, useTasks } from "@/lib/hooks";
 import { TASK_TYPES, TASK_PRIORITIES } from "@/types";
 import type { Task } from "@/types";
@@ -36,6 +39,10 @@ function formatRelativeDueDate(date: Date): string {
   return date.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
 }
 
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
+}
+
 type FilterType = "all" | "pending" | "completed";
 
 export default function TareasPage() {
@@ -49,10 +56,14 @@ export default function TareasPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Detail view
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
+
   const [title, setTitle] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [description, setDescription] = useState("");
   const [showDesc, setShowDesc] = useState(false);
+  const [assignedDate, setAssignedDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [taskType, setTaskType] = useState<Task["type"]>("otro");
@@ -71,9 +82,11 @@ export default function TareasPage() {
     { key: "completed", label: "Completadas" },
   ];
 
+  const toDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
   const resetForm = () => {
     setTitle(""); setSubjectId(""); setDescription(""); setShowDesc(false);
-    setDueDate(""); setPriority("medium"); setTaskType("otro"); setEditingId(null);
+    setAssignedDate(toDateStr(new Date())); setDueDate(""); setPriority("medium"); setTaskType("otro"); setEditingId(null);
   };
 
   const openCreate = () => { resetForm(); setShowSheet(true); };
@@ -83,34 +96,37 @@ export default function TareasPage() {
     setSubjectId(task.subjectId);
     setDescription(task.description || "");
     setShowDesc(!!task.description);
-    setDueDate(task.dueDate ? `${task.dueDate.getFullYear()}-${String(task.dueDate.getMonth() + 1).padStart(2, "0")}-${String(task.dueDate.getDate()).padStart(2, "0")}` : "");
+    setAssignedDate(toDateStr(task.assignedDate));
+    setDueDate(toDateStr(task.dueDate));
     setPriority(task.priority);
     setTaskType(task.type);
     setEditingId(task.id);
     setMenuOpen(null);
+    setDetailTask(null);
     setShowSheet(true);
   };
 
   const handleSave = async () => {
     if (!title.trim()) { toast.error("El titulo es obligatorio"); return; }
     if (!subjectId) { toast.error("Selecciona una materia"); return; }
-    if (!dueDate) { toast.error("La fecha es obligatoria"); return; }
+    if (!dueDate) { toast.error("La fecha de entrega es obligatoria"); return; }
 
     const selectedSubject = subjects.find((s) => s.id === subjectId);
     const dueDateObj = new Date(dueDate + "T23:59:59");
+    const assignedDateObj = assignedDate ? new Date(assignedDate + "T00:00:00") : new Date();
 
     setSaving(true);
     try {
       if (editingId) {
         await updateTask(editingId, {
           title: title.trim(), subjectId, subjectName: selectedSubject?.name || "",
-          description: description.trim(), dueDate: dueDateObj, priority, type: taskType,
+          description: description.trim(), assignedDate: assignedDateObj, dueDate: dueDateObj, priority, type: taskType,
         });
         toast.success("Tarea actualizada");
       } else {
         await addTask({
           title: title.trim(), subjectId, subjectName: selectedSubject?.name || "",
-          description: description.trim(), dueDate: dueDateObj, status: "pending",
+          description: description.trim(), assignedDate: assignedDateObj, dueDate: dueDateObj, status: "pending",
           priority, type: taskType, sourceImageUrl: null, classSessionId: null,
         });
         toast.success("Tarea creada");
@@ -130,6 +146,7 @@ export default function TareasPage() {
     if (!deleteId) return;
     const id = deleteId;
     setDeleteId(null);
+    setDetailTask(null);
     try { await deleteTask(id); toast.success("Tarea eliminada"); }
     catch { toast.error("Error al eliminar"); }
   };
@@ -197,14 +214,15 @@ export default function TareasPage() {
 
                 return (
                   <div key={task.id} className="relative">
-                    <div
-                      className="p-3.5 rounded-xl bg-card border border-border overflow-hidden"
+                    <button
+                      onClick={() => setDetailTask(task)}
+                      className="w-full text-left p-3.5 rounded-xl bg-card border border-border overflow-hidden active:scale-[0.99] transition-transform"
                       style={{ borderLeftWidth: "4px", borderLeftColor: priorityData?.color || "#666" }}
                     >
                       <div className="flex items-start gap-2.5">
-                        <button
-                          onClick={() => handleToggleComplete(task)}
-                          className={`w-5 h-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors touch-target ${
+                        <div
+                          onClick={(e) => { e.stopPropagation(); handleToggleComplete(task); }}
+                          className={`w-5 h-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors touch-target cursor-pointer ${
                             isComplete ? "bg-primary border-primary" : "border-muted-foreground/40"
                           }`}
                         >
@@ -213,7 +231,7 @@ export default function TareasPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
-                        </button>
+                        </div>
                         <div className="flex-1 min-w-0 pr-7">
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm">{typeData?.emoji || "📌"}</span>
@@ -231,7 +249,7 @@ export default function TareasPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </button>
 
                     <button
                       onClick={() => setMenuOpen(menuOpen === task.id ? null : task.id)}
@@ -261,10 +279,108 @@ export default function TareasPage() {
         </div>
       </div>
 
-      {/* Create/Edit Sheet — compact layout for small screens */}
+      {/* Task Detail Sheet */}
+      <Sheet
+        open={!!detailTask}
+        onClose={() => setDetailTask(null)}
+        title="Detalle de tarea"
+      >
+        {detailTask && (() => {
+          const priorityData = TASK_PRIORITIES.find((p) => p.value === detailTask.priority);
+          const typeData = TASK_TYPES.find((t) => t.value === detailTask.type);
+          const isComplete = detailTask.status === "completed";
+          const overdue = !isComplete && isOverdue(detailTask.dueDate);
+
+          return (
+            <div className="space-y-4">
+              {/* Title + status */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{typeData?.emoji}</span>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
+                    style={{ backgroundColor: priorityData?.color }}
+                  >
+                    {priorityData?.label}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground">
+                    {typeData?.label}
+                  </span>
+                </div>
+                <h2 className={`text-lg font-bold ${isComplete ? "line-through text-muted-foreground" : ""}`}>
+                  {detailTask.title}
+                </h2>
+                {detailTask.subjectName && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{detailTask.subjectName}</p>
+                )}
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase">Asignada</span>
+                  </div>
+                  <p className="text-sm font-medium">{formatDate(detailTask.assignedDate)}</p>
+                </div>
+                <div className={`p-3 rounded-xl border ${overdue ? "bg-destructive/10 border-destructive/30" : "bg-secondary/50 border-border"}`}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <CalendarCheck className={`w-3.5 h-3.5 ${overdue ? "text-destructive" : "text-muted-foreground"}`} />
+                    <span className={`text-[10px] font-medium uppercase ${overdue ? "text-destructive" : "text-muted-foreground"}`}>Entrega</span>
+                  </div>
+                  <p className={`text-sm font-medium ${overdue ? "text-destructive" : ""}`}>
+                    {formatDate(detailTask.dueDate)}
+                    <span className={`text-[10px] ml-1.5 ${overdue ? "text-destructive" : "text-muted-foreground"}`}>
+                      ({formatRelativeDueDate(detailTask.dueDate)})
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              {detailTask.description && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Descripcion</label>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                    <MarkdownMath content={detailTask.description} className="text-sm" />
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { handleToggleComplete(detailTask); setDetailTask(null); }}
+                  className={`flex-1 py-3 rounded-xl font-semibold active:scale-[0.98] transition-transform ${
+                    isComplete
+                      ? "bg-secondary text-foreground"
+                      : "bg-primary text-primary-foreground"
+                  }`}
+                >
+                  {isComplete ? "Marcar pendiente" : "Completar"}
+                </button>
+                <button
+                  onClick={() => openEdit(detailTask)}
+                  className="px-4 py-3 rounded-xl bg-secondary text-foreground font-medium active:scale-[0.98] transition-transform"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => { setDetailTask(null); setDeleteId(detailTask.id); }}
+                  className="px-4 py-3 rounded-xl bg-destructive/10 text-destructive font-medium active:scale-[0.98] transition-transform"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Sheet>
+
+      {/* Create/Edit Sheet */}
       <Sheet open={showSheet} onClose={() => { setShowSheet(false); resetForm(); }} title={editingId ? "Editar tarea" : "Nueva tarea"}>
         <div className="space-y-3.5">
-          {/* Title */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo</label>
             <input
@@ -274,20 +390,28 @@ export default function TareasPage() {
             />
           </div>
 
-          {/* Subject + Date — 2 column layout */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
+            <select
+              value={subjectId} onChange={(e) => setSubjectId(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
+            >
+              <option value="">Seleccionar...</option>
+              {subjects.map((s) => <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>)}
+            </select>
+          </div>
+
+          {/* Two dates side by side */}
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
-              <select
-                value={subjectId} onChange={(e) => setSubjectId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-              >
-                <option value="">Seleccionar...</option>
-                {subjects.map((s) => <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>)}
-              </select>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Asignada</label>
+              <input
+                type="date" value={assignedDate} onChange={(e) => setAssignedDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+              />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Entrega</label>
               <input
                 type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
@@ -298,20 +422,21 @@ export default function TareasPage() {
           {/* Description — collapsible */}
           {!showDesc ? (
             <button onClick={() => setShowDesc(true)} className="text-xs text-primary font-medium">
-              + Agregar descripcion
+              + Agregar descripcion (soporta $LaTeX$)
             </button>
           ) : (
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripcion</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Descripcion <span className="text-muted-foreground/50">— soporta $LaTeX$</span>
+              </label>
               <textarea
                 value={description} onChange={(e) => setDescription(e.target.value)}
-                placeholder="Detalles..." rows={2}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none text-sm"
+                placeholder="Detalles... Usa $ecuacion$ para math" rows={2}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
               />
             </div>
           )}
 
-          {/* Priority — compact */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad</label>
             <div className="grid grid-cols-3 gap-1.5">
@@ -330,7 +455,6 @@ export default function TareasPage() {
             </div>
           </div>
 
-          {/* Type — compact 3×2 */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo</label>
             <div className="grid grid-cols-3 gap-1.5">

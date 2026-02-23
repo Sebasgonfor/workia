@@ -25,7 +25,8 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
   "tasks": [{
     "title": "string - título conciso de la tarea",
     "description": "string - descripción con LaTeX si hay ecuaciones",
-    "dueDate": "YYYY-MM-DD",
+    "assignedDate": "YYYY-MM-DD - fecha en que se dejó/asignó la tarea (si no es clara, usa la fecha actual)",
+    "dueDate": "YYYY-MM-DD - fecha de entrega",
     "dateConfidence": "high|medium|low",
     "priority": "high|medium|low",
     "taskType": "taller|quiz|parcial|proyecto|lectura|otro",
@@ -87,11 +88,7 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 }`;
 
 const AUTO_PROMPT = `Eres un asistente académico experto en contenido universitario de INGENIERÍA.
-Analiza esta imagen y determina qué tipo de contenido es.
-
-PRIMERO clasifica:
-- "task": si es una tarea, entrega, quiz, parcial, trabajo, o instrucciones de actividad a realizar
-- "notes": si son apuntes, explicaciones, demostraciones, diagramas, fórmulas, contenido de clase
+Analiza esta imagen y extrae TODO el contenido: tanto apuntes como tareas.
 
 CONTEXTO:
 - Fecha actual: {currentDate}
@@ -103,13 +100,21 @@ REGLAS PARA ECUACIONES:
 - Inline: $...$ | Bloque: $$...$$
 - Integrales, derivadas, matrices, vectores, transformadas, todo en LaTeX
 
-Si es TAREA, extrae TODAS las tareas (pueden ser múltiples) y responde:
-{"type":"task","tasks":[{"title":"","description":"con $LaTeX$ si hay ecuaciones","dueDate":"YYYY-MM-DD","dateConfidence":"high|medium|low","priority":"high|medium|low","taskType":"taller|quiz|parcial|proyecto|lectura|otro","detectedSubject":"","subjectConfidence":"high|medium|low"}],"rawText":"transcripción completa"}
+INSTRUCCIONES:
+1. Extrae TODAS las tareas visibles (entregas, talleres, quizzes, parciales, proyectos). Si ves fechas de entrega o instrucciones de trabajo, son tareas.
+2. Extrae TODOS los apuntes visibles (explicaciones, fórmulas, definiciones, demostraciones). Si ves contenido educativo, son apuntes.
+3. Es MUY COMÚN que una imagen tenga AMBOS: apuntes de clase + tareas asignadas. Extrae TODO.
+4. Si no hay tareas, deja el array vacío. Si no hay apuntes, deja notes como null.
+5. Para cada tarea: si no hay fecha explícita, usa una semana desde hoy con dateConfidence "low".
+6. Prioridad: < 2 días = high, < 5 días = medium, > 5 días = low.
 
-Si son APUNTES, transcribe todo fielmente con LaTeX y responde:
-{"type":"notes","topic":"","content":"markdown con $LaTeX$","tags":[],"detectedSubject":"","subjectConfidence":"high|medium|low"}
-
-RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks).`;
+RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
+{
+  "type": "both",
+  "tasks": [{"title":"","description":"con $LaTeX$","dueDate":"YYYY-MM-DD","assignedDate":"{currentDate}","dateConfidence":"high|medium|low","priority":"high|medium|low","taskType":"taller|quiz|parcial|proyecto|lectura|otro","detectedSubject":"","subjectConfidence":"high|medium|low"}],
+  "notes": {"topic":"","content":"markdown con $LaTeX$","tags":[],"detectedSubject":"","subjectConfidence":"high|medium|low"} | null,
+  "rawText": "transcripción completa"
+}`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -173,8 +178,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Normalize: ensure task results always have tasks array
-    if (parsed.type === "task" || (parsed.tasks && !parsed.type)) {
+    // Normalize response structure
+    if (parsed.type === "both") {
+      // Dual extraction: ensure tasks is array, notes can be null
+      if (!Array.isArray(parsed.tasks)) {
+        parsed.tasks = parsed.tasks ? [parsed.tasks] : [];
+      }
+    } else if (parsed.type === "task" || (parsed.tasks && !parsed.type)) {
       parsed.type = "task";
       if (!Array.isArray(parsed.tasks)) {
         parsed.tasks = [parsed.tasks || parsed];

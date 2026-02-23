@@ -36,6 +36,7 @@ export interface Task {
   subjectId: string;
   subjectName: string;
   description: string;
+  assignedDate: Date;
   dueDate: Date;
   status: "pending" | "in_progress" | "completed" | "overdue";
   priority: "high" | "medium" | "low";
