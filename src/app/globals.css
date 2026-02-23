@@ -37,9 +37,10 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
-  /* Prevent pull-to-refresh on PWA */
+  /* Prevent pull-to-refresh on PWA + no horizontal scroll */
   html, body {
     overscroll-behavior-y: none;
+    overflow-x: hidden;
   }
   /* Prevent zoom on input focus (iOS) — 16px minimum */
   input, textarea, select {
@@ -137,8 +138,16 @@
 }
 .markdown-math .katex-display {
   margin: 0.75em 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   padding: 0.5em 0;
 }
+.markdown-math .katex-display > .katex {
+  white-space: normal;
+  word-wrap: break-word;
+}
 .markdown-math .katex { font-size: 1.05em; }
+
+/* Inline mode for titles */
+.markdown-math-inline { display: inline; }
+.markdown-math-inline .katex { font-size: 1em; }

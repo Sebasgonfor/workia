@@ -4,11 +4,14 @@ import { useState, useMemo } from "react";
 import {
   Plus,
   CheckSquare,
-  MoreVertical,
   Pencil,
   Trash2,
   Calendar,
   CalendarCheck,
+  AlertTriangle,
+  Clock,
+  ChevronRight,
+  Flame,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
@@ -25,12 +28,16 @@ function isOverdue(date: Date): boolean {
   return date < today;
 }
 
-function formatRelativeDueDate(date: Date): string {
+function getDiffDays(date: Date): number {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((target.getTime() - now.getTime()) / 86400000);
+  return Math.round((target.getTime() - now.getTime()) / 86400000);
+}
+
+function formatRelativeDueDate(date: Date): string {
+  const diffDays = getDiffDays(date);
   if (diffDays < -1) return `Hace ${Math.abs(diffDays)}d`;
   if (diffDays === -1) return "Ayer";
   if (diffDays === 0) return "Hoy";
@@ -45,6 +52,14 @@ function formatDate(date: Date): string {
 
 type FilterType = "all" | "pending" | "completed";
 
+interface TaskGroup {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  tasks: Task[];
+}
+
 export default function TareasPage() {
   const { subjects } = useSubjects();
   const { tasks, loading, addTask, updateTask, deleteTask } = useTasks();
@@ -52,7 +67,6 @@ export default function TareasPage() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [showSheet, setShowSheet] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -68,7 +82,14 @@ export default function TareasPage() {
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [taskType, setTaskType] = useState<Task["type"]>("otro");
 
-  const pendingCount = useMemo(() => tasks.filter((t) => t.status !== "completed").length, [tasks]);
+  // Stats
+  const stats = useMemo(() => {
+    const pending = tasks.filter((t) => t.status !== "completed");
+    const completed = tasks.filter((t) => t.status === "completed");
+    const overdue = pending.filter((t) => isOverdue(t.dueDate));
+    const today = pending.filter((t) => getDiffDays(t.dueDate) === 0);
+    return { pending: pending.length, completed: completed.length, overdue: overdue.length, today: today.length, total: tasks.length };
+  }, [tasks]);
 
   const filteredTasks = useMemo(() => {
     if (filter === "pending") return tasks.filter((t) => t.status !== "completed");
@@ -76,13 +97,51 @@ export default function TareasPage() {
     return tasks;
   }, [tasks, filter]);
 
-  const filters: { key: FilterType; label: string }[] = [
-    { key: "all", label: "Todas" },
-    { key: "pending", label: "Pendientes" },
-    { key: "completed", label: "Completadas" },
+  // Group tasks by urgency
+  const taskGroups = useMemo((): TaskGroup[] => {
+    const pending = filteredTasks.filter((t) => t.status !== "completed");
+    const completed = filteredTasks.filter((t) => t.status === "completed");
+
+    const overdue = pending.filter((t) => isOverdue(t.dueDate));
+    const today = pending.filter((t) => getDiffDays(t.dueDate) === 0);
+    const thisWeek = pending.filter((t) => { const d = getDiffDays(t.dueDate); return d >= 1 && d <= 7; });
+    const later = pending.filter((t) => getDiffDays(t.dueDate) > 7);
+
+    const groups: TaskGroup[] = [];
+
+    if (overdue.length > 0) groups.push({
+      key: "overdue", label: "Vencidas", icon: <AlertTriangle className="w-3.5 h-3.5" />,
+      color: "#ef4444", tasks: overdue.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()),
+    });
+    if (today.length > 0) groups.push({
+      key: "today", label: "Hoy", icon: <Flame className="w-3.5 h-3.5" />,
+      color: "#f59e0b", tasks: today,
+    });
+    if (thisWeek.length > 0) groups.push({
+      key: "week", label: "Esta semana", icon: <Clock className="w-3.5 h-3.5" />,
+      color: "#3b82f6", tasks: thisWeek.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()),
+    });
+    if (later.length > 0) groups.push({
+      key: "later", label: "Proximas", icon: <Calendar className="w-3.5 h-3.5" />,
+      color: "#10b981", tasks: later.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()),
+    });
+    if (completed.length > 0 && filter !== "pending") groups.push({
+      key: "completed", label: "Completadas", icon: <CheckSquare className="w-3.5 h-3.5" />,
+      color: "#6b7280", tasks: completed,
+    });
+
+    return groups;
+  }, [filteredTasks, filter]);
+
+  const filters: { key: FilterType; label: string; count: number }[] = [
+    { key: "all", label: "Todas", count: stats.total },
+    { key: "pending", label: "Pendientes", count: stats.pending },
+    { key: "completed", label: "Completadas", count: stats.completed },
   ];
 
   const toDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const getSubjectData = (sId: string) => subjects.find((s) => s.id === sId);
 
   const resetForm = () => {
     setTitle(""); setSubjectId(""); setDescription(""); setShowDesc(false);
@@ -101,7 +160,6 @@ export default function TareasPage() {
     setPriority(task.priority);
     setTaskType(task.type);
     setEditingId(task.id);
-    setMenuOpen(null);
     setDetailTask(null);
     setShowSheet(true);
   };
@@ -151,129 +209,208 @@ export default function TareasPage() {
     catch { toast.error("Error al eliminar"); }
   };
 
+  // Progress percentage
+  const progressPct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+
   return (
     <AppShell>
       <div className="page-enter">
         {/* Header */}
-        <div className="px-4 pt-safe pb-3">
-          <div className="flex items-center justify-between">
+        <div className="px-4 pt-safe pb-2">
+          <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-2xl font-bold">Tareas</h1>
               <p className="text-sm text-muted-foreground">
-                {pendingCount} pendiente{pendingCount !== 1 ? "s" : ""}
+                {stats.pending} pendiente{stats.pending !== 1 ? "s" : ""}
               </p>
             </div>
             <button onClick={openCreate} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target">
               <Plus className="w-5 h-5 text-primary-foreground" />
             </button>
           </div>
-        </div>
 
-        {/* Filter chips */}
-        <div className="px-4 pb-3">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {/* Progress bar */}
+          {stats.total > 0 && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-muted-foreground">Progreso</span>
+                <span className="text-[11px] font-semibold text-primary">{progressPct}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Quick stats */}
+          {stats.pending > 0 && (
+            <div className="flex gap-2 mb-3">
+              {stats.overdue > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <AlertTriangle className="w-3 h-3 text-destructive" />
+                  <span className="text-[11px] font-semibold text-destructive">{stats.overdue} vencida{stats.overdue !== 1 ? "s" : ""}</span>
+                </div>
+              )}
+              {stats.today > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <Flame className="w-3 h-3 text-amber-500" />
+                  <span className="text-[11px] font-semibold text-amber-500">{stats.today} para hoy</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Filter chips */}
+          <div className="flex flex-wrap gap-2">
             {filters.map((f) => (
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
-                className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
                   filter === f.key ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
                 }`}
               >
                 {f.label}
+                <span className={`ml-1.5 text-[11px] ${filter === f.key ? "text-primary-foreground/70" : "text-muted-foreground/60"}`}>
+                  {f.count}
+                </span>
               </button>
             ))}
           </div>
         </div>
 
         {/* Tasks list */}
-        <div className="px-4">
+        <div className="px-4 pt-2 pb-4">
           {loading ? (
             <div className="space-y-2">
-              {[1, 2, 3].map((i) => <div key={i} className="h-[68px] rounded-xl bg-card animate-pulse" />)}
+              {[1, 2, 3].map((i) => <div key={i} className="h-[72px] rounded-2xl bg-card animate-pulse" />)}
             </div>
-          ) : filteredTasks.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-14 h-14 rounded-2xl bg-card flex items-center justify-center mx-auto mb-3">
-                <CheckSquare className="w-7 h-7 text-muted-foreground" />
+          ) : taskGroups.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center mx-auto mb-4">
+                <CheckSquare className="w-8 h-8 text-muted-foreground" />
               </div>
               <p className="text-muted-foreground text-sm mb-1">
-                {filter === "completed" ? "Sin completadas" : filter === "pending" ? "Sin pendientes" : "Sin tareas aun"}
+                {filter === "completed" ? "Sin completadas" : filter === "pending" ? "Todo al dia!" : "Sin tareas aun"}
               </p>
-              <p className="text-xs text-muted-foreground/60">
-                {filter === "all" ? "Crea tu primera tarea" : "Apareceran aqui"}
+              <p className="text-xs text-muted-foreground/60 mb-5">
+                {filter === "all" ? "Crea tu primera tarea o escanea un tablero" : "Apareceran aqui"}
               </p>
+              {filter === "all" && (
+                <button
+                  onClick={openCreate}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-[0.98] transition-transform"
+                >
+                  <Plus className="w-4 h-4" /> Nueva tarea
+                </button>
+              )}
             </div>
           ) : (
-            <div className="space-y-2">
-              {filteredTasks.map((task) => {
-                const isComplete = task.status === "completed";
-                const overdue = !isComplete && isOverdue(task.dueDate);
-                const priorityData = TASK_PRIORITIES.find((p) => p.value === task.priority);
-                const typeData = TASK_TYPES.find((t) => t.value === task.type);
-
-                return (
-                  <div key={task.id} className="relative">
-                    <button
-                      onClick={() => setDetailTask(task)}
-                      className="w-full text-left p-3.5 rounded-xl bg-card border border-border overflow-hidden active:scale-[0.99] transition-transform"
-                      style={{ borderLeftWidth: "4px", borderLeftColor: priorityData?.color || "#666" }}
+            <div className="space-y-5">
+              {taskGroups.map((group) => (
+                <div key={group.key}>
+                  {/* Group header */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className="w-6 h-6 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: group.color + "20", color: group.color }}
                     >
-                      <div className="flex items-start gap-2.5">
-                        <div
-                          onClick={(e) => { e.stopPropagation(); handleToggleComplete(task); }}
-                          className={`w-5 h-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors touch-target cursor-pointer ${
-                            isComplete ? "bg-primary border-primary" : "border-muted-foreground/40"
+                      {group.icon}
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: group.color }}>
+                      {group.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/60">({group.tasks.length})</span>
+                  </div>
+
+                  {/* Tasks */}
+                  <div className="space-y-2">
+                    {group.tasks.map((task) => {
+                      const isComplete = task.status === "completed";
+                      const overdue = !isComplete && isOverdue(task.dueDate);
+                      const priorityData = TASK_PRIORITIES.find((p) => p.value === task.priority);
+                      const typeData = TASK_TYPES.find((t) => t.value === task.type);
+                      const subjectData = getSubjectData(task.subjectId);
+                      const subjectColor = subjectData?.color || "#6366f1";
+
+                      return (
+                        <button
+                          key={task.id}
+                          onClick={() => setDetailTask(task)}
+                          className={`w-full text-left p-3.5 rounded-2xl border transition-all active:scale-[0.98] ${
+                            isComplete
+                              ? "bg-card/50 border-border/50 opacity-60"
+                              : "bg-card border-border"
                           }`}
                         >
-                          {isComplete && (
-                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 pr-7">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm">{typeData?.emoji || "📌"}</span>
-                            <p className={`font-medium text-[15px] truncate ${isComplete ? "line-through text-muted-foreground" : ""}`}>
-                              {task.title}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            {task.subjectName && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-secondary text-muted-foreground">{task.subjectName}</span>
-                            )}
-                            <span className={`text-[11px] ${overdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                              {formatRelativeDueDate(task.dueDate)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
+                          <div className="flex items-start gap-3">
+                            {/* Checkbox */}
+                            <div
+                              onClick={(e) => { e.stopPropagation(); handleToggleComplete(task); }}
+                              className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all cursor-pointer touch-target ${
+                                isComplete
+                                  ? "border-primary bg-primary"
+                                  : "border-muted-foreground/30 hover:border-primary/50"
+                              }`}
+                            >
+                              {isComplete && (
+                                <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
 
-                    <button
-                      onClick={() => setMenuOpen(menuOpen === task.id ? null : task.id)}
-                      className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
-                    >
-                      <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              {/* Title row */}
+                              <div className="flex items-center gap-1.5">
+                                <span className={`font-semibold text-[15px] leading-tight ${isComplete ? "line-through text-muted-foreground" : ""}`}>
+                                  <MarkdownMath content={task.title} inline />
+                                </span>
+                              </div>
 
-                    {menuOpen === task.id && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
-                        <div className="absolute top-10 right-2.5 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
-                          <button onClick={() => openEdit(task)} className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50">
-                            <Pencil className="w-4 h-4" /> Editar
-                          </button>
-                          <button onClick={() => { setMenuOpen(null); setDeleteId(task.id); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50">
-                            <Trash2 className="w-4 h-4" /> Eliminar
-                          </button>
-                        </div>
-                      </>
-                    )}
+                              {/* Meta row */}
+                              <div className="flex items-center gap-2 mt-1.5">
+                                {/* Subject pill */}
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium"
+                                  style={{ backgroundColor: subjectColor + "18", color: subjectColor }}
+                                >
+                                  {subjectData?.emoji && <span className="text-[9px]">{subjectData.emoji}</span>}
+                                  {task.subjectName}
+                                </span>
+
+                                {/* Type */}
+                                <span className="text-[10px] text-muted-foreground">
+                                  {typeData?.emoji} {typeData?.label}
+                                </span>
+                              </div>
+
+                              {/* Due date row */}
+                              {!isComplete && (
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                  <Clock className={`w-3 h-3 ${overdue ? "text-destructive" : "text-muted-foreground/60"}`} />
+                                  <span className={`text-[11px] font-medium ${overdue ? "text-destructive" : "text-muted-foreground/70"}`}>
+                                    {formatRelativeDueDate(task.dueDate)}
+                                  </span>
+                                  {/* Priority dot */}
+                                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: priorityData?.color }} />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Arrow */}
+                            <ChevronRight className="w-4 h-4 text-muted-foreground/30 shrink-0 mt-1" />
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -290,28 +427,40 @@ export default function TareasPage() {
           const typeData = TASK_TYPES.find((t) => t.value === detailTask.type);
           const isComplete = detailTask.status === "completed";
           const overdue = !isComplete && isOverdue(detailTask.dueDate);
+          const subjectData = getSubjectData(detailTask.subjectId);
+          const subjectColor = subjectData?.color || "#6366f1";
 
           return (
             <div className="space-y-4">
-              {/* Title + status */}
+              {/* Badges row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xl">{typeData?.emoji}</span>
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white"
+                  style={{ backgroundColor: priorityData?.color }}
+                >
+                  {priorityData?.label}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground">
+                  {typeData?.label}
+                </span>
+                {isComplete && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/20 text-primary">
+                    Completada
+                  </span>
+                )}
+              </div>
+
+              {/* Title */}
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">{typeData?.emoji}</span>
-                  <span
-                    className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
-                    style={{ backgroundColor: priorityData?.color }}
-                  >
-                    {priorityData?.label}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground">
-                    {typeData?.label}
-                  </span>
-                </div>
-                <h2 className={`text-lg font-bold ${isComplete ? "line-through text-muted-foreground" : ""}`}>
-                  {detailTask.title}
+                <h2 className={`text-xl font-bold leading-tight ${isComplete ? "line-through text-muted-foreground" : ""}`}>
+                  <MarkdownMath content={detailTask.title} inline />
                 </h2>
                 {detailTask.subjectName && (
-                  <p className="text-xs text-muted-foreground mt-0.5">{detailTask.subjectName}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: subjectColor }} />
+                    <span className="text-sm text-muted-foreground">{subjectData?.emoji} {detailTask.subjectName}</span>
+                  </div>
                 )}
               </div>
 
@@ -434,7 +583,7 @@ export default function TareasPage() {
               </label>
               <textarea
                 value={description} onChange={(e) => setDescription(e.target.value)}
-                placeholder="Detalles... Usa $ecuacion$ para math" rows={2}
+                placeholder="Detalles... Usa $ecuacion$ para math" rows={3}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
               />
             </div>

@@ -100,10 +100,11 @@ export default function BoardPage() {
   const { entries, loading, addEntry, updateEntry, deleteEntry } =
     useBoardEntries(subjectId, classId);
   const { addFlashcards } = useFlashcards(subjectId);
-  const { addTask } = useTasks();
+  const { tasks: allTasks, addTask, updateTask: updateTaskStatus, deleteTask } = useTasks();
 
   const subject = useMemo(() => subjects.find((s) => s.id === subjectId), [subjects, subjectId]);
   const classSession = useMemo(() => classes.find((c) => c.id === classId), [classes, classId]);
+  const classTasks = useMemo(() => allTasks.filter((t) => t.classSessionId === classId), [allTasks, classId]);
 
   // Entry CRUD state
   const [showSheet, setShowSheet] = useState(false);
@@ -113,9 +114,20 @@ export default function BoardPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
 
+  // Reader state
+  const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
+
   const [entryType, setEntryType] = useState<BoardEntry["type"]>("notes");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
+
+  // Manual task form fields (when entryType === "task")
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskAssignedDate, setTaskAssignedDate] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskPriority, setTaskPriority] = useState<Task["priority"]>("medium");
+  const [taskTypeValue, setTaskTypeValue] = useState<Task["type"]>("otro");
 
   // Filter state
   const [filter, setFilter] = useState<"all" | BoardEntry["type"]>("all");
@@ -144,7 +156,11 @@ export default function BoardPage() {
   const [editNotesTags, setEditNotesTags] = useState("");
 
   // Entry form
-  const resetForm = () => { setEntryType("notes"); setContent(""); setTagsInput(""); setEditingId(null); };
+  const toDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const resetForm = () => {
+    setEntryType("notes"); setContent(""); setTagsInput(""); setEditingId(null);
+    setTaskTitle(""); setTaskDescription(""); setTaskAssignedDate(toDateStr(new Date())); setTaskDueDate(""); setTaskPriority("medium"); setTaskTypeValue("otro");
+  };
   const openCreate = () => { resetForm(); setShowSheet(true); };
 
   const openEdit = (entry: BoardEntry) => {
@@ -157,6 +173,35 @@ export default function BoardPage() {
   };
 
   const handleSave = async () => {
+    // Task type → create a real Task
+    if (entryType === "task" && !editingId) {
+      if (!taskTitle.trim()) { toast.error("El titulo es obligatorio"); return; }
+      if (!taskDueDate) { toast.error("La fecha de entrega es obligatoria"); return; }
+      setSaving(true);
+      try {
+        const dueDateObj = new Date(taskDueDate + "T23:59:59");
+        const assignedDateObj = taskAssignedDate ? new Date(taskAssignedDate + "T00:00:00") : new Date();
+        await addTask({
+          title: taskTitle.trim(),
+          subjectId,
+          subjectName: subject?.name || "",
+          description: taskDescription.trim(),
+          assignedDate: assignedDateObj,
+          dueDate: dueDateObj,
+          status: "pending",
+          priority: taskPriority,
+          type: taskTypeValue,
+          sourceImageUrl: null,
+          classSessionId: classId,
+        });
+        toast.success("Tarea creada");
+        setShowSheet(false);
+        resetForm();
+      } catch { toast.error("Error al guardar tarea"); } finally { setSaving(false); }
+      return;
+    }
+
+    // Notes/Resource type → create BoardEntry
     if (!content.trim()) { toast.error("El contenido es obligatorio"); return; }
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
     setSaving(true);
@@ -439,7 +484,7 @@ export default function BoardPage() {
 
         {/* Filters */}
         {entries.length > 0 && (
-          <div className="px-4 pt-2 pb-1 flex gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5">
             {[
               { key: "all" as const, label: "Todo" },
               { key: "notes" as const, label: "Apuntes" },
@@ -498,7 +543,10 @@ export default function BoardPage() {
                 const isGenerating = generatingId === entry.id;
                 return (
                   <div key={entry.id} className="relative">
-                    <div className="p-3.5 rounded-xl bg-card border border-border">
+                    <div
+                      className={`p-3.5 rounded-xl bg-card border border-border ${entry.type === "notes" ? "cursor-pointer active:scale-[0.99] transition-transform" : ""}`}
+                      onClick={entry.type === "notes" ? () => setReaderEntry(entry) : undefined}
+                    >
                       <div className="flex items-start gap-2.5">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: color + "20" }}>
                           <Icon className="w-3.5 h-3.5" style={{ color }} />
@@ -520,7 +568,7 @@ export default function BoardPage() {
                           )}
                           {entry.type === "notes" && entry.content.length > 30 && (
                             <button
-                              onClick={() => handleGenerateFlashcards(entry)}
+                              onClick={(e) => { e.stopPropagation(); handleGenerateFlashcards(entry); }}
                               disabled={isGenerating}
                               className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
                             >
@@ -535,7 +583,7 @@ export default function BoardPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => setMenuOpen(menuOpen === entry.id ? null : entry.id)}
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === entry.id ? null : entry.id); }}
                       className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
                     >
                       <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
@@ -567,59 +615,216 @@ export default function BoardPage() {
               })}
             </div>
           )}
+
+          {/* Tasks linked to this class */}
+          {classTasks.length > 0 && (filter === "all" || filter === "task") && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Tareas de esta clase ({classTasks.length})
+              </p>
+              <div className="space-y-2">
+                {classTasks.map((task) => {
+                  const isComplete = task.status === "completed";
+                  const priorityData = TASK_PRIORITIES.find((p) => p.value === task.priority);
+                  const typeData = TASK_TYPES.find((t) => t.value === task.type);
+                  const overdue = !isComplete && task.dueDate < new Date();
+
+                  return (
+                    <div
+                      key={task.id}
+                      className="p-3 rounded-xl bg-card border border-border"
+                      style={{ borderLeftWidth: "3px", borderLeftColor: priorityData?.color || "#666" }}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div
+                          onClick={() => updateTaskStatus(task.id, { status: isComplete ? "pending" : "completed" })}
+                          className={`w-5 h-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors cursor-pointer touch-target ${
+                            isComplete ? "bg-primary border-primary" : "border-muted-foreground/40"
+                          }`}
+                        >
+                          {isComplete && (
+                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs">{typeData?.emoji || "📌"}</span>
+                            <span className={`text-sm font-medium ${isComplete ? "line-through text-muted-foreground" : ""}`}>
+                              <MarkdownMath content={task.title} inline />
+                            </span>
+                          </div>
+                          {task.description && (
+                            <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                              <MarkdownMath content={task.description} className="text-xs" />
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className={`text-[11px] ${overdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                              Entrega: {task.dueDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Create/Edit Entry Sheet */}
       <Sheet open={showSheet} onClose={() => { setShowSheet(false); resetForm(); }} title={editingId ? "Editar entrada" : "Nueva entrada"}>
         <div className="space-y-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tipo</label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {BOARD_ENTRY_TYPES.map((t) => {
-                const Icon = ENTRY_ICONS[t.value as BoardEntry["type"]];
-                return (
-                  <button
-                    key={t.value}
-                    onClick={() => setEntryType(t.value as BoardEntry["type"])}
-                    className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-all ${
-                      entryType === t.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" /> {t.label}
-                  </button>
-                );
-              })}
+          {/* Type selector (hide when editing existing entry) */}
+          {!editingId && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tipo</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {BOARD_ENTRY_TYPES.map((t) => {
+                  const Icon = ENTRY_ICONS[t.value as BoardEntry["type"]];
+                  return (
+                    <button
+                      key={t.value}
+                      onClick={() => setEntryType(t.value as BoardEntry["type"])}
+                      className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-all ${
+                        entryType === t.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" /> {t.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-              Contenido <span className="text-muted-foreground/50">— soporta $LaTeX$</span>
-            </label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Escribe aqui... Usa $ecuacion$ para math inline"
-              rows={4}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tags (separados por coma)</label>
-            <input
-              type="text"
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="calculo-vectorial, integrales"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+          )}
+
+          {/* Task form (when type is "task" and creating new) */}
+          {entryType === "task" && !editingId ? (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo</label>
+                <input
+                  type="text"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder="Ej: Entregar taller capitulo 3"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Asignada</label>
+                  <input
+                    type="date"
+                    value={taskAssignedDate}
+                    onChange={(e) => setTaskAssignedDate(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Entrega</label>
+                  <input
+                    type="date"
+                    value={taskDueDate}
+                    onChange={(e) => setTaskDueDate(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {TASK_PRIORITIES.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => setTaskPriority(p.value as Task["priority"])}
+                      className={`py-2 rounded-xl text-sm font-medium transition-all ${
+                        taskPriority === p.value ? "text-white" : "bg-secondary text-muted-foreground"
+                      }`}
+                      style={taskPriority === p.value ? { backgroundColor: p.color } : undefined}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de tarea</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {TASK_TYPES.map((t) => (
+                    <button
+                      key={t.value}
+                      onClick={() => setTaskTypeValue(t.value as Task["type"])}
+                      className={`flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-medium transition-all ${
+                        taskTypeValue === t.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      <span>{t.emoji}</span> {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                  Descripcion <span className="text-muted-foreground/50">— soporta $LaTeX$</span>
+                </label>
+                <textarea
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  placeholder="Detalles... Usa $ecuacion$ para math"
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
+                />
+              </div>
+
+              {/* Context badge */}
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-secondary/50 border border-border text-xs text-muted-foreground">
+                <span className="text-sm">{subject?.emoji}</span>
+                <span>{subject?.name} &middot; {classSession?.title}</span>
+              </div>
+            </div>
+          ) : (
+            /* Notes/Resource form */
+            <>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Contenido <span className="text-muted-foreground/50">— soporta $LaTeX$</span>
+                </label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Escribe aqui... Usa $ecuacion$ para math inline"
+                  rows={4}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tags (separados por coma)</label>
+                <input
+                  type="text"
+                  value={tagsInput}
+                  onChange={(e) => setTagsInput(e.target.value)}
+                  placeholder="calculo-vectorial, integrales"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </>
+          )}
+
           <button
             onClick={handleSave}
             disabled={saving}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Crear entrada"}
+            {saving ? "Guardando..." : editingId ? "Guardar cambios" : entryType === "task" ? "Crear tarea" : "Crear entrada"}
           </button>
         </div>
       </Sheet>
@@ -648,7 +853,7 @@ export default function BoardPage() {
               </div>
             </div>
           ) : (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            <div className="flex flex-wrap gap-2">
               {scanImages.map((img, i) => (
                 <div key={i} className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-border">
                   <img src={img.url} alt="" className="w-full h-full object-cover" />
@@ -744,7 +949,7 @@ export default function BoardPage() {
                     {task.selected && <Check className="w-3 h-3 text-white" />}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{task.title || "Sin titulo"}</p>
+                    <span className="text-sm font-medium truncate block"><MarkdownMath content={task.title || "Sin titulo"} inline /></span>
                     <p className="text-[11px] text-muted-foreground">
                       {task.dueDate || "Sin fecha"} &middot; {task.priority}
                     </p>
@@ -920,6 +1125,84 @@ export default function BoardPage() {
       )}
 
       <Confirm open={!!deleteId} title="Eliminar entrada" message="Se eliminara esta entrada permanentemente." onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
+
+      {/* Notes Reader Fullscreen */}
+      {readerEntry && (
+        <div className="fixed inset-0 z-50 bg-background flex flex-col">
+          {/* Header */}
+          <div
+            className="shrink-0 px-4 pt-safe pb-3 border-b border-border"
+            style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)` }}
+          >
+            <button
+              onClick={() => setReaderEntry(null)}
+              className="flex items-center gap-1.5 text-muted-foreground mb-2 active:opacity-70 touch-target"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm">{subject?.name || "Volver"}</span>
+            </button>
+            <h1 className="text-lg font-bold leading-tight">
+              {readerEntry.content.match(/^##?\s+(.+)/m)?.[1] || "Apuntes"}
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-muted-foreground">
+                {readerEntry.createdAt.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
+              </span>
+              {classSession && (
+                <span className="text-xs text-muted-foreground">&middot; {classSession.title}</span>
+              )}
+            </div>
+            {readerEntry.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {readerEntry.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 rounded-full text-[11px] font-medium"
+                    style={{ backgroundColor: color + "20", color }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            <MarkdownMath content={readerEntry.content} />
+          </div>
+
+          {/* Floating actions */}
+          <div className="shrink-0 px-4 pb-safe pt-2 border-t border-border bg-background/80 backdrop-blur-lg">
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => { const entry = readerEntry; setReaderEntry(null); openEdit(entry); }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-foreground text-sm font-medium active:scale-[0.97] transition-transform"
+              >
+                <Pencil className="w-4 h-4" /> Editar
+              </button>
+              <button
+                onClick={() => { handleGenerateFlashcards(readerEntry); }}
+                disabled={generatingId === readerEntry.id}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
+                style={{ backgroundColor: color + "20", color }}
+              >
+                {generatingId === readerEntry.id ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                ) : (
+                  <><Layers className="w-4 h-4" /> Flashcards</>
+                )}
+              </button>
+              <button
+                onClick={() => { const id = readerEntry.id; setReaderEntry(null); setDeleteId(id); }}
+                className="px-3 py-2.5 rounded-xl bg-destructive/10 text-destructive active:scale-[0.97] transition-transform"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

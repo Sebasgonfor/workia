@@ -208,7 +208,7 @@ export default function MateriasPage() {
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Emoji</label>
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <div className="flex flex-wrap gap-1.5 py-0.5">
               {SUBJECT_EMOJIS.map((e) => (
                 <button
                   key={e}
@@ -227,7 +227,7 @@ export default function MateriasPage() {
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Color</label>
-            <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-0.5">
+            <div className="flex flex-wrap gap-2.5 py-0.5">
               {SUBJECT_COLORS.map((c) => (
                 <button
                   key={c}
