@@ -341,9 +341,12 @@ export default function TareasPage() {
               {/* Description */}
               {detailTask.description && (
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Descripcion</label>
-                  <div className="p-3 rounded-xl bg-secondary/50 border border-border">
-                    <MarkdownMath content={detailTask.description} className="text-sm" />
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1 h-4 rounded-full bg-primary" />
+                    <span className="text-sm font-semibold">Descripcion</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-secondary/40 border border-border">
+                    <MarkdownMath content={detailTask.description} />
                   </div>
                 </div>
               )}
