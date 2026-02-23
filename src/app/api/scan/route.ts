@@ -161,30 +161,53 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
 
     const result = await model.generateContent([prompt, ...imageParts]);
     const text = result.response.text();
 
     let parsed;
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("No JSON found");
-      parsed = JSON.parse(jsonMatch[0]);
+      // First try direct parse (responseMimeType should give clean JSON)
+      parsed = JSON.parse(text);
     } catch {
-      return NextResponse.json(
-        { error: "Error al interpretar respuesta de IA", raw: text },
-        { status: 500 }
-      );
+      try {
+        // Fallback: strip markdown code block wrapping
+        const cleaned = text
+          .replace(/^```(?:json)?\s*\n?/i, "")
+          .replace(/\n?```\s*$/i, "")
+          .trim();
+        parsed = JSON.parse(cleaned);
+      } catch {
+        try {
+          // Last resort: extract first complete JSON object
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) throw new Error("No JSON found");
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          return NextResponse.json(
+            { error: "Error al interpretar respuesta de IA", raw: text },
+            { status: 500 }
+          );
+        }
+      }
     }
 
-    // Normalize response structure
-    if (parsed.type === "both") {
+    // Normalize response structure based on scan type
+    if (type === "notes" || (parsed.content && parsed.topic && !parsed.tasks)) {
+      // Notes-only response
+      parsed.type = "notes";
+    } else if (parsed.type === "both") {
       // Dual extraction: ensure tasks is array, notes can be null
       if (!Array.isArray(parsed.tasks)) {
         parsed.tasks = parsed.tasks ? [parsed.tasks] : [];
       }
-    } else if (parsed.type === "task" || (parsed.tasks && !parsed.type)) {
+    } else if (type === "task" || parsed.tasks) {
       parsed.type = "task";
       if (!Array.isArray(parsed.tasks)) {
         parsed.tasks = [parsed.tasks || parsed];

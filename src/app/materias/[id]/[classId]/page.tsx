@@ -267,7 +267,17 @@ export default function BoardPage() {
       }
 
       // Handle notes (from "notes", "both", or "auto")
-      const notesData = result.type === "both" ? result.notes : result.type === "notes" ? result : null;
+      let notesData: ScanNotesData | null = null;
+      if (result.type === "both" && result.notes) {
+        notesData = result.notes;
+      } else if (result.type === "notes") {
+        // Notes-only: the result itself contains the notes fields
+        notesData = {
+          topic: result.topic || "",
+          content: result.content || "",
+          tags: result.tags || [],
+        };
+      }
       if (notesData && notesData.content) {
         setEditNotesContent(notesData.content);
         setEditNotesTags((notesData.tags || []).join(", "));
