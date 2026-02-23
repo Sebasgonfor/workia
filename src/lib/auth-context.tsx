@@ -31,21 +31,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Create/update user doc in Firestore
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            displayName: user.displayName,
-            email: user.email,
-            photoURL: user.photoURL,
-            subjects: [],
-            settings: {
-              timezone: "America/Bogota",
-              notifyAt: "20:00",
-            },
-            createdAt: serverTimestamp(),
-          });
+        try {
+          // Create/update user doc in Firestore
+          const userRef = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userRef);
+          if (!userSnap.exists()) {
+            await setDoc(userRef, {
+              displayName: user.displayName,
+              email: user.email,
+              photoURL: user.photoURL,
+              subjects: [],
+              settings: {
+                timezone: "America/Bogota",
+                notifyAt: "20:00",
+              },
+              createdAt: serverTimestamp(),
+            });
+          }
+        } catch (error) {
+          console.error("Error syncing user to Firestore:", error);
         }
       }
       setUser(user);
