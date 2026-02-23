@@ -212,7 +212,16 @@ export default function EscanearPage() {
     try {
       let sourceImageUrl: string | null = null;
       if (user && images.length > 0) {
-        sourceImageUrl = await uploadScanImage(user.uid, images[0].file, 0);
+        try {
+          const uploadPromise = uploadScanImage(user.uid, images[0].file, 0);
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout subiendo imagen")), 15000)
+          );
+          sourceImageUrl = await Promise.race([uploadPromise, timeoutPromise]);
+        } catch (uploadErr) {
+          console.error("Error subiendo imagen:", uploadErr);
+          toast.error("No se pudo subir la imagen. Guardando tarea sin imagen.");
+        }
       }
 
       await addTask({
@@ -230,8 +239,12 @@ export default function EscanearPage() {
 
       toast.success("Tarea creada desde escaneo");
       clearAfterSave();
-    } catch {
-      toast.error("Error al guardar tarea");
+    } catch (err) {
+      console.error("Error guardando tarea:", err);
+      const msg = err instanceof Error && err.message.includes("permissions")
+        ? "Sin permisos. Revisa las reglas de Firebase."
+        : "Error al guardar tarea";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
