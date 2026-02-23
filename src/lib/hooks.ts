@@ -39,16 +39,23 @@ export function useSubjects() {
       orderBy("createdAt", "asc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date(),
-        updatedAt: (doc.data().updatedAt as Timestamp)?.toDate() || new Date(),
-      })) as Subject[];
-      setSubjects(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date(),
+          updatedAt: (doc.data().updatedAt as Timestamp)?.toDate() || new Date(),
+        })) as Subject[];
+        setSubjects(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useSubjects snapshot error:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user]);
@@ -123,18 +130,25 @@ export function useClasses(subjectId: string | null) {
       orderBy("date", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        subjectId,
-        date: (doc.data().date as Timestamp)?.toDate() || new Date(),
-        createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date(),
-        updatedAt: (doc.data().updatedAt as Timestamp)?.toDate() || new Date(),
-      })) as ClassSession[];
-      setClasses(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          subjectId,
+          date: (doc.data().date as Timestamp)?.toDate() || new Date(),
+          createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date(),
+          updatedAt: (doc.data().updatedAt as Timestamp)?.toDate() || new Date(),
+        })) as ClassSession[];
+        setClasses(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useClasses snapshot error:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user, subjectId]);
@@ -208,18 +222,25 @@ export function useBoardEntries(subjectId: string | null, classId: string | null
       orderBy("order", "asc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-        classSessionId: classId,
-        subjectId,
-        createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
-        updatedAt: (d.data().updatedAt as Timestamp)?.toDate() || new Date(),
-      })) as BoardEntry[];
-      setEntries(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          classSessionId: classId,
+          subjectId,
+          createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+          updatedAt: (d.data().updatedAt as Timestamp)?.toDate() || new Date(),
+        })) as BoardEntry[];
+        setEntries(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useBoardEntries snapshot error:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user, subjectId, classId]);
@@ -296,16 +317,23 @@ export function useTasks() {
       orderBy("dueDate", "asc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-        dueDate: (d.data().dueDate as Timestamp)?.toDate() || new Date(),
-        createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
-      })) as Task[];
-      setTasks(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          dueDate: (d.data().dueDate as Timestamp)?.toDate() || new Date(),
+          createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+        })) as Task[];
+        setTasks(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useTasks snapshot error:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user]);
@@ -404,16 +432,23 @@ export function useFlashcards(subjectId?: string | null) {
       ? query(ref, where("subjectId", "==", subjectId), orderBy("nextReview", "asc"))
       : query(ref, orderBy("nextReview", "asc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-        nextReview: (d.data().nextReview as Timestamp)?.toDate() || new Date(),
-        createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
-      })) as Flashcard[];
-      setFlashcards(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          nextReview: (d.data().nextReview as Timestamp)?.toDate() || new Date(),
+          createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+        })) as Flashcard[];
+        setFlashcards(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useFlashcards snapshot error:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user, subjectId]);

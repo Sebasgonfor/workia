@@ -64,7 +64,8 @@ export default function MateriasPage() {
       }
       setShowCreate(false);
       resetForm();
-    } catch {
+    } catch (err) {
+      console.error("Error al guardar materia:", err);
       toast.error("Error al guardar");
     } finally {
       setSaving(false);
@@ -78,7 +79,8 @@ export default function MateriasPage() {
     try {
       await deleteSubject(id);
       toast.success("Materia eliminada");
-    } catch {
+    } catch (err) {
+      console.error("Error al eliminar materia:", err);
       toast.error("Error al eliminar");
     }
   };
