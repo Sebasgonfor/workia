@@ -555,18 +555,18 @@ export default function TareasPage() {
 
           {/* Two dates side by side */}
           <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Asignada</label>
+            <div className="min-w-0">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Asignada</label>
               <input
                 type="date" value={assignedDate} onChange={(e) => setAssignedDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
               />
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Entrega</label>
+            <div className="min-w-0">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Entrega</label>
               <input
                 type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
               />
             </div>
           </div>
