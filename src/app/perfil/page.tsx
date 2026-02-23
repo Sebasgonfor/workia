@@ -9,7 +9,7 @@ export default function PerfilPage() {
 
   return (
     <AppShell>
-      <div className="px-5 pt-6 page-enter">
+      <div className="px-5 pt-safe page-enter">
         <h1 className="text-2xl font-bold mb-6">Perfil</h1>
 
         {/* User info */}

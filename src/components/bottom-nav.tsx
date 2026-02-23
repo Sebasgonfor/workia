@@ -26,7 +26,7 @@ export function BottomNav() {
               key={tab.href}
               href={tab.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors min-w-[64px]",
+                "flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors touch-target",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground active:text-foreground"

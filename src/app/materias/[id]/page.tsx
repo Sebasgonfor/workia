@@ -34,6 +34,7 @@ export default function SubjectDetailPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -62,10 +63,11 @@ export default function SubjectDetailPage() {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      toast.error("El título es obligatorio");
+      toast.error("El titulo es obligatorio");
       return;
     }
 
+    setSaving(true);
     try {
       const classDate = new Date(date + "T12:00:00");
       if (editingId) {
@@ -79,6 +81,8 @@ export default function SubjectDetailPage() {
       resetForm();
     } catch {
       toast.error("Error al guardar");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -124,7 +128,7 @@ export default function SubjectDetailPage() {
       <div className="page-enter">
         {/* Header */}
         <div
-          className="px-5 pt-6 pb-5"
+          className="px-5 pt-safe pb-5"
           style={{
             background: subject
               ? `linear-gradient(135deg, ${subject.color}15 0%, transparent 60%)`
@@ -133,7 +137,7 @@ export default function SubjectDetailPage() {
         >
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-muted-foreground mb-4 active:opacity-70"
+            className="flex items-center gap-2 text-muted-foreground mb-4 active:opacity-70 touch-target"
           >
             <ArrowLeft className="w-5 h-5" />
             <span className="text-sm">Materias</span>
@@ -156,7 +160,7 @@ export default function SubjectDetailPage() {
             </div>
             <button
               onClick={openCreate}
-              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform"
+              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target"
             >
               <Plus className="w-5 h-5 text-primary-foreground" />
             </button>
@@ -176,7 +180,7 @@ export default function SubjectDetailPage() {
               <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center mx-auto mb-4">
                 <Calendar className="w-8 h-8 text-muted-foreground" />
               </div>
-              <p className="text-muted-foreground mb-1">Sin clases aún</p>
+              <p className="text-muted-foreground mb-1">Sin clases aun</p>
               <p className="text-sm text-muted-foreground/60">
                 Agrega tu primera clase para comenzar
               </p>
@@ -190,7 +194,7 @@ export default function SubjectDetailPage() {
                   </p>
                   <div className="space-y-2">
                     {monthClasses.map((cls) => (
-                      <div key={cls.id} className="relative group">
+                      <div key={cls.id} className="relative">
                         <button
                           onClick={() => {
                             router.push(`/materias/${subjectId}/${cls.id}`);
@@ -216,14 +220,13 @@ export default function SubjectDetailPage() {
                           </div>
                         </button>
 
-                        {/* Menu button */}
+                        {/* Menu button — always visible */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setMenuOpen(menuOpen === cls.id ? null : cls.id);
                           }}
-                          className="absolute top-3 right-12 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100"
-                          style={{ opacity: menuOpen === cls.id ? 1 : undefined }}
+                          className="absolute top-3 right-12 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
                         >
                           <MoreVertical className="w-4 h-4 text-muted-foreground" />
                         </button>
@@ -238,14 +241,14 @@ export default function SubjectDetailPage() {
                             <div className="absolute top-12 right-12 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[150px]">
                               <button
                                 onClick={() => openEdit(cls.id)}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary/50 transition-colors"
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50 transition-colors"
                               >
                                 <Pencil className="w-4 h-4" />
                                 Editar
                               </button>
                               <button
                                 onClick={() => handleDelete(cls.id)}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive hover:bg-secondary/50 transition-colors"
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
                                 Eliminar
@@ -276,7 +279,7 @@ export default function SubjectDetailPage() {
           {/* Title */}
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Título
+              Titulo
             </label>
             <input
               type="text"
@@ -284,7 +287,6 @@ export default function SubjectDetailPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ej: Clase 5 - Grafos y recorridos"
               className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              autoFocus
             />
           </div>
 
@@ -304,9 +306,14 @@ export default function SubjectDetailPage() {
           {/* Save button */}
           <button
             onClick={handleSave}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform"
+            disabled={saving}
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {editingId ? "Guardar cambios" : "Crear clase"}
+            {saving
+              ? "Guardando..."
+              : editingId
+                ? "Guardar cambios"
+                : "Crear clase"}
           </button>
         </div>
       </Sheet>

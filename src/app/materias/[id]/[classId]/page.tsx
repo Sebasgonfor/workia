@@ -62,6 +62,7 @@ export default function BoardPage() {
   const [showSheet, setShowSheet] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [entryType, setEntryType] = useState<BoardEntry["type"]>("notes");
@@ -100,6 +101,7 @@ export default function BoardPage() {
       .map((t) => t.trim())
       .filter(Boolean);
 
+    setSaving(true);
     try {
       if (editingId) {
         await updateEntry(editingId, { type: entryType, content: content.trim(), tags });
@@ -112,6 +114,8 @@ export default function BoardPage() {
       resetForm();
     } catch {
       toast.error("Error al guardar");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -148,14 +152,14 @@ export default function BoardPage() {
       <div className="page-enter">
         {/* Header */}
         <div
-          className="px-5 pt-6 pb-5"
+          className="px-5 pt-safe pb-5"
           style={{
             background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)`,
           }}
         >
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-muted-foreground mb-4 active:opacity-70"
+            className="flex items-center gap-2 text-muted-foreground mb-4 active:opacity-70 touch-target"
           >
             <ArrowLeft className="w-5 h-5" />
             <span className="text-sm">{subject?.name || "Clases"}</span>
@@ -172,7 +176,7 @@ export default function BoardPage() {
             </div>
             <button
               onClick={openCreate}
-              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform"
+              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target"
             >
               <Plus className="w-5 h-5 text-primary-foreground" />
             </button>
@@ -203,14 +207,14 @@ export default function BoardPage() {
                       description: "El escaneo OCR se implementara en la Fase 2.",
                     })
                   }
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border text-sm font-medium active:scale-[0.98] transition-transform"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border text-sm font-medium active:scale-[0.98] transition-transform touch-target"
                 >
                   <Camera className="w-4 h-4" />
                   Escanear
                 </button>
                 <button
                   onClick={openCreate}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-[0.98] transition-transform"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-[0.98] transition-transform touch-target"
                 >
                   <PenLine className="w-4 h-4" />
                   Escribir
@@ -226,7 +230,7 @@ export default function BoardPage() {
                   entry.type;
 
                 return (
-                  <div key={entry.id} className="relative group">
+                  <div key={entry.id} className="relative">
                     <div className="p-4 rounded-xl bg-card border border-border">
                       <div className="flex items-start gap-3">
                         <div
@@ -235,7 +239,7 @@ export default function BoardPage() {
                         >
                           <Icon className="w-4 h-4" style={{ color }} />
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 pr-8">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-semibold" style={{ color }}>
                               {typeLabel}
@@ -263,15 +267,12 @@ export default function BoardPage() {
                       </div>
                     </div>
 
-                    {/* Menu button */}
+                    {/* Menu button — always visible */}
                     <button
                       onClick={() =>
                         setMenuOpen(menuOpen === entry.id ? null : entry.id)
                       }
-                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100"
-                      style={{
-                        opacity: menuOpen === entry.id ? 1 : undefined,
-                      }}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
                     >
                       <MoreVertical className="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -286,14 +287,14 @@ export default function BoardPage() {
                         <div className="absolute top-12 right-3 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[150px]">
                           <button
                             onClick={() => openEdit(entry)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary/50 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50 transition-colors"
                           >
                             <Pencil className="w-4 h-4" />
                             Editar
                           </button>
                           <button
                             onClick={() => handleDelete(entry.id)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive hover:bg-secondary/50 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                             Eliminar
@@ -357,7 +358,6 @@ export default function BoardPage() {
               placeholder="Escribe tus apuntes aqui..."
               rows={5}
               className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              autoFocus
             />
           </div>
 
@@ -378,9 +378,14 @@ export default function BoardPage() {
           {/* Save button */}
           <button
             onClick={handleSave}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform"
+            disabled={saving}
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {editingId ? "Guardar cambios" : "Crear entrada"}
+            {saving
+              ? "Guardando..."
+              : editingId
+                ? "Guardar cambios"
+                : "Crear entrada"}
           </button>
         </div>
       </Sheet>

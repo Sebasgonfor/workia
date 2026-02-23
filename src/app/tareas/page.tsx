@@ -47,6 +47,7 @@ export default function TareasPage() {
   const [showSheet, setShowSheet] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -118,6 +119,7 @@ export default function TareasPage() {
     const selectedSubject = subjects.find((s) => s.id === subjectId);
     const dueDateObj = new Date(dueDate + "T23:59:59");
 
+    setSaving(true);
     try {
       if (editingId) {
         await updateTask(editingId, {
@@ -149,6 +151,8 @@ export default function TareasPage() {
       resetForm();
     } catch {
       toast.error("Error al guardar");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -175,7 +179,7 @@ export default function TareasPage() {
     <AppShell>
       <div className="page-enter">
         {/* Header */}
-        <div className="px-5 pt-6 pb-4">
+        <div className="px-5 pt-safe pb-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Tareas</h1>
@@ -188,7 +192,7 @@ export default function TareasPage() {
             </div>
             <button
               onClick={openCreate}
-              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform"
+              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target"
             >
               <Plus className="w-5 h-5 text-primary-foreground" />
             </button>
@@ -202,7 +206,7 @@ export default function TareasPage() {
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors touch-target ${
                   filter === f.key
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-muted-foreground"
@@ -251,7 +255,7 @@ export default function TareasPage() {
                 const typeData = TASK_TYPES.find((t) => t.value === task.type);
 
                 return (
-                  <div key={task.id} className="relative group">
+                  <div key={task.id} className="relative">
                     <div
                       className="p-4 rounded-xl bg-card border border-border overflow-hidden"
                       style={{
@@ -263,7 +267,7 @@ export default function TareasPage() {
                         {/* Checkbox */}
                         <button
                           onClick={() => handleToggleComplete(task)}
-                          className={`w-5 h-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                          className={`w-6 h-6 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors touch-target ${
                             isComplete
                               ? "bg-primary border-primary"
                               : "border-muted-foreground/40"
@@ -271,7 +275,7 @@ export default function TareasPage() {
                         >
                           {isComplete && (
                             <svg
-                              className="w-3 h-3 text-primary-foreground"
+                              className="w-3.5 h-3.5 text-primary-foreground"
                               fill="none"
                               viewBox="0 0 24 24"
                               stroke="currentColor"
@@ -286,7 +290,7 @@ export default function TareasPage() {
                           )}
                         </button>
 
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 pr-8">
                           {/* Title row */}
                           <div className="flex items-center gap-2">
                             <span className="text-base">
@@ -324,15 +328,12 @@ export default function TareasPage() {
                       </div>
                     </div>
 
-                    {/* Menu button */}
+                    {/* Menu button — always visible */}
                     <button
                       onClick={() =>
                         setMenuOpen(menuOpen === task.id ? null : task.id)
                       }
-                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100"
-                      style={{
-                        opacity: menuOpen === task.id ? 1 : undefined,
-                      }}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
                     >
                       <MoreVertical className="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -347,14 +348,14 @@ export default function TareasPage() {
                         <div className="absolute top-12 right-3 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[150px]">
                           <button
                             onClick={() => openEdit(task)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary/50 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50 transition-colors"
                           >
                             <Pencil className="w-4 h-4" />
                             Editar
                           </button>
                           <button
                             onClick={() => handleDelete(task.id)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive hover:bg-secondary/50 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                             Eliminar
@@ -391,7 +392,6 @@ export default function TareasPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ej: Entregar taller de grafos"
               className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              autoFocus
             />
           </div>
 
@@ -423,7 +423,7 @@ export default function TareasPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Detalles adicionales..."
-              rows={3}
+              rows={2}
               className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             />
           </div>
@@ -494,9 +494,14 @@ export default function TareasPage() {
           {/* Save button */}
           <button
             onClick={handleSave}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform"
+            disabled={saving}
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {editingId ? "Guardar cambios" : "Crear tarea"}
+            {saving
+              ? "Guardando..."
+              : editingId
+                ? "Guardar cambios"
+                : "Crear tarea"}
           </button>
         </div>
       </Sheet>

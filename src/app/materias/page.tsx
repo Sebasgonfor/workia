@@ -6,18 +6,17 @@ import { Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { useSubjects } from "@/lib/hooks";
-import { useAuth } from "@/lib/auth-context";
 import { SUBJECT_COLORS, SUBJECT_EMOJIS } from "@/types";
 import { toast } from "sonner";
 
 export default function MateriasPage() {
-  const { user } = useAuth();
   const { subjects, loading, addSubject, updateSubject, deleteSubject } = useSubjects();
   const router = useRouter();
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -53,6 +52,7 @@ export default function MateriasPage() {
       return;
     }
 
+    setSaving(true);
     try {
       if (editingId) {
         await updateSubject(editingId, { name: name.trim(), color, emoji });
@@ -65,6 +65,8 @@ export default function MateriasPage() {
       resetForm();
     } catch {
       toast.error("Error al guardar");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -80,7 +82,7 @@ export default function MateriasPage() {
 
   return (
     <AppShell>
-      <div className="px-5 pt-6 page-enter">
+      <div className="px-5 pt-safe page-enter">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -91,7 +93,7 @@ export default function MateriasPage() {
           </div>
           <button
             onClick={openCreate}
-            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform"
+            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target"
           >
             <Plus className="w-5 h-5 text-primary-foreground" />
           </button>
@@ -109,7 +111,7 @@ export default function MateriasPage() {
             <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center mx-auto mb-4">
               <Plus className="w-8 h-8 text-muted-foreground" />
             </div>
-            <p className="text-muted-foreground mb-1">Sin materias aún</p>
+            <p className="text-muted-foreground mb-1">Sin materias aun</p>
             <p className="text-sm text-muted-foreground/60">
               Agrega tus materias del semestre para empezar
             </p>
@@ -144,13 +146,13 @@ export default function MateriasPage() {
                   </div>
                 </button>
 
-                {/* Menu button */}
+                {/* Menu button — always visible on mobile */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setMenuOpen(menuOpen === subject.id ? null : subject.id);
                   }}
-                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center"
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
                 >
                   <MoreVertical className="w-4 h-4 text-muted-foreground" />
                 </button>
@@ -165,14 +167,14 @@ export default function MateriasPage() {
                     <div className="absolute top-14 right-4 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[150px]">
                       <button
                         onClick={() => openEdit(subject.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary/50 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50 transition-colors"
                       >
                         <Pencil className="w-4 h-4" />
                         Editar
                       </button>
                       <button
                         onClick={() => handleDelete(subject.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive hover:bg-secondary/50 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                         Eliminar
@@ -205,9 +207,8 @@ export default function MateriasPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Análisis de Algoritmos"
+              placeholder="Ej: Analisis de Algoritmos"
               className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              autoFocus
             />
           </div>
 
@@ -224,7 +225,7 @@ export default function MateriasPage() {
                   className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl transition-all ${
                     emoji === e
                       ? "bg-primary/20 ring-2 ring-primary scale-110"
-                      : "bg-secondary hover:bg-secondary/80"
+                      : "bg-secondary active:bg-secondary/80"
                   }`}
                 >
                   {e}
@@ -255,9 +256,14 @@ export default function MateriasPage() {
           {/* Save button */}
           <button
             onClick={handleSave}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform"
+            disabled={saving}
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {editingId ? "Guardar cambios" : "Crear materia"}
+            {saving
+              ? "Guardando..."
+              : editingId
+                ? "Guardar cambios"
+                : "Crear materia"}
           </button>
         </div>
       </Sheet>
