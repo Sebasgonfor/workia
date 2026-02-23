@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
+import { Confirm } from "@/components/ui/confirm";
 import { useSubjects } from "@/lib/hooks";
 import { SUBJECT_COLORS, SUBJECT_EMOJIS } from "@/types";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ export default function MateriasPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Form state
   const [name, setName] = useState("");
@@ -51,7 +53,6 @@ export default function MateriasPage() {
       toast.error("El nombre es obligatorio");
       return;
     }
-
     setSaving(true);
     try {
       if (editingId) {
@@ -70,8 +71,10 @@ export default function MateriasPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    setMenuOpen(null);
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    const id = deleteId;
+    setDeleteId(null);
     try {
       await deleteSubject(id);
       toast.success("Materia eliminada");
@@ -82,9 +85,9 @@ export default function MateriasPage() {
 
   return (
     <AppShell>
-      <div className="px-5 pt-safe page-enter">
+      <div className="px-4 pt-safe page-enter">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div>
             <h1 className="text-2xl font-bold">Materias</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -101,39 +104,39 @@ export default function MateriasPage() {
 
         {/* Subject Cards */}
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 rounded-xl bg-card animate-pulse" />
+              <div key={i} className="h-[72px] rounded-xl bg-card animate-pulse" />
             ))}
           </div>
         ) : subjects.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center mx-auto mb-4">
-              <Plus className="w-8 h-8 text-muted-foreground" />
+          <div className="text-center py-12">
+            <div className="w-14 h-14 rounded-2xl bg-card flex items-center justify-center mx-auto mb-3">
+              <Plus className="w-7 h-7 text-muted-foreground" />
             </div>
-            <p className="text-muted-foreground mb-1">Sin materias aun</p>
-            <p className="text-sm text-muted-foreground/60">
-              Agrega tus materias del semestre para empezar
+            <p className="text-muted-foreground text-sm mb-1">Sin materias aun</p>
+            <p className="text-xs text-muted-foreground/60">
+              Agrega tus materias del semestre
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {subjects.map((subject) => (
               <div key={subject.id} className="relative">
                 <button
                   onClick={() => router.push(`/materias/${subject.id}`)}
-                  className="w-full text-left p-4 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
+                  className="w-full text-left p-3.5 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3.5">
                     <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0"
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0"
                       style={{ backgroundColor: subject.color + "20" }}
                     >
                       {subject.emoji}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{subject.name}</p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <p className="font-semibold text-[15px] truncate">{subject.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
                         <div
                           className="w-2 h-2 rounded-full"
                           style={{ backgroundColor: subject.color }}
@@ -146,35 +149,30 @@ export default function MateriasPage() {
                   </div>
                 </button>
 
-                {/* Menu button — always visible on mobile */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setMenuOpen(menuOpen === subject.id ? null : subject.id);
                   }}
-                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
                 >
                   <MoreVertical className="w-4 h-4 text-muted-foreground" />
                 </button>
 
-                {/* Dropdown menu */}
                 {menuOpen === subject.id && (
                   <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setMenuOpen(null)}
-                    />
-                    <div className="absolute top-14 right-4 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[150px]">
+                    <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
+                    <div className="absolute top-12 right-3 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
                       <button
                         onClick={() => openEdit(subject.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50"
                       >
                         <Pencil className="w-4 h-4" />
                         Editar
                       </button>
                       <button
-                        onClick={() => handleDelete(subject.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50 transition-colors"
+                        onClick={() => { setMenuOpen(null); setDeleteId(subject.id); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50"
                       >
                         <Trash2 className="w-4 h-4" />
                         Eliminar
@@ -191,38 +189,29 @@ export default function MateriasPage() {
       {/* Create/Edit Sheet */}
       <Sheet
         open={showCreate}
-        onClose={() => {
-          setShowCreate(false);
-          resetForm();
-        }}
+        onClose={() => { setShowCreate(false); resetForm(); }}
         title={editingId ? "Editar materia" : "Nueva materia"}
       >
-        <div className="space-y-6">
-          {/* Name */}
+        <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Nombre
-            </label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Nombre</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: Analisis de Algoritmos"
-              className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
 
-          {/* Emoji */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Emoji
-            </label>
-            <div className="flex flex-wrap gap-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Emoji</label>
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               {SUBJECT_EMOJIS.map((e) => (
                 <button
                   key={e}
                   onClick={() => setEmoji(e)}
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl transition-all ${
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0 transition-all ${
                     emoji === e
                       ? "bg-primary/20 ring-2 ring-primary scale-110"
                       : "bg-secondary active:bg-secondary/80"
@@ -234,17 +223,14 @@ export default function MateriasPage() {
             </div>
           </div>
 
-          {/* Color */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Color
-            </label>
-            <div className="flex flex-wrap gap-3">
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Color</label>
+            <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-0.5">
               {SUBJECT_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-full transition-all ${
+                  className={`w-7 h-7 rounded-full shrink-0 transition-all ${
                     color === c ? "ring-2 ring-offset-2 ring-offset-card scale-110" : ""
                   }`}
                   style={{ backgroundColor: c }}
@@ -253,20 +239,23 @@ export default function MateriasPage() {
             </div>
           </div>
 
-          {/* Save button */}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {saving
-              ? "Guardando..."
-              : editingId
-                ? "Guardar cambios"
-                : "Crear materia"}
+            {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Crear materia"}
           </button>
         </div>
       </Sheet>
+
+      <Confirm
+        open={!!deleteId}
+        title="Eliminar materia"
+        message="Se eliminaran todas las clases, entradas y tareas asociadas. Esta accion no se puede deshacer."
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </AppShell>
   );
 }

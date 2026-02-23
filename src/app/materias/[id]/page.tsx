@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
+import { Confirm } from "@/components/ui/confirm";
 import { useSubjects, useClasses } from "@/lib/hooks";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -35,8 +36,8 @@ export default function SubjectDetailPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Form state
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
@@ -46,10 +47,7 @@ export default function SubjectDetailPage() {
     setEditingId(null);
   };
 
-  const openCreate = () => {
-    resetForm();
-    setShowCreate(true);
-  };
+  const openCreate = () => { resetForm(); setShowCreate(true); };
 
   const openEdit = (id: string) => {
     const cls = classes.find((c) => c.id === id);
@@ -62,11 +60,7 @@ export default function SubjectDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) {
-      toast.error("El titulo es obligatorio");
-      return;
-    }
-
+    if (!title.trim()) { toast.error("El titulo es obligatorio"); return; }
     setSaving(true);
     try {
       const classDate = new Date(date + "T12:00:00");
@@ -79,24 +73,17 @@ export default function SubjectDetailPage() {
       }
       setShowCreate(false);
       resetForm();
-    } catch {
-      toast.error("Error al guardar");
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error("Error al guardar"); } finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: string) => {
-    setMenuOpen(null);
-    try {
-      await deleteClass(id);
-      toast.success("Clase eliminada");
-    } catch {
-      toast.error("Error al eliminar");
-    }
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    const id = deleteId;
+    setDeleteId(null);
+    try { await deleteClass(id); toast.success("Clase eliminada"); }
+    catch { toast.error("Error al eliminar"); }
   };
 
-  // Group classes by month
   const groupedClasses = useMemo(() => {
     const groups: Record<string, typeof classes> = {};
     classes.forEach((cls) => {
@@ -110,12 +97,9 @@ export default function SubjectDetailPage() {
   if (!subject && !loading) {
     return (
       <AppShell>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] px-5">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
           <p className="text-muted-foreground">Materia no encontrada</p>
-          <button
-            onClick={() => router.replace("/materias")}
-            className="mt-4 text-primary text-sm font-medium"
-          >
+          <button onClick={() => router.replace("/materias")} className="mt-4 text-primary text-sm font-medium">
             Volver a materias
           </button>
         </div>
@@ -126,41 +110,39 @@ export default function SubjectDetailPage() {
   return (
     <AppShell>
       <div className="page-enter">
-        {/* Header */}
+        {/* Header — compact */}
         <div
-          className="px-5 pt-safe pb-5"
+          className="px-4 pt-safe pb-4"
           style={{
-            background: subject
-              ? `linear-gradient(135deg, ${subject.color}15 0%, transparent 60%)`
-              : undefined,
+            background: subject ? `linear-gradient(135deg, ${subject.color}15 0%, transparent 60%)` : undefined,
           }}
         >
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-muted-foreground mb-4 active:opacity-70 touch-target"
+            className="flex items-center gap-1.5 text-muted-foreground mb-3 active:opacity-70 touch-target"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
             <span className="text-sm">Materias</span>
           </button>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
                 style={{ backgroundColor: (subject?.color || "#666") + "20" }}
               >
                 {subject?.emoji || "📚"}
               </div>
-              <div>
-                <h1 className="text-xl font-bold">{subject?.name || "..."}</h1>
-                <p className="text-sm text-muted-foreground">
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold truncate">{subject?.name || "..."}</h1>
+                <p className="text-xs text-muted-foreground">
                   {classes.length} clase{classes.length !== 1 ? "s" : ""}
                 </p>
               </div>
             </div>
             <button
               onClick={openCreate}
-              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target"
+              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target shrink-0"
             >
               <Plus className="w-5 h-5 text-primary-foreground" />
             </button>
@@ -168,50 +150,44 @@ export default function SubjectDetailPage() {
         </div>
 
         {/* Classes List */}
-        <div className="px-5">
+        <div className="px-4">
           {loading ? (
-            <div className="space-y-3 mt-4">
+            <div className="space-y-2.5 mt-3">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-16 rounded-xl bg-card animate-pulse" />
               ))}
             </div>
           ) : classes.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center mx-auto mb-4">
-                <Calendar className="w-8 h-8 text-muted-foreground" />
+            <div className="text-center py-12">
+              <div className="w-14 h-14 rounded-2xl bg-card flex items-center justify-center mx-auto mb-3">
+                <Calendar className="w-7 h-7 text-muted-foreground" />
               </div>
-              <p className="text-muted-foreground mb-1">Sin clases aun</p>
-              <p className="text-sm text-muted-foreground/60">
-                Agrega tu primera clase para comenzar
-              </p>
+              <p className="text-muted-foreground text-sm mb-1">Sin clases aun</p>
+              <p className="text-xs text-muted-foreground/60">Agrega tu primera clase</p>
             </div>
           ) : (
-            <div className="space-y-6 mt-2">
+            <div className="space-y-5 mt-2">
               {Object.entries(groupedClasses).map(([month, monthClasses]) => (
                 <div key={month}>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                     {month}
                   </p>
                   <div className="space-y-2">
                     {monthClasses.map((cls) => (
                       <div key={cls.id} className="relative">
                         <button
-                          onClick={() => {
-                            router.push(`/materias/${subjectId}/${cls.id}`);
-                          }}
-                          className="w-full text-left p-4 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
+                          onClick={() => router.push(`/materias/${subjectId}/${cls.id}`)}
+                          className="w-full text-left p-3.5 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="flex flex-col items-center justify-center w-12 shrink-0">
-                              <span className="text-xs font-bold text-muted-foreground uppercase">
+                          <div className="flex items-center gap-3">
+                            <div className="flex flex-col items-center justify-center w-10 shrink-0">
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase">
                                 {format(cls.date, "MMM", { locale: es })}
                               </span>
-                              <span className="text-xl font-bold">
-                                {format(cls.date, "d")}
-                              </span>
+                              <span className="text-lg font-bold">{format(cls.date, "d")}</span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{cls.title}</p>
+                              <p className="font-medium text-[15px] truncate">{cls.title}</p>
                               <p className="text-xs text-muted-foreground mt-0.5">
                                 {format(cls.date, "EEEE", { locale: es })}
                               </p>
@@ -220,38 +196,22 @@ export default function SubjectDetailPage() {
                           </div>
                         </button>
 
-                        {/* Menu button — always visible */}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMenuOpen(menuOpen === cls.id ? null : cls.id);
-                          }}
-                          className="absolute top-3 right-12 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
+                          onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === cls.id ? null : cls.id); }}
+                          className="absolute top-2.5 right-10 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
                         >
                           <MoreVertical className="w-4 h-4 text-muted-foreground" />
                         </button>
 
-                        {/* Dropdown */}
                         {menuOpen === cls.id && (
                           <>
-                            <div
-                              className="fixed inset-0 z-40"
-                              onClick={() => setMenuOpen(null)}
-                            />
-                            <div className="absolute top-12 right-12 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[150px]">
-                              <button
-                                onClick={() => openEdit(cls.id)}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50 transition-colors"
-                              >
-                                <Pencil className="w-4 h-4" />
-                                Editar
+                            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
+                            <div className="absolute top-11 right-10 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
+                              <button onClick={() => openEdit(cls.id)} className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50">
+                                <Pencil className="w-4 h-4" /> Editar
                               </button>
-                              <button
-                                onClick={() => handleDelete(cls.id)}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Eliminar
+                              <button onClick={() => { setMenuOpen(null); setDeleteId(cls.id); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50">
+                                <Trash2 className="w-4 h-4" /> Eliminar
                               </button>
                             </div>
                           </>
@@ -266,57 +226,48 @@ export default function SubjectDetailPage() {
         </div>
       </div>
 
-      {/* Create/Edit Sheet */}
       <Sheet
         open={showCreate}
-        onClose={() => {
-          setShowCreate(false);
-          resetForm();
-        }}
+        onClose={() => { setShowCreate(false); resetForm(); }}
         title={editingId ? "Editar clase" : "Nueva clase"}
       >
-        <div className="space-y-6">
-          {/* Title */}
+        <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Titulo
-            </label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Titulo</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: Clase 5 - Grafos y recorridos"
-              className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Ej: Clase 5 - Grafos"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-
-          {/* Date */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Fecha de la clase
-            </label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Fecha</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark]"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark]"
             />
           </div>
-
-          {/* Save button */}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
           >
-            {saving
-              ? "Guardando..."
-              : editingId
-                ? "Guardar cambios"
-                : "Crear clase"}
+            {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Crear clase"}
           </button>
         </div>
       </Sheet>
+
+      <Confirm
+        open={!!deleteId}
+        title="Eliminar clase"
+        message="Se eliminaran todas las entradas de esta clase."
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </AppShell>
   );
 }
