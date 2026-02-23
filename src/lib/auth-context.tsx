@@ -29,31 +29,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          // Create/update user doc in Firestore
-          const userRef = doc(db, "users", user.uid);
-          const userSnap = await getDoc(userRef);
-          if (!userSnap.exists()) {
-            await setDoc(userRef, {
-              displayName: user.displayName,
-              email: user.email,
-              photoURL: user.photoURL,
-              subjects: [],
-              settings: {
-                timezone: "America/Bogota",
-                notifyAt: "20:00",
-              },
-              createdAt: serverTimestamp(),
-            });
-          }
-        } catch (error) {
-          console.error("Error syncing user to Firestore:", error);
-        }
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
+
+      // Sync user to Firestore in the background (don't block auth state)
+      if (user) {
+        const userRef = doc(db, "users", user.uid);
+        getDoc(userRef)
+          .then((userSnap) => {
+            if (!userSnap.exists()) {
+              return setDoc(userRef, {
+                displayName: user.displayName,
+                email: user.email,
+                photoURL: user.photoURL,
+                subjects: [],
+                settings: {
+                  timezone: "America/Bogota",
+                  notifyAt: "20:00",
+                },
+                createdAt: serverTimestamp(),
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Error syncing user to Firestore:", error);
+          });
+      }
     });
 
     return () => unsubscribe();
