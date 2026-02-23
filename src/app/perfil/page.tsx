@@ -1,21 +1,48 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth-context";
-import { useSubjects, useTasks } from "@/lib/hooks";
-import { LogOut, User, Mail, BookOpen, CheckSquare, Clock, TrendingUp } from "lucide-react";
+import { useSubjects, useTasks, useFlashcards } from "@/lib/hooks";
+import {
+  requestNotificationPermission,
+  getNotificationPermission,
+  isNotificationSupported,
+} from "@/lib/notifications";
+import { LogOut, User, Mail, BookOpen, CheckSquare, Clock, TrendingUp, Bell, BellOff, Layers } from "lucide-react";
+import { toast } from "sonner";
 
 export default function PerfilPage() {
   const { user, signOut } = useAuth();
   const { subjects } = useSubjects();
   const { tasks } = useTasks();
+  const { flashcards } = useFlashcards();
+
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null);
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    if (notifPermission === "granted") {
+      toast("Para desactivar notificaciones, usa la configuracion del navegador.");
+      return;
+    }
+    const granted = await requestNotificationPermission();
+    setNotifPermission(granted ? "granted" : "denied");
+    if (granted) {
+      toast.success("Notificaciones activadas");
+    } else {
+      toast.error("Permiso de notificaciones denegado");
+    }
+  };
 
   const stats = useMemo(() => {
     const completed = tasks.filter((t) => t.status === "completed").length;
     const pending = tasks.filter((t) => t.status !== "completed").length;
-    return { subjects: subjects.length, completed, pending, total: tasks.length };
-  }, [subjects, tasks]);
+    return { subjects: subjects.length, completed, pending, total: tasks.length, flashcards: flashcards.length };
+  }, [subjects, tasks, flashcards]);
 
   const memberSince = useMemo(() => {
     if (!user?.metadata?.creationTime) return null;
@@ -121,6 +148,29 @@ export default function PerfilPage() {
               />
             </div>
           </div>
+        )}
+
+        {/* Notifications toggle */}
+        {isNotificationSupported() && (
+          <button
+            onClick={handleToggleNotifications}
+            className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-card border border-border mb-2.5 active:scale-[0.98] transition-transform"
+          >
+            {notifPermission === "granted" ? (
+              <Bell className="w-5 h-5 text-primary" />
+            ) : (
+              <BellOff className="w-5 h-5 text-muted-foreground" />
+            )}
+            <div className="flex-1 text-left">
+              <span className="font-medium text-sm">Notificaciones</span>
+              <p className="text-[10px] text-muted-foreground">
+                {notifPermission === "granted" ? "Activadas — recordatorios de tareas" : "Activar recordatorios de entregas"}
+              </p>
+            </div>
+            <div className={`w-10 h-6 rounded-full transition-colors ${notifPermission === "granted" ? "bg-primary" : "bg-secondary"}`}>
+              <div className={`w-5 h-5 rounded-full bg-white mt-0.5 transition-transform ${notifPermission === "granted" ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+            </div>
+          </button>
         )}
 
         {/* Sign out */}

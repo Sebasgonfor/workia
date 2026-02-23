@@ -13,13 +13,15 @@ import {
   Trash2,
   Camera,
   PenLine,
+  Layers,
+  Loader2,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
-import { useSubjects, useClasses, useBoardEntries } from "@/lib/hooks";
+import { useSubjects, useClasses, useBoardEntries, useFlashcards } from "@/lib/hooks";
 import { BOARD_ENTRY_TYPES } from "@/types";
-import type { BoardEntry } from "@/types";
+import type { BoardEntry, Flashcard } from "@/types";
 import { toast } from "sonner";
 
 const ENTRY_ICONS = {
@@ -50,6 +52,7 @@ export default function BoardPage() {
   const { classes } = useClasses(subjectId);
   const { entries, loading, addEntry, updateEntry, deleteEntry } =
     useBoardEntries(subjectId, classId);
+  const { addFlashcards } = useFlashcards(subjectId);
 
   const subject = useMemo(() => subjects.find((s) => s.id === subjectId), [subjects, subjectId]);
   const classSession = useMemo(() => classes.find((c) => c.id === classId), [classes, classId]);
@@ -59,6 +62,7 @@ export default function BoardPage() {
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   const [entryType, setEntryType] = useState<BoardEntry["type"]>("notes");
   const [content, setContent] = useState("");
@@ -99,6 +103,50 @@ export default function BoardPage() {
     setDeleteId(null);
     try { await deleteEntry(id); toast.success("Entrada eliminada"); }
     catch { toast.error("Error al eliminar"); }
+  };
+
+  const handleGenerateFlashcards = async (entry: BoardEntry) => {
+    setMenuOpen(null);
+    setGeneratingId(entry.id);
+
+    try {
+      const response = await fetch("/api/flashcards/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: entry.content,
+          subjectName: subject?.name || "General",
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Error al generar");
+      }
+
+      const generated = data.data.flashcards as { question: string; answer: string; type: string }[];
+      if (!generated || generated.length === 0) {
+        throw new Error("No se generaron flashcards");
+      }
+
+      await addFlashcards(
+        generated.map((fc) => ({
+          subjectId,
+          subjectName: subject?.name || "",
+          noteId: entry.id,
+          question: fc.question,
+          answer: fc.answer,
+          type: (fc.type as Flashcard["type"]) || "definition",
+        }))
+      );
+
+      toast.success(`${generated.length} flashcards generadas`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      toast.error(msg);
+    } finally {
+      setGeneratingId(null);
+    }
   };
 
   const color = subject?.color || "#6366f1";
@@ -156,7 +204,7 @@ export default function BoardPage() {
               <p className="text-xs text-muted-foreground/60 mb-5">Agrega apuntes, tareas o recursos</p>
               <div className="flex gap-2.5 justify-center">
                 <button
-                  onClick={() => toast("Proximamente", { description: "El escaneo OCR llegara pronto." })}
+                  onClick={() => router.push("/escanear")}
                   className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-sm font-medium active:scale-[0.98] transition-transform touch-target"
                 >
                   <Camera className="w-4 h-4" /> Escanear
@@ -174,6 +222,7 @@ export default function BoardPage() {
               {entries.map((entry) => {
                 const Icon = ENTRY_ICONS[entry.type];
                 const typeLabel = BOARD_ENTRY_TYPES.find((t) => t.value === entry.type)?.label || entry.type;
+                const isGenerating = generatingId === entry.id;
                 return (
                   <div key={entry.id} className="relative">
                     <div className="p-3.5 rounded-xl bg-card border border-border">
@@ -194,6 +243,26 @@ export default function BoardPage() {
                               ))}
                             </div>
                           )}
+                          {/* Generate flashcards button for notes entries */}
+                          {entry.type === "notes" && entry.content.length > 30 && (
+                            <button
+                              onClick={() => handleGenerateFlashcards(entry)}
+                              disabled={isGenerating}
+                              className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
+                            >
+                              {isGenerating ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Generando...
+                                </>
+                              ) : (
+                                <>
+                                  <Layers className="w-3 h-3" />
+                                  Generar flashcards
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -206,10 +275,19 @@ export default function BoardPage() {
                     {menuOpen === entry.id && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
-                        <div className="absolute top-10 right-2.5 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
+                        <div className="absolute top-10 right-2.5 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[160px]">
                           <button onClick={() => openEdit(entry)} className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50">
                             <Pencil className="w-4 h-4" /> Editar
                           </button>
+                          {entry.type === "notes" && entry.content.length > 30 && (
+                            <button
+                              onClick={() => handleGenerateFlashcards(entry)}
+                              disabled={isGenerating}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-primary active:bg-secondary/50 disabled:opacity-50"
+                            >
+                              <Layers className="w-4 h-4" /> Flashcards
+                            </button>
+                          )}
                           <button onClick={() => { setMenuOpen(null); setDeleteId(entry.id); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50">
                             <Trash2 className="w-4 h-4" /> Eliminar
                           </button>
