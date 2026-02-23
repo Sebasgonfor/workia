@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CheckSquare, ScanLine, User } from "lucide-react";
+import { BookOpen, CheckSquare, ScanLine, Layers, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
   { href: "/materias", label: "Materias", icon: BookOpen },
   { href: "/tareas", label: "Tareas", icon: CheckSquare },
   { href: "/escanear", label: "Escanear", icon: ScanLine },
+  { href: "/flashcards", label: "Tarjetas", icon: Layers },
   { href: "/perfil", label: "Perfil", icon: User },
 ];
 

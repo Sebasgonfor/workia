@@ -1,23 +1,109 @@
 "use client";
 
 import { useState, useRef, useMemo } from "react";
-import { Camera, ImagePlus, X, Sparkles, FileText, CheckSquare } from "lucide-react";
+import {
+  Camera,
+  ImagePlus,
+  X,
+  Sparkles,
+  FileText,
+  CheckSquare,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { AppShell } from "@/components/app-shell";
-import { useSubjects, useClasses } from "@/lib/hooks";
+import { Sheet } from "@/components/ui/sheet";
+import { useAuth } from "@/lib/auth-context";
+import { useSubjects, useClasses, useTasks } from "@/lib/hooks";
+import { uploadScanImage } from "@/lib/storage";
+import { TASK_TYPES, TASK_PRIORITIES } from "@/types";
+import type { Task } from "@/types";
 import { toast } from "sonner";
 
 type ScanType = "auto" | "notes" | "task";
 
+interface DetectedTask {
+  title: string;
+  description: string;
+  dueDate: string;
+  dateConfidence: string;
+  priority: string;
+  taskType: string;
+  detectedSubject: string;
+  subjectConfidence: string;
+}
+
+interface TaskResult {
+  type: "task";
+  tasks: DetectedTask[];
+  rawText: string;
+}
+
+interface NotesResult {
+  type: "notes";
+  topic: string;
+  content: string;
+  tags: string[];
+  detectedSubject: string;
+  subjectConfidence: string;
+}
+
+type ScanResult = TaskResult | NotesResult;
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function EscanearPage() {
+  const { user } = useAuth();
   const { subjects } = useSubjects();
+  const { addTask } = useTasks();
+
+  // Main selectors
   const [subjectId, setSubjectId] = useState("");
   const { classes } = useClasses(subjectId || null);
-
   const [classId, setClassId] = useState("");
   const [scanType, setScanType] = useState<ScanType>("auto");
   const [images, setImages] = useState<{ url: string; file: File }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Processing
+  const [processing, setProcessing] = useState(false);
+  const [processStep, setProcessStep] = useState("");
+
+  // Result + editing
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Editable fields for task results
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editPriority, setEditPriority] = useState<Task["priority"]>("medium");
+  const [editTaskType, setEditTaskType] = useState<Task["type"]>("otro");
+
+  // Editable fields for notes results
+  const [editTopic, setEditTopic] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editTags, setEditTags] = useState("");
+
+  // Result subject/class (may differ from main selectors after AI detection)
+  const [resultSubjectId, setResultSubjectId] = useState("");
+  const { classes: resultClasses } = useClasses(resultSubjectId || null);
+  const [resultClassId, setResultClassId] = useState("");
 
   const scanTypes: { value: ScanType; label: string; icon: typeof Sparkles }[] = [
     { value: "auto", label: "Auto", icon: Sparkles },
@@ -41,20 +127,169 @@ export default function EscanearPage() {
     });
   };
 
-  const handleProcess = () => {
+  const matchSubject = (name: string | undefined) => {
+    if (!name) return "";
+    const lower = name.toLowerCase();
+    const match = subjects.find((s) => s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()));
+    return match?.id || "";
+  };
+
+  const handleProcess = async () => {
     if (images.length === 0) {
       toast.error("Agrega al menos una imagen");
       return;
     }
-    toast("Proximamente", {
-      description: "El procesamiento con IA se habilitara cuando se configure la API de Gemini.",
-    });
+
+    setProcessing(true);
+    setProcessStep("Preparando imagenes...");
+
+    try {
+      const base64Images = await Promise.all(
+        images.map((img) => fileToBase64(img.file))
+      );
+
+      setProcessStep("Analizando con IA...");
+
+      const selectedSubject = subjects.find((s) => s.id === subjectId);
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: base64Images,
+          type: scanType,
+          subjectName: selectedSubject?.name,
+          existingSubjects: subjects.map((s) => s.name),
+          currentDate: new Date().toISOString().split("T")[0],
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Error al procesar");
+      }
+
+      const scanData = data.data as ScanResult;
+      setResult(scanData);
+
+      if (scanData.type === "task" && scanData.tasks?.length > 0) {
+        const t = scanData.tasks[0];
+        setEditTitle(t.title || "");
+        setEditDescription(t.description || "");
+        setEditDueDate(t.dueDate || "");
+        setEditPriority((t.priority as Task["priority"]) || "medium");
+        setEditTaskType((t.taskType as Task["type"]) || "otro");
+        const matched = matchSubject(t.detectedSubject);
+        setResultSubjectId(matched || subjectId);
+      } else if (scanData.type === "notes") {
+        setEditTopic(scanData.topic || "");
+        setEditContent(scanData.content || "");
+        setEditTags((scanData.tags || []).join(", "));
+        const matched = matchSubject(scanData.detectedSubject);
+        setResultSubjectId(matched || subjectId);
+        setResultClassId(classId);
+      }
+
+      setShowResult(true);
+      toast.success("Imagen procesada");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      toast.error(msg);
+    } finally {
+      setProcessing(false);
+      setProcessStep("");
+    }
+  };
+
+  const handleSaveTask = async () => {
+    if (!editTitle.trim()) { toast.error("El titulo es obligatorio"); return; }
+    if (!resultSubjectId) { toast.error("Selecciona una materia"); return; }
+    if (!editDueDate) { toast.error("La fecha es obligatoria"); return; }
+
+    const sub = subjects.find((s) => s.id === resultSubjectId);
+    const dueDateObj = new Date(editDueDate + "T23:59:59");
+
+    setSaving(true);
+    try {
+      let sourceImageUrl: string | null = null;
+      if (user && images.length > 0) {
+        sourceImageUrl = await uploadScanImage(user.uid, images[0].file, 0);
+      }
+
+      await addTask({
+        title: editTitle.trim(),
+        subjectId: resultSubjectId,
+        subjectName: sub?.name || "",
+        description: editDescription.trim(),
+        dueDate: dueDateObj,
+        status: "pending",
+        priority: editPriority,
+        type: editTaskType,
+        sourceImageUrl,
+        classSessionId: classId || null,
+      });
+
+      toast.success("Tarea creada desde escaneo");
+      clearAfterSave();
+    } catch {
+      toast.error("Error al guardar tarea");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!editContent.trim()) { toast.error("El contenido es obligatorio"); return; }
+    if (!resultSubjectId) { toast.error("Selecciona una materia"); return; }
+    if (!resultClassId) { toast.error("Selecciona una clase"); return; }
+    if (!user) return;
+
+    setSaving(true);
+    try {
+      let sourceImageUrls: string[] = [];
+      if (images.length > 0) {
+        sourceImageUrls = await Promise.all(
+          images.map((img, i) => uploadScanImage(user.uid, img.file, i))
+        );
+      }
+
+      const tags = editTags.split(",").map((t) => t.trim()).filter(Boolean);
+
+      await addDoc(
+        collection(db, "users", user.uid, "subjects", resultSubjectId, "classes", resultClassId, "entries"),
+        {
+          type: "notes",
+          content: editContent.trim(),
+          rawContent: editContent.trim(),
+          sourceImages: sourceImageUrls,
+          tags,
+          order: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }
+      );
+
+      toast.success("Apuntes guardados desde escaneo");
+      clearAfterSave();
+    } catch {
+      toast.error("Error al guardar apuntes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearAfterSave = () => {
+    setShowResult(false);
+    setResult(null);
+    images.forEach((img) => URL.revokeObjectURL(img.url));
+    setImages([]);
   };
 
   const selectedSubject = useMemo(
     () => subjects.find((s) => s.id === subjectId),
     [subjects, subjectId]
   );
+
+  const isTask = result?.type === "task";
 
   return (
     <AppShell>
@@ -94,7 +329,6 @@ export default function EscanearPage() {
           </div>
         ) : (
           <div className="mb-4">
-            {/* Image preview grid */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
               {images.map((img, i) => (
                 <div key={i} className="relative shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-border">
@@ -107,7 +341,6 @@ export default function EscanearPage() {
                   </button>
                 </div>
               ))}
-              {/* Add more button */}
               <button
                 onClick={() => cameraInputRef.current?.click()}
                 className="shrink-0 w-24 h-24 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground active:bg-secondary/50"
@@ -208,15 +441,24 @@ export default function EscanearPage() {
         {/* Process button */}
         <button
           onClick={handleProcess}
-          disabled={images.length === 0}
+          disabled={images.length === 0 || processing}
           className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
         >
-          <Sparkles className="w-4 h-4" />
-          Procesar con IA
-          {images.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-primary-foreground/20 text-xs">
-              {images.length}
-            </span>
+          {processing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {processStep}
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Procesar con IA
+              {images.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-primary-foreground/20 text-xs">
+                  {images.length}
+                </span>
+              )}
+            </>
           )}
         </button>
 
@@ -224,6 +466,201 @@ export default function EscanearPage() {
           Gemini Vision procesara las imagenes
         </p>
       </div>
+
+      {/* Result Sheet — Task */}
+      {result?.type === "task" && (
+        <Sheet
+          open={showResult}
+          onClose={() => setShowResult(false)}
+          title="Tarea detectada"
+        >
+          <div className="space-y-3.5">
+            {/* Confidence warning */}
+            {result.tasks[0]?.dateConfidence === "low" && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                Fecha con baja confianza, verifica antes de guardar
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo</label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
+                <select
+                  value={resultSubjectId}
+                  onChange={(e) => setResultSubjectId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
+                >
+                  <option value="">Seleccionar...</option>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
+                <input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                />
+              </div>
+            </div>
+
+            {editDescription && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripcion</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={2}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none text-sm"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {TASK_PRIORITIES.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setEditPriority(p.value as Task["priority"])}
+                    className={`py-2 rounded-xl text-sm font-medium transition-all ${
+                      editPriority === p.value ? "text-white" : "bg-secondary text-muted-foreground"
+                    }`}
+                    style={editPriority === p.value ? { backgroundColor: p.color } : undefined}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {TASK_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setEditTaskType(t.value as Task["type"])}
+                    className={`flex items-center justify-center gap-1 py-2 rounded-xl text-sm font-medium transition-all ${
+                      editTaskType === t.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    <span className="text-xs">{t.emoji}</span> {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {result.tasks.length > 1 && (
+              <p className="text-xs text-muted-foreground text-center">
+                Se detectaron {result.tasks.length} tareas. Se guardara la primera.
+              </p>
+            )}
+
+            <button
+              onClick={handleSaveTask}
+              disabled={saving}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              {saving ? "Guardando..." : "Guardar tarea"}
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {/* Result Sheet — Notes */}
+      {result?.type === "notes" && (
+        <Sheet
+          open={showResult}
+          onClose={() => setShowResult(false)}
+          title="Apuntes detectados"
+        >
+          <div className="space-y-3.5">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Tema</label>
+              <input
+                type="text"
+                value={editTopic}
+                onChange={(e) => setEditTopic(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Contenido</label>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={5}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none text-sm leading-relaxed"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Tags</label>
+              <input
+                type="text"
+                value={editTags}
+                onChange={(e) => setEditTags(e.target.value)}
+                placeholder="separados por coma"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
+                <select
+                  value={resultSubjectId}
+                  onChange={(e) => { setResultSubjectId(e.target.value); setResultClassId(""); }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
+                >
+                  <option value="">Seleccionar...</option>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Clase</label>
+                <select
+                  value={resultClassId}
+                  onChange={(e) => setResultClassId(e.target.value)}
+                  disabled={!resultSubjectId}
+                  className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm disabled:opacity-50"
+                >
+                  <option value="">Seleccionar...</option>
+                  {resultClasses.map((c) => (
+                    <option key={c.id} value={c.id}>{c.title}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveNotes}
+              disabled={saving}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              {saving ? "Guardando..." : "Guardar apuntes"}
+            </button>
+          </div>
+        </Sheet>
+      )}
     </AppShell>
   );
 }

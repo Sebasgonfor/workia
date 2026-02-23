@@ -47,15 +47,33 @@ export interface Task {
 
 export interface Flashcard {
   id: string;
-  noteId: string;
   subjectId: string;
+  subjectName: string;
+  noteId: string | null;
   question: string;
   answer: string;
   type: "definition" | "application" | "comparison" | "calculation";
-  mastery: number;
+  // SM-2 spaced repetition
+  easeFactor: number; // default 2.5, min 1.3
+  interval: number; // days between reviews
+  repetitions: number; // consecutive correct reviews
   nextReview: Date;
-  reviewCount: number;
+  createdAt: Date;
 }
+
+export const FLASHCARD_TYPES = [
+  { value: "definition", label: "Definicion" },
+  { value: "application", label: "Aplicacion" },
+  { value: "comparison", label: "Comparacion" },
+  { value: "calculation", label: "Calculo" },
+] as const;
+
+export const REVIEW_RATINGS = [
+  { value: 0, label: "Otra vez", color: "#ef4444" },
+  { value: 3, label: "Dificil", color: "#f59e0b" },
+  { value: 4, label: "Bien", color: "#10b981" },
+  { value: 5, label: "Facil", color: "#3b82f6" },
+] as const;
 
 // Subject color presets
 export const SUBJECT_COLORS = [
