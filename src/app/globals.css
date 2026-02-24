@@ -96,6 +96,10 @@
   .pt-safe {
     padding-top: calc(env(safe-area-inset-top) + 1.5rem);
   }
+  /* Compact safe-area top — for fixed headers that need less extra space */
+  .pt-safe-bar {
+    padding-top: max(env(safe-area-inset-top), 0.5rem);
+  }
 }
 
 /* Sheet max-height with dvh fallback */

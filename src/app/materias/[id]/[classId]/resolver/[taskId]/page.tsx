@@ -232,7 +232,7 @@ export default function TaskSolverPage() {
       {/* Fixed header */}
       <div
         ref={headerRef}
-        className="fixed top-0 inset-x-0 z-20 px-4 pt-2 pb-2.5 border-b border-border bg-background"
+        className="fixed top-0 inset-x-0 z-20 px-4 pt-safe-bar pb-2.5 border-b border-border bg-background"
         style={{ backgroundImage: `linear-gradient(135deg, ${color}18 0%, transparent 60%)` }}
       >
         <button
@@ -291,7 +291,9 @@ export default function TaskSolverPage() {
         className="overflow-y-auto px-4 space-y-4"
         style={{
           paddingTop: `${headerHeight + 16}px`,
-          paddingBottom: hasInput ? `100px` : `24px`,
+          paddingBottom: hasInput
+            ? `calc(env(safe-area-inset-bottom) + 110px)`
+            : `calc(env(safe-area-inset-bottom) + 24px)`,
           minHeight: "100dvh",
         }}
       >
@@ -383,7 +385,7 @@ export default function TaskSolverPage() {
       {/* Fixed input bar */}
       {hasInput && (
         <div
-          className="fixed inset-x-0 z-20 px-4 pb-3 pt-2.5 border-t border-border bg-background"
+          className="fixed inset-x-0 z-20 px-4 pb-safe pt-2.5 border-t border-border bg-background"
           style={{ bottom: "0" }}
         >
           <div className="flex items-end gap-2">
