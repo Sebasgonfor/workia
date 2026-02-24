@@ -77,9 +77,19 @@ interface MermaidChartProps {
 function sanitizeMermaid(raw: string): string {
   return raw
     .trim()
+    // Strip surrounding backtick fences if the model included them
+    .replace(/^```(?:mermaid)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
     // Unescape JSON-escaped newlines/tabs that may survive markdown parsing
     .replace(/\\n/g, "\n")
     .replace(/\\t/g, "  ")
+    // Unescape LaTeX-style escaped parens inside node labels: \( → ( and \) → )
+    .replace(/\\\(/g, "(")
+    .replace(/\\\)/g, ")")
+    // Remove LaTeX dollar-sign math from labels (e.g. $R^3$ → R3)
+    .replace(/\$([^$]+)\$/g, (_, m: string) => m.replace(/[\\{}^_]/g, ""))
+    // Superscript notation: R^2 → R2, R^3 → R3 (carets break Mermaid labels)
+    .replace(/\^(\w+)/g, "$1")
     // Smart/curly quotes → straight
     .replace(/[\u201c\u201d]/g, '"')
     .replace(/[\u2018\u2019]/g, "'")
@@ -87,9 +97,6 @@ function sanitizeMermaid(raw: string): string {
     .replace(/[\u2013\u2014]/g, "-")
     // Remove zero-width spaces and other invisible chars
     .replace(/[\u200b\u200c\u200d\ufeff]/g, "")
-    // Strip surrounding backtick fences if the model included them
-    .replace(/^```(?:mermaid)?\s*\n?/i, "")
-    .replace(/\n?```\s*$/i, "")
     .trim();
 }
 
@@ -106,39 +113,53 @@ export function MermaidChart({ code }: MermaidChartProps) {
     if (attemptedRef.current) return;
     attemptedRef.current = true;
 
-    loadMermaid()
-      .then(async () => {
-        try {
-          const cleaned = sanitizeMermaid(code);
-          setCleanCode(cleaned);
+    const run = async () => {
+      try {
+        await loadMermaid();
+        const cleaned = sanitizeMermaid(code);
+        setCleanCode(cleaned);
 
-          // Race render against a timeout so it can never hang the UI
-          const renderPromise = window.mermaid!.render(uid, cleaned);
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 8000)
-          );
-          const result = await Promise.race([renderPromise, timeoutPromise]);
-          // Mermaid v11 renders syntax errors as SVG with "Syntax error" text
-          // instead of throwing — detect and treat as error
+        const renderPromise = window.mermaid!.render(uid, cleaned);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 8000)
+        );
+        const result = await Promise.race([renderPromise, timeoutPromise]);
+        const isSyntaxError =
+          result.svg.includes("Syntax error") ||
+          result.svg.includes("mermaid-error") ||
+          result.svg.includes("syntax-error");
+        if (isSyntaxError) {
+          setError(true);
+        } else {
+          setSvg(result.svg);
+        }
+      } catch {
+        // Retry once with re-init in case mermaid state got corrupted
+        try {
+          window.mermaid?.initialize({
+            startOnLoad: false,
+            theme: "dark",
+            fontFamily: "inherit",
+            securityLevel: "loose",
+            suppressErrorRendering: true,
+          });
+          const cleaned = sanitizeMermaid(code);
+          const result = await window.mermaid!.render(`${uid}_r`, cleaned);
           const isSyntaxError =
             result.svg.includes("Syntax error") ||
             result.svg.includes("mermaid-error") ||
             result.svg.includes("syntax-error");
-          if (isSyntaxError) {
-            setError(true);
-          } else {
-            setSvg(result.svg);
-          }
+          if (isSyntaxError) setError(true);
+          else setSvg(result.svg);
         } catch {
           setError(true);
-        } finally {
-          setLoading(false);
         }
-      })
-      .catch(() => {
-        setError(true);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    run();
   }, [code, uid]);
 
   if (loading) {

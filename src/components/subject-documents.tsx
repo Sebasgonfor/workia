@@ -243,7 +243,7 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
               </div>
             ) : (
               <iframe
-                src={preview.url}
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.url)}&embedded=true`}
                 title={preview.name}
                 className="w-full h-full border-0"
               />
