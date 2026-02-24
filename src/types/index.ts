@@ -211,6 +211,18 @@ export interface QuizAttempt {
   completedAt: Date;
 }
 
+// ── Dynamic Board ──
+
+export interface DynamicBoard {
+  id: string;
+  subjectId: string;
+  classSessionId: string;
+  content: string; // AI-enriched markdown
+  sourceImages: string[]; // Cloudinary URLs of all uploaded photos
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ── Task Solver Chat ──
 
 export interface TaskSolverMessage {

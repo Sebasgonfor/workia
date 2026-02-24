@@ -113,11 +113,9 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
         <p className="text-xs text-muted-foreground">
           {loading ? "\u00b7\u00b7\u00b7" : `${documents.length} documento${documents.length !== 1 ? "s" : ""}`}
         </p>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
+        <label
           aria-label="Subir documento"
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-95 transition-transform disabled:opacity-60"
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-95 transition-transform cursor-pointer ${uploading ? "opacity-60 pointer-events-none" : ""}`}
         >
           {uploading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -125,13 +123,15 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
             <Upload className="w-4 h-4" />
           )}
           {uploading ? "Subiendo..." : "Subir"}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={handleFileSelect}
-        />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+            className="hidden"
+            onChange={handleFileSelect}
+            disabled={uploading}
+          />
+        </label>
       </div>
 
       {/* List */}

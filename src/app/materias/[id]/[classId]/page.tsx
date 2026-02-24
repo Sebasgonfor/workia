@@ -35,6 +35,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
+import { DynamicBoardTab } from "@/components/dynamic-board-tab";
 import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
 import { uploadScanImage, uploadAudio, uploadNoteImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
@@ -155,6 +156,9 @@ export default function BoardPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"apuntes" | "tablero">("apuntes");
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
@@ -783,6 +787,37 @@ export default function BoardPage() {
           </div>
         </div>
 
+        {/* Tab bar */}
+        <div className="px-4 pt-3 pb-1">
+          <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl">
+            <button
+              onClick={() => setActiveTab("apuntes")}
+              aria-label="Ver apuntes"
+              className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "apuntes"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
+            >
+              Apuntes
+            </button>
+            <button
+              onClick={() => setActiveTab("tablero")}
+              aria-label="Ver tablero dinámico"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "tablero"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
+            >
+              <Sparkles className="w-3 h-3" />
+              Tablero
+            </button>
+          </div>
+        </div>
+
+        {activeTab === "apuntes" && (
+          <>
         {/* Filters */}
         {entries.length > 0 && (
           <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5">
@@ -1020,6 +1055,20 @@ export default function BoardPage() {
             </div>
           )}
         </div>
+          </>
+        )}
+
+        {activeTab === "tablero" && (
+          <div className="px-4">
+            <DynamicBoardTab
+              subjectId={subjectId}
+              classId={classId}
+              subjectName={subject?.name || ""}
+              color={color}
+              boardEntries={entries}
+            />
+          </div>
+        )}
       </div>
 
       {/* Task Detail Sheet */}
