@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
   ExternalLink,
+  Download,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ const MSG_UPLOAD_SUCCESS = "Documento subido";
 const MSG_UPLOAD_ERROR = "Error al subir el documento";
 const MSG_DELETE_SUCCESS = "Documento eliminado";
 const MSG_DELETE_ERROR = "Error al eliminar";
+const MSG_DOWNLOAD_ERROR = "Error al descargar el documento";
 
 const getFileIcon = (fileType: string) => {
   if (fileType.startsWith("image/")) return ImageIcon;
@@ -51,8 +53,31 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
 
   const [uploading, setUploading] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<SubjectDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDownload = async (doc: SubjectDocument) => {
+    if (downloadingId === doc.id) return;
+    setDownloadingId(doc.id);
+    try {
+      const response = await fetch(doc.url);
+      if (!response.ok) throw new Error("Download failed");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = doc.name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast.error(MSG_DOWNLOAD_ERROR);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -192,6 +217,19 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
                     className="w-8 h-8 rounded-lg flex items-center justify-center active:bg-secondary/60"
                   >
                     <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    tabIndex={0}
+                    aria-label="Descargar documento"
+                    onClick={() => handleDownload(document)}
+                    disabled={downloadingId === document.id}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center active:bg-secondary/60 disabled:opacity-50"
+                  >
+                    {downloadingId === document.id ? (
+                      <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 text-muted-foreground" />
+                    )}
                   </button>
                   <button
                     tabIndex={0}
