@@ -29,6 +29,7 @@ import {
   CalendarCheck,
   Clock,
   ChevronRight,
+  Bot,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
@@ -990,7 +991,27 @@ export default function BoardPage() {
                             </span>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground/30 shrink-0 mt-0.5" />
+                        <div className="flex items-center gap-1 shrink-0">
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/materias/${subjectId}/${classId}/resolver/${task.id}`);
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Resolver tarea con IA"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.stopPropagation();
+                                router.push(`/materias/${subjectId}/${classId}/resolver/${task.id}`);
+                              }
+                            }}
+                            className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center active:scale-90 transition-transform touch-target cursor-pointer"
+                          >
+                            <Bot className="w-3.5 h-3.5 text-primary" />
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
+                        </div>
                       </div>
                     </button>
                   );
@@ -1070,6 +1091,20 @@ export default function BoardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Resolver con IA */}
+              <button
+                onClick={() => {
+                  setDetailTask(null);
+                  router.push(`/materias/${subjectId}/${classId}/resolver/${detailTask.id}`);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm active:scale-[0.98] transition-transform text-primary-foreground"
+                style={{ backgroundColor: color }}
+                aria-label="Resolver tarea con IA"
+              >
+                <Bot className="w-4 h-4" />
+                Resolver con IA
+              </button>
 
               {/* Actions */}
               <div className="flex gap-2">

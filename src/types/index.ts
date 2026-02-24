@@ -211,6 +211,16 @@ export interface QuizAttempt {
   completedAt: Date;
 }
 
+// ── Task Solver Chat ──
+
+export interface TaskSolverMessage {
+  id: string;
+  taskId: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: Date;
+}
+
 /** Returns the next occurrence date+slot for a given subject, or null if no slots exist. */
 export const nextClassDate = (
   slots: ScheduleSlot[],
