@@ -14,6 +14,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
+import { SubjectDocuments } from "@/components/subject-documents";
 import { useSubjects, useClasses } from "@/lib/hooks";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -33,6 +34,7 @@ export default function SubjectDetailPage() {
   );
 
   const [showCreate, setShowCreate] = useState(false);
+  const [activeTab, setActiveTab] = useState<"clases" | "documentos">("clases");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -140,88 +142,125 @@ export default function SubjectDetailPage() {
                 </p>
               </div>
             </div>
+            {activeTab === "clases" && (
+              <button
+                onClick={openCreate}
+                className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target shrink-0"
+              >
+                <Plus className="w-5 h-5 text-primary-foreground" />
+              </button>
+            )}
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1 mt-4 p-1 bg-secondary/50 rounded-xl">
             <button
-              onClick={openCreate}
-              className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform touch-target shrink-0"
+              onClick={() => setActiveTab("clases")}
+              aria-label="Ver clases"
+              className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "clases"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
             >
-              <Plus className="w-5 h-5 text-primary-foreground" />
+              Clases
+            </button>
+            <button
+              onClick={() => setActiveTab("documentos")}
+              aria-label="Ver documentos"
+              className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "documentos"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
+            >
+              Documentos
             </button>
           </div>
         </div>
 
-        {/* Classes List */}
+        {/* Tab content */}
         <div className="px-4">
-          {loading ? (
-            <div className="space-y-2.5 mt-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 rounded-xl bg-card animate-pulse" />
-              ))}
+          {activeTab === "documentos" && (
+            <div className="mt-3">
+              <SubjectDocuments subjectId={subjectId} subject={subject} />
             </div>
-          ) : classes.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-14 h-14 rounded-2xl bg-card flex items-center justify-center mx-auto mb-3">
-                <Calendar className="w-7 h-7 text-muted-foreground" />
-              </div>
-              <p className="text-muted-foreground text-sm mb-1">Sin clases aun</p>
-              <p className="text-xs text-muted-foreground/60">Agrega tu primera clase</p>
-            </div>
-          ) : (
-            <div className="space-y-5 mt-2">
-              {Object.entries(groupedClasses).map(([month, monthClasses]) => (
-                <div key={month}>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    {month}
-                  </p>
-                  <div className="space-y-2">
-                    {monthClasses.map((cls) => (
-                      <div key={cls.id} className="relative">
-                        <button
-                          onClick={() => router.push(`/materias/${subjectId}/${cls.id}`)}
-                          className="w-full text-left p-3.5 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex flex-col items-center justify-center w-10 shrink-0">
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                                {format(cls.date, "MMM", { locale: es })}
-                              </span>
-                              <span className="text-lg font-bold">{format(cls.date, "d")}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-[15px] truncate">{cls.title}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {format(cls.date, "EEEE", { locale: es })}
-                              </p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === cls.id ? null : cls.id); }}
-                          className="absolute top-2.5 right-10 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
-                        >
-                          <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                        </button>
-
-                        {menuOpen === cls.id && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
-                            <div className="absolute top-11 right-10 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
-                              <button onClick={() => openEdit(cls.id)} className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50">
-                                <Pencil className="w-4 h-4" /> Editar
-                              </button>
-                              <button onClick={() => { setMenuOpen(null); setDeleteId(cls.id); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50">
-                                <Trash2 className="w-4 h-4" /> Eliminar
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+          )}
+          {activeTab === "clases" && (
+            <>
+              {loading ? (
+                <div className="space-y-2.5 mt-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-16 rounded-xl bg-card animate-pulse" />
+                  ))}
                 </div>
-              ))}
-            </div>
+              ) : classes.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-14 h-14 rounded-2xl bg-card flex items-center justify-center mx-auto mb-3">
+                    <Calendar className="w-7 h-7 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground text-sm mb-1">Sin clases aun</p>
+                  <p className="text-xs text-muted-foreground/60">Agrega tu primera clase</p>
+                </div>
+              ) : (
+                <div className="space-y-5 mt-2 pb-4">
+                  {Object.entries(groupedClasses).map(([month, monthClasses]) => (
+                    <div key={month}>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        {month}
+                      </p>
+                      <div className="space-y-2">
+                        {monthClasses.map((cls) => (
+                          <div key={cls.id} className="relative">
+                            <button
+                              onClick={() => router.push(`/materias/${subjectId}/${cls.id}`)}
+                              className="w-full text-left p-3.5 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex flex-col items-center justify-center w-10 shrink-0">
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                    {format(cls.date, "MMM", { locale: es })}
+                                  </span>
+                                  <span className="text-lg font-bold">{format(cls.date, "d")}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-[15px] truncate">{cls.title}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {format(cls.date, "EEEE", { locale: es })}
+                                  </p>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                              </div>
+                            </button>
+
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === cls.id ? null : cls.id); }}
+                              className="absolute top-2.5 right-10 w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center touch-target"
+                            >
+                              <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                            </button>
+
+                            {menuOpen === cls.id && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
+                                <div className="absolute top-11 right-10 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
+                                  <button onClick={() => openEdit(cls.id)} className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50">
+                                    <Pencil className="w-4 h-4" /> Editar
+                                  </button>
+                                  <button onClick={() => { setMenuOpen(null); setDeleteId(cls.id); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50">
+                                    <Trash2 className="w-4 h-4" /> Eliminar
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

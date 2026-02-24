@@ -116,6 +116,19 @@ export const BOARD_ENTRY_TYPES = [
   { value: "resource", icon: "Paperclip", label: "Recurso" },
 ] as const;
 
+// ── Subject Documents ──
+
+export interface SubjectDocument {
+  id: string;
+  subjectId: string;
+  name: string;
+  url: string;
+  publicId: string;
+  fileType: string; // mime type, e.g. "application/pdf", "image/png"
+  fileSize: number; // bytes
+  createdAt: Date;
+}
+
 // ── Schedule ──
 
 export interface ScheduleSlot {
