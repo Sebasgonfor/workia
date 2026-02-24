@@ -39,6 +39,27 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown, sin backticks):
   ]
 }`;
 
+/** Strip rich-text markup from notes content so Gemini receives clean plain text */
+function cleanContentForPrompt(raw: string): string {
+  return raw
+    .replace(/```mermaid[\s\S]*?```/gi, "[diagrama]")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/<nc-(?:def|formula|warn|ex|ai)>([\s\S]*?)<\/nc-(?:def|formula|warn|ex|ai)>/gi, "$1")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Extract the outermost JSON object from a string, handling markdown code fences */
+function extractJson(text: string): unknown {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1].trim() : text.trim();
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) throw new Error("No JSON object found");
+  return JSON.parse(candidate.slice(start, end + 1));
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -63,8 +84,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanContent = cleanContentForPrompt(content);
+
     let prompt = PROMPT
-      .replace("{content}", content)
+      .replace("{content}", cleanContent)
       .replace("{subjectName}", subjectName || "General");
 
     // Build document context from subject library
@@ -83,9 +106,7 @@ export async function POST(req: NextRequest) {
 
     let parsed;
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("No JSON found");
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = extractJson(text);
     } catch {
       return NextResponse.json(
         { error: "Error al interpretar respuesta de IA", raw: text },
