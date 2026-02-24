@@ -7,6 +7,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  setDoc,
   query,
   orderBy,
   onSnapshot,
@@ -18,7 +19,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import type { Subject, ClassSession, BoardEntry, Task, Flashcard } from "@/types";
+import type { Subject, ClassSession, BoardEntry, Task, Flashcard, ScheduleSlot, SubjectGradeRecord, CorteGrades } from "@/types";
 
 // ── Subjects ──
 
@@ -529,4 +530,135 @@ export function useFlashcards(subjectId?: string | null) {
   const dueCards = flashcards.filter((f) => f.nextReview <= new Date());
 
   return { flashcards, dueCards, loading, addFlashcard, addFlashcards, reviewFlashcard, deleteFlashcard };
+}
+
+// ── Schedule ──
+
+export function useSchedule() {
+  const { user } = useAuth();
+  const [slots, setSlots] = useState<ScheduleSlot[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setSlots([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "users", user.uid, "schedule"),
+      orderBy("dayOfWeek", "asc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+          updatedAt: (d.data().updatedAt as Timestamp)?.toDate() || new Date(),
+        })) as ScheduleSlot[];
+        setSlots(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useSchedule snapshot error:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const addSlot = useCallback(
+    async (data: Omit<ScheduleSlot, "id" | "createdAt" | "updatedAt">) => {
+      if (!user) return;
+      await addDoc(collection(db, "users", user.uid, "schedule"), {
+        ...data,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    },
+    [user]
+  );
+
+  const updateSlot = useCallback(
+    async (id: string, data: Partial<Omit<ScheduleSlot, "id" | "createdAt" | "updatedAt">>) => {
+      if (!user) return;
+      await updateDoc(doc(db, "users", user.uid, "schedule", id), {
+        ...data,
+        updatedAt: serverTimestamp(),
+      });
+    },
+    [user]
+  );
+
+  const deleteSlot = useCallback(
+    async (id: string) => {
+      if (!user) return;
+      await deleteDoc(doc(db, "users", user.uid, "schedule", id));
+    },
+    [user]
+  );
+
+  return { slots, loading, addSlot, updateSlot, deleteSlot };
+}
+
+// ── Grades ──
+
+export function useGrades() {
+  const { user } = useAuth();
+  const [grades, setGrades] = useState<SubjectGradeRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setGrades([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "users", user.uid, "grades"),
+      orderBy("updatedAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          subjectId: d.id,
+          ...d.data(),
+          updatedAt: (d.data().updatedAt as Timestamp)?.toDate() || new Date(),
+        })) as SubjectGradeRecord[];
+        setGrades(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useGrades snapshot error:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const saveGrades = useCallback(
+    async (
+      subjectId: string,
+      data: Pick<SubjectGradeRecord, "corte1" | "corte2" | "corte3">
+    ) => {
+      if (!user) return;
+      await setDoc(
+        doc(db, "users", user.uid, "grades", subjectId),
+        { ...data, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+    },
+    [user]
+  );
+
+  return { grades, loading, saveGrades };
 }

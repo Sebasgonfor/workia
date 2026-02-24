@@ -115,3 +115,83 @@ export const BOARD_ENTRY_TYPES = [
   { value: "task", icon: "CheckSquare", label: "Tarea" },
   { value: "resource", icon: "Paperclip", label: "Recurso" },
 ] as const;
+
+// ── Schedule ──
+
+export interface ScheduleSlot {
+  id: string;
+  subjectId: string;
+  dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0=Dom, 1=Lun … 6=Sab
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+  room: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const DAYS_OF_WEEK = [
+  { value: 1 as const, label: "Lun", full: "Lunes" },
+  { value: 2 as const, label: "Mar", full: "Martes" },
+  { value: 3 as const, label: "Mie", full: "Miercoles" },
+  { value: 4 as const, label: "Jue", full: "Jueves" },
+  { value: 5 as const, label: "Vie", full: "Viernes" },
+  { value: 6 as const, label: "Sab", full: "Sabado" },
+  { value: 0 as const, label: "Dom", full: "Domingo" },
+] as const;
+
+export const SCHEDULE_HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 6–22
+
+// ── Grades ──
+
+export interface CorteGrades {
+  formativa1: number | null;
+  formativa2: number | null;
+  parcial: number | null;
+}
+
+export interface SubjectGradeRecord {
+  subjectId: string;
+  corte1: CorteGrades;
+  corte2: CorteGrades;
+  corte3: CorteGrades;
+  updatedAt: Date;
+}
+
+/** Weights for each corte: 30%, 30%, 40% */
+export const CORTE_WEIGHTS = [0.30, 0.30, 0.40] as const;
+
+/** Minimum passing grade on a 0–5 scale */
+export const MIN_PASSING_GRADE = 3.0;
+
+/** Maximum grade on a 0–5 scale */
+export const MAX_GRADE = 5.0;
+
+/** Returns the next occurrence date+slot for a given subject, or null if no slots exist. */
+export const nextClassDate = (
+  slots: ScheduleSlot[],
+  subjectId: string
+): { date: Date; slot: ScheduleSlot } | null => {
+  const subjectSlots = slots.filter((s) => s.subjectId === subjectId);
+  if (subjectSlots.length === 0) return null;
+
+  const now = new Date();
+  let best: { date: Date; slot: ScheduleSlot } | null = null;
+
+  for (const slot of subjectSlots) {
+    const [slotH, slotM] = slot.startTime.split(":").map(Number);
+    let daysAhead = (slot.dayOfWeek - now.getDay() + 7) % 7;
+    // If same day but time already passed, move to next week
+    if (
+      daysAhead === 0 &&
+      (now.getHours() > slotH || (now.getHours() === slotH && now.getMinutes() >= slotM))
+    ) {
+      daysAhead = 7;
+    }
+    const date = new Date(now);
+    date.setDate(date.getDate() + daysAhead);
+    date.setHours(slotH, slotM, 0, 0);
+    if (!best || date < best.date) best = { date, slot };
+  }
+
+  return best;
+};

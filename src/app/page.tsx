@@ -11,7 +11,7 @@ export default function Home() {
 
   useEffect(() => {
     if (user && !loading) {
-      router.replace("/materias");
+      router.replace("/inicio");
     }
   }, [user, loading, router]);
 

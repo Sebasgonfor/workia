@@ -17,8 +17,8 @@ import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
-import { useSubjects, useTasks } from "@/lib/hooks";
-import { TASK_TYPES, TASK_PRIORITIES } from "@/types";
+import { useSubjects, useTasks, useSchedule } from "@/lib/hooks";
+import { TASK_TYPES, TASK_PRIORITIES, nextClassDate } from "@/types";
 import type { Task } from "@/types";
 import { toast } from "sonner";
 
@@ -63,6 +63,7 @@ interface TaskGroup {
 export default function TareasPage() {
   const { subjects } = useSubjects();
   const { tasks, loading, addTask, updateTask, deleteTask } = useTasks();
+  const { slots } = useSchedule();
 
   const [filter, setFilter] = useState<FilterType>("all");
   const [showSheet, setShowSheet] = useState(false);
@@ -570,6 +571,37 @@ export default function TareasPage() {
               />
             </div>
           </div>
+
+          {/* Next class shortcut */}
+          {(() => {
+            if (!subjectId) return null;
+            const next = nextClassDate(slots, subjectId);
+            if (!next) return null;
+            const dayName = next.date.toLocaleDateString("es-CO", { weekday: "long" });
+            const dateLabel = next.date.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+            const timeLabel = next.slot.startTime;
+            const handleUseNextClass = () => {
+              const d = next.date;
+              setDueDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+            };
+            return (
+              <button
+                type="button"
+                onClick={handleUseNextClass}
+                aria-label="Usar fecha de proxima clase como entrega"
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-left active:opacity-70 touch-target transition-opacity"
+              >
+                <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-primary leading-tight">Proxima clase</p>
+                  <p className="text-[11px] text-primary/70 capitalize truncate">
+                    {dayName} {dateLabel} · {timeLabel}
+                  </p>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-primary/50 flex-shrink-0" />
+              </button>
+            );
+          })()}
 
           {/* Description — collapsible */}
           {!showDesc ? (
