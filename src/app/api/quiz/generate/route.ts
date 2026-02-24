@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -71,9 +72,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { content, subjectName } = body as {
+    const { content, subjectName, subjectDocuments } = body as {
       content: string;
       subjectName: string;
+      subjectDocuments?: DocRef[];
     };
 
     if (!content || !content.trim()) {
@@ -83,12 +85,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const prompt = PROMPT
+    let prompt = PROMPT
       .replace("{content}", content)
       .replace("{subjectName}", subjectName || "General");
 
+    // Build document context from subject library
+    const documentContext = await buildDocumentContext(subjectDocuments || []);
+    if (documentContext.contextText) {
+      prompt = `${prompt}\n\n${documentContext.contextText}`;
+    }
+
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(
+      documentContext.parts.length > 0
+        ? [prompt, ...documentContext.parts]
+        : prompt
+    );
     const text = result.response.text();
 
     let parsed;

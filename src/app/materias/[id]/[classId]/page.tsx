@@ -29,7 +29,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
-import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes } from "@/lib/hooks";
+import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
 import { uploadScanImage, uploadAudio } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
@@ -106,6 +106,7 @@ export default function BoardPage() {
   const { addFlashcards } = useFlashcards(subjectId);
   const { addQuiz } = useQuizzes(subjectId);
   const { tasks: allTasks, addTask, updateTask: updateTaskStatus, deleteTask } = useTasks();
+  const { documents: subjectDocuments } = useSubjectDocuments(subjectId);
 
   const subject = useMemo(() => subjects.find((s) => s.id === subjectId), [subjects, subjectId]);
   const classSession = useMemo(() => classes.find((c) => c.id === classId), [classes, classId]);
@@ -263,7 +264,11 @@ export default function BoardPage() {
       const response = await fetch("/api/flashcards/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: entry.content, subjectName: subject?.name || "General" }),
+        body: JSON.stringify({
+          content: entry.content,
+          subjectName: subject?.name || "General",
+          subjectDocuments: subjectDocuments.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name })),
+        }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Error al generar");
@@ -294,7 +299,11 @@ export default function BoardPage() {
       const response = await fetch("/api/quiz/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: entry.content, subjectName: subject?.name || "General" }),
+        body: JSON.stringify({
+          content: entry.content,
+          subjectName: subject?.name || "General",
+          subjectDocuments: subjectDocuments.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name })),
+        }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Error al generar quiz");
@@ -353,6 +362,7 @@ export default function BoardPage() {
           subjectName: subject?.name,
           existingSubjects: subjects.map((s) => s.name),
           currentDate: new Date().toISOString().split("T")[0],
+          subjectDocuments: subjectDocuments.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name })),
         }),
       });
 
@@ -567,6 +577,7 @@ export default function BoardPage() {
           subjectName: subject?.name,
           existingSubjects: subjects.map((s) => s.name),
           currentDate: new Date().toISOString().split("T")[0],
+          subjectDocuments: subjectDocuments.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name })),
         }),
       });
 

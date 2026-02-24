@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -37,7 +38,7 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 }`;
 
 const NOTES_PROMPT = `Eres un asistente académico experto en procesar apuntes de clases universitarias de INGENIERÍA.
-Tu trabajo es TRANSCRIBIR fielmente, ESTRUCTURAR con claridad, y COMPLEMENTAR inteligentemente.
+Tu trabajo es TRANSCRIBIR fielmente, ESTRUCTURAR con claridad, COLOREAR por categoría y COMPLEMENTAR inteligentemente.
 
 CONTEXTO:
 - Materia: {subjectName}
@@ -49,39 +50,50 @@ INSTRUCCIONES CRÍTICAS:
 1. TRANSCRIPCIÓN FIEL:
    - Transcribe TODO lo visible, incluyendo diagramas descritos textualmente.
    - ECUACIONES: Usa LaTeX SIEMPRE. Inline con $...$ y en bloque con $$...$$
-   - Ejemplos de transcripción correcta:
-     * Integral: $\\int_0^1 x^2 \\, dx$
-     * Derivada parcial: $\\frac{\\partial f}{\\partial x}$
-     * Gradiente: $\\nabla f = \\left(\\frac{\\partial f}{\\partial x}, \\frac{\\partial f}{\\partial y}\\right)$
-     * Rotacional: $\\nabla \\times \\vec{F}$
-     * Matriz: $\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$
-     * Laplace: $\\mathcal{L}\\{f(t)\\} = F(s)$
-     * EDO: $\\frac{d^2y}{dx^2} + p(x)\\frac{dy}{dx} + q(x)y = g(x)$
-     * Sumatoria: $\\sum_{n=0}^{\\infty} a_n x^n$
-     * Límite: $\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1$
+   - Ejemplos: $\\int_0^1 x^2 \\, dx$, $\\frac{\\partial f}{\\partial x}$, $\\nabla \\times \\vec{F}$, $\\mathcal{L}\\{f(t)\\} = F(s)$
 
 2. ESTRUCTURA (Markdown):
-   - ## para temas principales
-   - ### para subtemas
+   - ## para temas principales, ### para subtemas
    - **negritas** para conceptos clave y términos a memorizar
-   - Listas numeradas para pasos de procedimientos
-   - Listas con viñetas para propiedades y características
+   - Listas numeradas para pasos, listas con viñetas para propiedades
    - Tablas cuando haya datos comparativos
 
-3. COMPLEMENTO AI (sin modificar lo original):
-   - Definiciones formales de conceptos mencionados
-   - Pasos intermedios faltantes en desarrollos matemáticos
-   - Correcciones de errores evidentes (señalándolos)
-   - MARCA SIEMPRE con: > 💡 **Complemento IA**: [tu aporte]
+3. SISTEMA DE COLORES (OBLIGATORIO):
+   Envuelve bloques de contenido con estas etiquetas según su tipo:
 
-4. NO hagas resúmenes. El resultado debe ser MÁS completo que el original.
+   - <nc-formula>contenido</nc-formula>
+     → Ecuaciones y fórmulas del apunte + explicación de cada símbolo/variable
+     → Si el apunte NO explica la fórmula, la IA DEBE explicarla automáticamente
 
-5. GENERA 2-5 tags específicos. Ej: "cálculo-vectorial", "transformada-laplace", "EDO-segundo-orden", "matrices-inversas".
+   - <nc-def>contenido</nc-def>
+     → Definiciones formales, conceptos explicados, términos técnicos con descripción
+
+   - <nc-warn>contenido</nc-warn>
+     → Condiciones de validez, restricciones, casos especiales, advertencias
+
+   - <nc-ex>contenido</nc-ex>
+     → Ejemplos numéricos, aplicaciones específicas, casos ilustrativos
+
+   - <nc-ai>contenido</nc-ai>
+     → Todo aporte propio de la IA que NO estaba en los apuntes originales
+
+4. DETECCIÓN DE FÓRMULAS SIN CONTEXTO (REGLA CRÍTICA):
+   Si una fórmula/ecuación aparece en los apuntes sin definir sus símbolos ni su propósito:
+   a) Transcribe la fórmula dentro de <nc-formula> con LaTeX
+   b) Agrega INMEDIATAMENTE un bloque <nc-ai> con:
+      - Nombre completo de la fórmula, ley o teorema
+      - Significado de CADA símbolo/variable (con unidades si aplica)
+      - Condiciones de validez y dominio de aplicación
+      - Contexto: en qué tipo de problemas se usa
+
+5. NO hagas resúmenes. El resultado debe ser MÁS completo que el original.
+
+6. GENERA 2-5 tags específicos. Ej: "cálculo-vectorial", "transformada-laplace", "EDO-segundo-orden".
 
 RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 {
   "topic": "Tema principal detectado",
-  "content": "Markdown completo con LaTeX aquí",
+  "content": "Markdown completo con LaTeX y etiquetas <nc-*> aquí",
   "tags": ["tag1", "tag2"],
   "detectedSubject": "nombre de materia detectada",
   "subjectConfidence": "high|medium|low"
@@ -107,12 +119,15 @@ INSTRUCCIONES:
 4. Si no hay tareas, deja el array vacío. Si no hay apuntes, deja notes como null.
 5. Para cada tarea: si no hay fecha explícita, usa una semana desde hoy con dateConfidence "low".
 6. Prioridad: < 2 días = high, < 5 días = medium, > 5 días = low.
+7. Para los apuntes, aplica el sistema de colores con etiquetas <nc-*>:
+   - <nc-formula> para ecuaciones (incluye explicación si el apunte no la tiene)
+   - <nc-def> para definiciones, <nc-warn> para condiciones, <nc-ex> para ejemplos, <nc-ai> para aportes IA
 
 RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 {
   "type": "both",
   "tasks": [{"title":"","description":"con $LaTeX$","dueDate":"YYYY-MM-DD","assignedDate":"{currentDate}","dateConfidence":"high|medium|low","priority":"high|medium|low","taskType":"taller|quiz|parcial|proyecto|lectura|otro","detectedSubject":"","subjectConfidence":"high|medium|low"}],
-  "notes": {"topic":"","content":"markdown con $LaTeX$","tags":[],"detectedSubject":"","subjectConfidence":"high|medium|low"} | null,
+  "notes": {"topic":"","content":"markdown con $LaTeX$ y etiquetas <nc-*>","tags":[],"detectedSubject":"","subjectConfidence":"high|medium|low"} | null,
   "rawText": "transcripción completa"
 }`;
 
@@ -127,12 +142,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { images, type, subjectName, existingSubjects, currentDate } = body as {
+    const { images, type, subjectName, existingSubjects, currentDate, subjectDocuments } = body as {
       images: string[];
       type: "auto" | "notes" | "task";
       subjectName?: string;
       existingSubjects: string[];
       currentDate: string;
+      subjectDocuments?: DocRef[];
     };
 
     if (!images || images.length === 0) {
@@ -153,6 +169,12 @@ export async function POST(req: NextRequest) {
       .replaceAll("{existingSubjects}", existingSubjects.join(", "))
       .replaceAll("{subjectName}", subjectName || "No especificada");
 
+    // Build document context from subject library
+    const documentContext = await buildDocumentContext(subjectDocuments || []);
+    if (documentContext.contextText) {
+      prompt = `${prompt}\n\n${documentContext.contextText}`;
+    }
+
     const imageParts = images.map((dataUrl: string) => {
       const [meta, base64] = dataUrl.split(",");
       const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
@@ -168,7 +190,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const result = await model.generateContent([prompt, ...imageParts]);
+    const result = await model.generateContent([prompt, ...imageParts, ...documentContext.parts]);
     const text = result.response.text();
 
     let parsed;

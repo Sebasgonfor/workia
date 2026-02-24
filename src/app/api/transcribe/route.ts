@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -62,12 +63,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { audioUrl, mimeType: providedMime, subjectName, existingSubjects, currentDate } = body as {
+    const { audioUrl, mimeType: providedMime, subjectName, existingSubjects, currentDate, subjectDocuments } = body as {
       audioUrl: string;
       mimeType?: string;
       subjectName?: string;
       existingSubjects: string[];
       currentDate: string;
+      subjectDocuments?: DocRef[];
     };
 
     if (!audioUrl) {
@@ -87,10 +89,16 @@ export async function POST(req: NextRequest) {
     const base64Audio = Buffer.from(audioBuffer).toString("base64");
     const mimeType = detectMimeType(audioUrl, providedMime);
 
-    const prompt = VOICE_AUTO_PROMPT
+    let prompt = VOICE_AUTO_PROMPT
       .replaceAll("{currentDate}", currentDate)
       .replaceAll("{existingSubjects}", existingSubjects.join(", "))
       .replaceAll("{subjectName}", subjectName || "No especificada");
+
+    // Build document context from subject library
+    const documentContext = await buildDocumentContext(subjectDocuments || []);
+    if (documentContext.contextText) {
+      prompt = `${prompt}\n\n${documentContext.contextText}`;
+    }
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
@@ -107,6 +115,7 @@ export async function POST(req: NextRequest) {
           mimeType,
         },
       },
+      ...documentContext.parts,
     ]);
 
     const text = result.response.text();
