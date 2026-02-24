@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -25,6 +25,10 @@ import {
   Upload,
   Brain,
   GitBranch,
+  Calendar,
+  CalendarCheck,
+  Clock,
+  ChevronRight,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
@@ -93,6 +97,34 @@ function timeAgo(date: Date): string {
   return date.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
 }
 
+function isTaskOverdue(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+}
+
+function getDiffDays(date: Date): number {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - now.getTime()) / 86400000);
+}
+
+function formatRelativeDueDate(date: Date): string {
+  const diff = getDiffDays(date);
+  if (diff < -1) return `Hace ${Math.abs(diff)}d`;
+  if (diff === -1) return "Ayer";
+  if (diff === 0) return "Hoy";
+  if (diff === 1) return "Manana";
+  if (diff <= 7) return `En ${diff}d`;
+  return date.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+}
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export default function BoardPage() {
   const params = useParams();
   const router = useRouter();
@@ -115,6 +147,7 @@ export default function BoardPage() {
 
   // Entry CRUD state
   const [showSheet, setShowSheet] = useState(false);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -153,6 +186,13 @@ export default function BoardPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const noteImageInputRef = useRef<HTMLInputElement>(null);
+  const isMountedRef = useRef(true);
+
+  // Track mount state to avoid setState after navigation
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   // Diagram / note image state
   const [uploadingNoteImage, setUploadingNoteImage] = useState(false);
@@ -357,19 +397,28 @@ export default function BoardPage() {
 
   const handleProcess = async () => {
     if (scanImages.length === 0) { toast.error("Agrega al menos una imagen"); return; }
+
+    // Close the sheet immediately so the user can navigate freely
+    setShowScan(false);
     setProcessing(true);
-    setProcessStep("Preparando imagenes...");
+
+    const toastId = toast.loading("Analizando imagen con IA...", {
+      description: "Puedes seguir usando la app mientras termina",
+    });
+
+    // Snapshot images before they may be cleared
+    const imageSnapshot = [...scanImages];
+    const scanTypeSnapshot = scanType;
 
     try {
-      const base64Images = await Promise.all(scanImages.map((img) => fileToBase64(img.file)));
-      setProcessStep("Analizando con IA...");
+      const base64Images = await Promise.all(imageSnapshot.map((img) => fileToBase64(img.file)));
 
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           images: base64Images,
-          type: scanType,
+          type: scanTypeSnapshot,
           subjectName: subject?.name,
           existingSubjects: subjects.map((s) => s.name),
           currentDate: new Date().toISOString().split("T")[0],
@@ -381,23 +430,21 @@ export default function BoardPage() {
       if (!response.ok || !data.success) throw new Error(data.error || "Error al procesar");
 
       const result = data.data as ScanResult;
-      setScanResult(result);
 
       const today = new Date().toISOString().split("T")[0];
 
-      // Handle tasks (from "task", "both", or "auto")
+      // Handle tasks
       const tasks = result.tasks || [];
       if (tasks.length > 0) {
         setEditTasks(tasks.map((t) => ({ ...t, assignedDate: t.assignedDate || today, selected: true })));
         setEditingTaskIdx(0);
       }
 
-      // Handle notes (from "notes", "both", or "auto")
+      // Handle notes
       let notesData: ScanNotesData | null = null;
       if (result.type === "both" && result.notes) {
         notesData = result.notes;
       } else if (result.type === "notes") {
-        // Notes-only: the result itself contains the notes fields
         notesData = {
           topic: result.topic || "",
           content: result.content || "",
@@ -409,18 +456,34 @@ export default function BoardPage() {
         setEditNotesTags((notesData.tags || []).join(", "));
       }
 
-      setShowScan(false);
-      setShowScanResult(true);
+      setScanResult(result);
 
       const parts: string[] = [];
       if (tasks.length > 0) parts.push(`${tasks.length} tarea(s)`);
       if (notesData?.content) parts.push("apuntes");
-      toast.success(`Detectado: ${parts.join(" + ") || "contenido procesado"}`);
+      const summary = parts.join(" + ") || "contenido procesado";
+
+      toast.dismiss(toastId);
+
+      if (isMountedRef.current) {
+        // User is still on this page — open result sheet directly
+        setShowScanResult(true);
+        toast.success(`Listo: ${summary}`);
+      } else {
+        // User navigated away — show a persistent toast they can act on later
+        toast.success(`Escaneo listo: ${summary}`, {
+          description: "Vuelve a la clase para ver el resultado",
+          duration: 8000,
+        });
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+      toast.dismiss(toastId);
+      toast.error(err instanceof Error ? err.message : "Error al procesar imagen");
     } finally {
-      setProcessing(false);
-      setProcessStep("");
+      if (isMountedRef.current) {
+        setProcessing(false);
+        setProcessStep("");
+      }
     }
   };
 
@@ -889,14 +952,15 @@ export default function BoardPage() {
                   const overdue = !isComplete && task.dueDate < new Date();
 
                   return (
-                    <div
+                    <button
                       key={task.id}
-                      className="p-3 rounded-xl bg-card border border-border"
+                      onClick={() => setDetailTask(task)}
+                      className="w-full text-left p-3 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
                       style={{ borderLeftWidth: "3px", borderLeftColor: priorityData?.color || "#666" }}
                     >
                       <div className="flex items-start gap-2.5">
                         <div
-                          onClick={() => updateTaskStatus(task.id, { status: isComplete ? "pending" : "completed" })}
+                          onClick={(e) => { e.stopPropagation(); updateTaskStatus(task.id, { status: isComplete ? "pending" : "completed" }); }}
                           className={`w-5 h-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors cursor-pointer touch-target ${
                             isComplete ? "bg-primary border-primary" : "border-muted-foreground/40"
                           }`}
@@ -920,13 +984,15 @@ export default function BoardPage() {
                             </div>
                           )}
                           <div className="flex items-center gap-1.5 mt-1">
-                            <span className={`text-[11px] ${overdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                              Entrega: {task.dueDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" })}
+                            <Clock className={`w-3 h-3 ${overdue ? "text-destructive" : "text-muted-foreground/60"}`} />
+                            <span className={`text-[11px] font-medium ${overdue ? "text-destructive" : "text-muted-foreground"}`}>
+                              {formatRelativeDueDate(task.dueDate)}
                             </span>
                           </div>
                         </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground/30 shrink-0 mt-0.5" />
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -934,6 +1000,99 @@ export default function BoardPage() {
           )}
         </div>
       </div>
+
+      {/* Task Detail Sheet */}
+      <Sheet open={!!detailTask} onClose={() => setDetailTask(null)} title="Detalle de tarea">
+        {detailTask && (() => {
+          const priorityData = TASK_PRIORITIES.find((p) => p.value === detailTask.priority);
+          const typeData = TASK_TYPES.find((t) => t.value === detailTask.type);
+          const isComplete = detailTask.status === "completed";
+          const overdue = !isComplete && isTaskOverdue(detailTask.dueDate);
+
+          return (
+            <div className="space-y-4">
+              {/* Badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xl">{typeData?.emoji}</span>
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white"
+                  style={{ backgroundColor: priorityData?.color }}
+                >
+                  {priorityData?.label}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground">
+                  {typeData?.label}
+                </span>
+                {isComplete && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/20 text-primary">
+                    Completada
+                  </span>
+                )}
+              </div>
+
+              {/* Title */}
+              <h2 className={`text-xl font-bold leading-tight ${isComplete ? "line-through text-muted-foreground" : ""}`}>
+                <MarkdownMath content={detailTask.title} inline />
+              </h2>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase">Asignada</span>
+                  </div>
+                  <p className="text-sm font-medium">{formatDate(detailTask.assignedDate)}</p>
+                </div>
+                <div className={`p-3 rounded-xl border ${overdue ? "bg-destructive/10 border-destructive/30" : "bg-secondary/50 border-border"}`}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <CalendarCheck className={`w-3.5 h-3.5 ${overdue ? "text-destructive" : "text-muted-foreground"}`} />
+                    <span className={`text-[10px] font-medium uppercase ${overdue ? "text-destructive" : "text-muted-foreground"}`}>Entrega</span>
+                  </div>
+                  <p className={`text-sm font-medium ${overdue ? "text-destructive" : ""}`}>
+                    {formatDate(detailTask.dueDate)}
+                    <span className={`text-[10px] ml-1.5 ${overdue ? "text-destructive" : "text-muted-foreground"}`}>
+                      ({formatRelativeDueDate(detailTask.dueDate)})
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              {detailTask.description && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1 h-4 rounded-full bg-primary" />
+                    <span className="text-sm font-semibold">Descripcion</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-secondary/40 border border-border">
+                    <MarkdownMath content={detailTask.description} />
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { updateTaskStatus(detailTask.id, { status: isComplete ? "pending" : "completed" }); setDetailTask(null); }}
+                  className={`flex-1 py-3 rounded-xl font-semibold active:scale-[0.98] transition-transform ${
+                    isComplete ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"
+                  }`}
+                >
+                  {isComplete ? "Marcar pendiente" : "Completar"}
+                </button>
+                <button
+                  onClick={() => { setDetailTask(null); deleteTask(detailTask.id); }}
+                  className="px-4 py-3 rounded-xl bg-destructive/10 text-destructive font-medium active:scale-[0.98] transition-transform"
+                  aria-label="Eliminar tarea"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Sheet>
 
       {/* Create/Edit Entry Sheet */}
       <Sheet open={showSheet} onClose={() => { setShowSheet(false); resetForm(); }} title={editingId ? "Editar entrada" : "Nueva entrada"}>
