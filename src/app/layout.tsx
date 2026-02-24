@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AuthProvider } from "@/lib/auth-context";
-import { Toaster } from "sonner";
+import { ThemeProvider } from "@/lib/theme-context";
+import { ThemeToaster } from "@/components/theme-toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,7 +20,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#09090b",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+    { media: "(prefers-color-scheme: light)", color: "#f7f7f7" },
+  ],
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
 };
@@ -30,8 +34,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className="dark">
+    <html lang="es">
       <head>
+        {/* Anti-FOUC: apply theme before first paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('workia-theme');if(t==='dark'){document.documentElement.classList.add('dark');}else if(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.classList.add('dark');}}catch(e){}})();`,
+          }}
+        />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link
           rel="stylesheet"
@@ -40,21 +50,14 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background">
-        <AuthProvider>
-          <main className="mx-auto max-w-lg min-h-screen">
-            {children}
-          </main>
-          <Toaster
-            position="top-center"
-            toastOptions={{
-              style: {
-                background: "hsl(0 0% 10%)",
-                border: "1px solid hsl(0 0% 18%)",
-                color: "hsl(0 0% 98%)",
-              },
-            }}
-          />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <main className="mx-auto max-w-lg min-h-screen">
+              {children}
+            </main>
+            <ThemeToaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

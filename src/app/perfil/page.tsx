@@ -9,14 +9,16 @@ import {
   getNotificationPermission,
   isNotificationSupported,
 } from "@/lib/notifications";
-import { LogOut, User, Mail, BookOpen, CheckSquare, Clock, TrendingUp, Bell, BellOff, Layers } from "lucide-react";
+import { LogOut, User, Mail, BookOpen, CheckSquare, Clock, TrendingUp, Bell, BellOff, Layers, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "@/lib/theme-context";
 
 export default function PerfilPage() {
   const { user, signOut } = useAuth();
   const { subjects } = useSubjects();
   const { tasks } = useTasks();
   const { flashcards } = useFlashcards();
+  const { theme, toggleTheme } = useTheme();
 
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null);
 
@@ -149,6 +151,28 @@ export default function PerfilPage() {
             </div>
           </div>
         )}
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-card border border-border mb-2.5 active:scale-[0.98] transition-transform"
+        >
+          {theme === "dark" ? (
+            <Sun className="w-5 h-5 text-amber-400" />
+          ) : (
+            <Moon className="w-5 h-5 text-primary" />
+          )}
+          <div className="flex-1 text-left">
+            <span className="font-medium text-sm">Apariencia</span>
+            <p className="text-[10px] text-muted-foreground">
+              {theme === "dark" ? "Modo oscuro activo" : "Modo claro activo"}
+            </p>
+          </div>
+          <div className={`w-10 h-6 rounded-full transition-colors ${theme === "dark" ? "bg-primary" : "bg-secondary"}`}>
+            <div className={`w-5 h-5 rounded-full bg-white mt-0.5 transition-transform ${theme === "dark" ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+          </div>
+        </button>
 
         {/* Notifications toggle */}
         {isNotificationSupported() && (
