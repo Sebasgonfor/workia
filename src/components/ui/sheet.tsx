@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,10 +13,27 @@ interface SheetProps {
 
 export function Sheet({ open, onClose, title, children }: SheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const [rendered, setRendered] = useState(open);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Handle mount/unmount with exit animation
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      setIsClosing(false);
+    } else if (rendered) {
+      setIsClosing(true);
+      const timer = setTimeout(() => {
+        setRendered(false);
+        setIsClosing(false);
+      }, 260);
+      return () => clearTimeout(timer);
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock body scroll when open
   useEffect(() => {
-    if (open) {
+    if (rendered && !isClosing) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -24,7 +41,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open]);
+  }, [rendered, isClosing]);
 
   // Adapt to virtual keyboard on mobile (iOS + Android)
   useEffect(() => {
@@ -63,13 +80,18 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
     };
   }, [open]);
 
-  if (!open) return null;
+  if (!rendered) return null;
 
   return (
     <div className="fixed inset-0 z-[100]">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className={cn(
+          "absolute inset-0 bg-black/60 backdrop-blur-sm",
+          isClosing
+            ? "animate-out fade-out duration-250 fill-mode-forwards"
+            : "animate-in fade-in duration-200"
+        )}
         onClick={onClose}
       />
       {/* Sheet */}
@@ -78,8 +100,10 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         className={cn(
           "absolute bottom-0 left-0 right-0 bg-card rounded-t-2xl border-t border-border",
           "sheet-max-h flex flex-col",
-          "animate-in slide-in-from-bottom duration-300",
-          "will-change-transform transition-transform duration-150 ease-out"
+          isClosing
+            ? "animate-out slide-out-to-bottom duration-260 fill-mode-forwards"
+            : "animate-in slide-in-from-bottom duration-300",
+          "will-change-transform"
         )}
       >
         {/* Handle + Header combined for compact height */}

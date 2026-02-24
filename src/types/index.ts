@@ -166,6 +166,38 @@ export const MIN_PASSING_GRADE = 3.0;
 /** Maximum grade on a 0–5 scale */
 export const MAX_GRADE = 5.0;
 
+// ── Quiz ──
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  type: "multiple_choice" | "true_false";
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface Quiz {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  entryId: string | null;
+  title: string;
+  questions: QuizQuestion[];
+  createdAt: Date;
+}
+
+export interface QuizAttempt {
+  id: string;
+  quizId: string;
+  subjectId: string;
+  subjectName: string;
+  score: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  completedAt: Date;
+}
+
 /** Returns the next occurrence date+slot for a given subject, or null if no slots exist. */
 export const nextClassDate = (
   slots: ScheduleSlot[],

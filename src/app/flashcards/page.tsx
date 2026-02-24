@@ -11,12 +11,16 @@ import {
   Loader2,
   X,
   ArrowLeft,
+  BookOpen,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
-import { useSubjects, useFlashcards } from "@/lib/hooks";
+import { useSubjects, useFlashcards, useClasses } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth-context";
+import { getDocs, collection, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { REVIEW_RATINGS, FLASHCARD_TYPES } from "@/types";
 import type { Flashcard } from "@/types";
 import { toast } from "sonner";
@@ -34,6 +38,7 @@ interface SubjectDeck {
 
 export default function FlashcardsPage() {
   const { subjects } = useSubjects();
+  const { user } = useAuth();
   const { flashcards, dueCards, loading, addFlashcard, addFlashcards, reviewFlashcard, deleteFlashcard } =
     useFlashcards();
 
@@ -56,6 +61,46 @@ export default function FlashcardsPage() {
   const [genSubjectId, setGenSubjectId] = useState("");
   const [genContent, setGenContent] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [genClassId, setGenClassId] = useState("");
+  const [loadingClassEntries, setLoadingClassEntries] = useState(false);
+
+  // Classes for selected subject (used in generate sheet)
+  const { classes: genClasses } = useClasses(genSubjectId || null);
+
+  const handleLoadFromClass = useCallback(async () => {
+    if (!genSubjectId || !genClassId || !user) return;
+    setLoadingClassEntries(true);
+    try {
+      const entriesSnap = await getDocs(
+        collection(db, "users", user.uid, "subjects", genSubjectId, "classes", genClassId, "entries")
+      );
+      const tasksSnap = await getDocs(
+        query(
+          collection(db, "users", user.uid, "tasks"),
+          where("classSessionId", "==", genClassId)
+        )
+      );
+
+      const parts: string[] = [];
+      entriesSnap.docs.forEach((d) => {
+        const entry = d.data();
+        if (entry.content) parts.push(entry.content as string);
+      });
+      tasksSnap.docs.forEach((d) => {
+        const task = d.data();
+        const desc = task.description ? ` - ${task.description}` : "";
+        parts.push(`Tarea: ${task.title}${desc}`);
+      });
+
+      if (parts.length === 0) { toast.error("Esta clase no tiene contenido"); return; }
+      setGenContent(parts.join("\n\n---\n\n"));
+      toast.success(`Contenido cargado (${parts.length} entradas)`);
+    } catch {
+      toast.error("Error al cargar el contenido");
+    } finally {
+      setLoadingClassEntries(false);
+    }
+  }, [genSubjectId, genClassId, user]);
 
   // Group flashcards by subject
   const decks = useMemo<SubjectDeck[]>(() => {
@@ -492,7 +537,7 @@ export default function FlashcardsPage() {
       {/* Generate Sheet */}
       <Sheet
         open={showGenerate}
-        onClose={() => { setShowGenerate(false); setGenContent(""); setGenSubjectId(""); }}
+        onClose={() => { setShowGenerate(false); setGenContent(""); setGenSubjectId(""); setGenClassId(""); }}
         title="Generar con IA"
       >
         <div className="space-y-3.5">
@@ -500,7 +545,7 @@ export default function FlashcardsPage() {
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
             <select
               value={genSubjectId}
-              onChange={(e) => setGenSubjectId(e.target.value)}
+              onChange={(e) => { setGenSubjectId(e.target.value); setGenClassId(""); setGenContent(""); }}
               className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
             >
               <option value="">Seleccionar...</option>
@@ -509,6 +554,35 @@ export default function FlashcardsPage() {
               ))}
             </select>
           </div>
+
+          {genSubjectId && genClasses.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Cargar desde clase</label>
+              <div className="flex gap-2">
+                <select
+                  value={genClassId}
+                  onChange={(e) => setGenClassId(e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
+                >
+                  <option value="">Seleccionar clase...</option>
+                  {genClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} &mdash; {c.date.toLocaleDateString("es-CO", { day: "numeric", month: "short" })}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleLoadFromClass}
+                  disabled={!genClassId || loadingClassEntries}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
+                >
+                  {loadingClassEntries
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <BookOpen className="w-4 h-4 text-primary" />}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">

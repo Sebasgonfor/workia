@@ -1,11 +1,38 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
-import { useTasks, useSubjects } from "@/lib/hooks";
+import { useTasks, useSubjects, useGrades } from "@/lib/hooks";
 import { AppShell } from "@/components/app-shell";
-import { CheckSquare, BookOpen, TrendingUp, ChevronRight, Clock, AlertTriangle } from "lucide-react";
+import { MarkdownMath } from "@/components/ui/markdown-math";
+import { CheckSquare, BookOpen, ChevronRight, Clock, AlertTriangle, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import type { CorteGrades, SubjectGradeRecord } from "@/types";
+import { CORTE_WEIGHTS, MIN_PASSING_GRADE } from "@/types";
+
+// ── Grade helpers (mirror from notas/page) ──
+const calcCorteGrade = (c: CorteGrades): number =>
+  (c.formativa1 ?? 0) * 0.25 + (c.formativa2 ?? 0) * 0.25 + (c.parcial ?? 0) * 0.5;
+
+const isCorteComplete = (c: CorteGrades) =>
+  c.formativa1 !== null && c.formativa2 !== null && c.parcial !== null;
+
+const calcCurrentAvg = (c1: CorteGrades, c2: CorteGrades, c3: CorteGrades): { avg: number | null; canStillPass: boolean } => {
+  const cortes = [c1, c2, c3];
+  let accumulated = 0;
+  let completedWeight = 0;
+  cortes.forEach((c, i) => {
+    if (isCorteComplete(c)) {
+      accumulated += calcCorteGrade(c) * CORTE_WEIGHTS[i];
+      completedWeight += CORTE_WEIGHTS[i];
+    }
+  });
+  if (completedWeight === 0) return { avg: null, canStillPass: true };
+  const remainingWeight = 1 - completedWeight;
+  const minNeeded = remainingWeight > 0 ? (MIN_PASSING_GRADE - accumulated) / remainingWeight : null;
+  const canStillPass = minNeeded === null ? accumulated >= MIN_PASSING_GRADE : minNeeded <= 5.0;
+  return { avg: accumulated / completedWeight, canStillPass };
+};
 
 function getDiffDays(date: Date): number {
   const now = new Date();
@@ -19,6 +46,12 @@ export default function InicioPage() {
   const { user } = useAuth();
   const { tasks, loading: tasksLoading } = useTasks();
   const { subjects, loading: subjectsLoading } = useSubjects();
+  const { grades, loading: gradesLoading } = useGrades();
+
+  const gradeMap = useMemo(
+    () => Object.fromEntries(grades.map((g) => [g.subjectId, g])),
+    [grades]
+  );
 
   const pendingTasks = useMemo(() => {
     return tasks
@@ -100,7 +133,7 @@ export default function InicioPage() {
                     className="block bg-card border border-border rounded-xl p-4 active:scale-[0.98] transition-transform"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-medium line-clamp-1">{task.title}</h3>
+                      <h3 className="font-medium line-clamp-1"><MarkdownMath content={task.title} inline /></h3>
                       <span
                         className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ml-2 ${
                           isOverdue
@@ -192,26 +225,66 @@ export default function InicioPage() {
           )}
         </section>
 
-        {/* Grades Placeholder */}
+        {/* Notes Section */}
         <section>
-          <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            Rendimiento
-          </h2>
-          <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-2xl p-6 text-center relative overflow-hidden">
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-primary/10 rounded-full blur-2xl" />
-            <div className="absolute -left-4 -bottom-4 w-24 h-24 bg-primary/10 rounded-full blur-2xl" />
-            
-            <div className="relative z-10">
-              <div className="w-12 h-12 bg-background rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
-                <TrendingUp className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="font-semibold text-lg mb-1">Próximamente: Notas</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              Notas
+            </h2>
+            <Link href="/notas" className="text-sm text-primary font-medium flex items-center">
+              Ver todas <ChevronRight className="w-4 h-4 ml-0.5" />
+            </Link>
+          </div>
+
+          {gradesLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 bg-muted animate-pulse rounded-xl" />
+              ))}
+            </div>
+          ) : subjects.length === 0 ? (
+            <div className="bg-card border border-border border-dashed rounded-xl p-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Muy pronto podrás llevar el control de tus calificaciones y calcular promedios automáticamente.
+                Agrega materias para registrar tus notas.
               </p>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              {subjects.slice(0, 4).map((subject) => {
+                const rec = gradeMap[subject.id] as SubjectGradeRecord | undefined;
+                const { avg, canStillPass } = rec
+                  ? calcCurrentAvg(rec.corte1, rec.corte2, rec.corte3)
+                  : { avg: null, canStillPass: true };
+                return (
+                  <Link
+                    key={subject.id}
+                    href="/notas"
+                    className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-card active:scale-[0.99] transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xl shrink-0">{subject.emoji}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{subject.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {avg !== null ? `Promedio: ${avg.toFixed(2)}` : "Sin notas"}
+                        </p>
+                      </div>
+                    </div>
+                    {avg !== null && (
+                      <span
+                        className={`text-xs font-semibold shrink-0 ml-2 ${
+                          canStillPass ? "text-emerald-500" : "text-red-500"
+                        }`}
+                      >
+                        {avg.toFixed(2)}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
     </AppShell>

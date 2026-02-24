@@ -20,16 +20,20 @@ import {
   Sparkles,
   AlertTriangle,
   Check,
+  Mic,
+  MicOff,
+  Upload,
+  Brain,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
-import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks } from "@/lib/hooks";
-import { uploadScanImage } from "@/lib/storage";
+import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes } from "@/lib/hooks";
+import { uploadScanImage, uploadAudio } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
-import type { BoardEntry, Task, Flashcard } from "@/types";
+import type { BoardEntry, Task, Flashcard, Quiz } from "@/types";
 import { toast } from "sonner";
 
 const ENTRY_ICONS = {
@@ -100,6 +104,7 @@ export default function BoardPage() {
   const { entries, loading, addEntry, updateEntry, deleteEntry } =
     useBoardEntries(subjectId, classId);
   const { addFlashcards } = useFlashcards(subjectId);
+  const { addQuiz } = useQuizzes(subjectId);
   const { tasks: allTasks, addTask, updateTask: updateTaskStatus, deleteTask } = useTasks();
 
   const subject = useMemo(() => subjects.find((s) => s.id === subjectId), [subjects, subjectId]);
@@ -113,11 +118,12 @@ export default function BoardPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
 
-  const [entryType, setEntryType] = useState<BoardEntry["type"]>("notes");
+  const [entryType, setEntryType] = useState<BoardEntry["type"] | "voice">("notes");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
 
@@ -132,6 +138,18 @@ export default function BoardPage() {
   // Filter state
   const [filter, setFilter] = useState<"all" | BoardEntry["type"]>("all");
   const filteredEntries = filter === "all" ? entries : entries.filter((e) => e.type === filter);
+
+  // Voice state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [audioUploadFile, setAudioUploadFile] = useState<File | null>(null);
+  const [voiceTab, setVoiceTab] = useState<"record" | "upload">("record");
+  const [processingVoice, setProcessingVoice] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   // Scan state
   const [showScan, setShowScan] = useState(false);
@@ -160,6 +178,15 @@ export default function BoardPage() {
   const resetForm = () => {
     setEntryType("notes"); setContent(""); setTagsInput(""); setEditingId(null);
     setTaskTitle(""); setTaskDescription(""); setTaskAssignedDate(toDateStr(new Date())); setTaskDueDate(""); setTaskPriority("medium"); setTaskTypeValue("otro");
+    // Voice cleanup
+    setIsRecording(false); setRecordingTime(0);
+    setAudioBlob(null);
+    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+    setAudioPreviewUrl(null);
+    setAudioUploadFile(null);
+    setVoiceTab("record");
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (mediaRecorderRef.current && isRecording) mediaRecorderRef.current.stop();
   };
   const openCreate = () => { resetForm(); setShowSheet(true); };
 
@@ -173,6 +200,9 @@ export default function BoardPage() {
   };
 
   const handleSave = async () => {
+    // Voice is processed separately via handleProcessVoice
+    if (entryType === "voice") return;
+
     // Task type → create a real Task
     if (entryType === "task" && !editingId) {
       if (!taskTitle.trim()) { toast.error("El titulo es obligatorio"); return; }
@@ -254,6 +284,36 @@ export default function BoardPage() {
       toast.error(err instanceof Error ? err.message : "Error desconocido");
     } finally {
       setGeneratingId(null);
+    }
+  };
+
+  const handleGenerateQuiz = async (entry: BoardEntry) => {
+    setMenuOpen(null);
+    setGeneratingQuizId(entry.id);
+    try {
+      const response = await fetch("/api/quiz/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: entry.content, subjectName: subject?.name || "General" }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Error al generar quiz");
+      const { title, questions } = data.data as { title: string; questions: unknown[] };
+      if (!questions || questions.length === 0) throw new Error("No se generaron preguntas");
+      const quizId = await addQuiz({
+        subjectId,
+        subjectName: subject?.name || "",
+        entryId: entry.id,
+        title: title || `Quiz — ${classSession?.title || "Clase"}`,
+        questions: questions as Quiz["questions"],
+      });
+      if (!quizId) throw new Error("Error al guardar el quiz");
+      toast.success("Quiz generado");
+      router.push(`/quiz/${quizId}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setGeneratingQuizId(null);
     }
   };
 
@@ -437,6 +497,120 @@ export default function BoardPage() {
     setEditTasks((prev) => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));
   };
 
+  // ── Voice recording functions ──
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        setAudioBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setAudioPreviewUrl(url);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(200);
+      setIsRecording(true);
+      setRecordingTime(0);
+      setAudioBlob(null);
+      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(null);
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch {
+      toast.error("No se pudo acceder al micrófono");
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const handleProcessVoice = async () => {
+    const mimeType = audioBlob?.type || audioUploadFile?.type || "audio/webm";
+    const file = audioBlob
+      ? new File([audioBlob], `clase-${Date.now()}.webm`, { type: mimeType })
+      : audioUploadFile;
+
+    if (!file) { toast.error("Graba o sube un audio primero"); return; }
+
+    setProcessingVoice(true);
+    setProcessStep("Subiendo audio...");
+
+    try {
+      const audioUrl = await uploadAudio(user?.uid || "anon", file);
+
+      setProcessStep("Transcribiendo con IA...");
+
+      const transcribeRes = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audioUrl,
+          mimeType: file.type,
+          subjectName: subject?.name,
+          existingSubjects: subjects.map((s) => s.name),
+          currentDate: new Date().toISOString().split("T")[0],
+        }),
+      });
+
+      const transcribeData = await transcribeRes.json();
+      if (!transcribeRes.ok || !transcribeData.success) {
+        throw new Error(transcribeData.error || "Error al transcribir");
+      }
+
+      const result = transcribeData.data as ScanResult;
+      setScanResult(result);
+
+      const today = new Date().toISOString().split("T")[0];
+      const tasks = result.tasks || [];
+      if (tasks.length > 0) {
+        setEditTasks(tasks.map((t) => ({ ...t, assignedDate: t.assignedDate || today, selected: true })));
+        setEditingTaskIdx(0);
+      }
+
+      let notesData: ScanNotesData | null = null;
+      if (result.type === "both" && result.notes) {
+        notesData = result.notes;
+      } else if (result.type === "notes") {
+        notesData = { topic: result.topic || "", content: result.content || "", tags: result.tags || [] };
+      }
+      if (notesData?.content) {
+        setEditNotesContent(notesData.content);
+        setEditNotesTags((notesData.tags || []).join(", "));
+      }
+
+      setShowSheet(false);
+      setShowScanResult(true);
+
+      const parts: string[] = [];
+      if (tasks.length > 0) parts.push(`${tasks.length} tarea(s)`);
+      if (notesData?.content) parts.push("apuntes");
+      toast.success(`Detectado: ${parts.join(" + ") || "contenido procesado"}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setProcessingVoice(false);
+      setProcessStep("");
+    }
+  };
+
   const color = subject?.color || "#6366f1";
   const currentTask = editTasks[editingTaskIdx];
 
@@ -567,17 +741,30 @@ export default function BoardPage() {
                             </div>
                           )}
                           {entry.type === "notes" && entry.content.length > 30 && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleGenerateFlashcards(entry); }}
-                              disabled={isGenerating}
-                              className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
-                            >
-                              {isGenerating ? (
-                                <><Loader2 className="w-3 h-3 animate-spin" /> Generando...</>
-                              ) : (
-                                <><Layers className="w-3 h-3" /> Generar flashcards</>
-                              )}
-                            </button>
+                            <div className="flex gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleGenerateFlashcards(entry); }}
+                                disabled={isGenerating || generatingQuizId === entry.id}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
+                              >
+                                {isGenerating ? (
+                                  <><Loader2 className="w-3 h-3 animate-spin" /> Generando...</>
+                                ) : (
+                                  <><Layers className="w-3 h-3" /> Flashcards</>
+                                )}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleGenerateQuiz(entry); }}
+                                disabled={generatingQuizId === entry.id || isGenerating}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[11px] font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
+                              >
+                                {generatingQuizId === entry.id ? (
+                                  <><Loader2 className="w-3 h-3 animate-spin" /> Generando...</>
+                                ) : (
+                                  <><Brain className="w-3 h-3" /> Quiz</>
+                                )}
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -602,6 +789,15 @@ export default function BoardPage() {
                               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-primary active:bg-secondary/50 disabled:opacity-50"
                             >
                               <Layers className="w-4 h-4" /> Flashcards
+                            </button>
+                          )}
+                          {entry.type === "notes" && entry.content.length > 30 && (
+                            <button
+                              onClick={() => handleGenerateQuiz(entry)}
+                              disabled={generatingQuizId === entry.id}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-emerald-500 active:bg-secondary/50 disabled:opacity-50"
+                            >
+                              <Brain className="w-4 h-4" /> Quiz
                             </button>
                           )}
                           <button onClick={() => { setMenuOpen(null); setDeleteId(entry.id); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-destructive active:bg-secondary/50">
@@ -683,22 +879,164 @@ export default function BoardPage() {
           {!editingId && (
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tipo</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {BOARD_ENTRY_TYPES.map((t) => {
-                  const Icon = ENTRY_ICONS[t.value as BoardEntry["type"]];
-                  return (
+            <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { value: "notes", Icon: FileText, label: "Apuntes" },
+                  { value: "task", Icon: CheckSquare, label: "Tarea" },
+                  { value: "resource", Icon: Paperclip, label: "Recurso" },
+                  { value: "voice", Icon: Mic, label: "Voz" },
+                ].map(({ value, Icon, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setEntryType(value as BoardEntry["type"] | "voice")}
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-all ${
+                      entryType === value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" /> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Voice form */}
+          {entryType === "voice" && !editingId && (
+            <div className="space-y-4">
+              {/* Tabs */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {(["record", "upload"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setVoiceTab(tab)}
+                    className={`py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      voiceTab === tab ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {tab === "record" ? "Grabar" : "Subir archivo"}
+                  </button>
+                ))}
+              </div>
+
+              {voiceTab === "record" ? (
+                <div className="rounded-2xl border border-border bg-card/50 p-6 flex flex-col items-center gap-4">
+                  {/* Waveform bars */}
+                  <div className="flex items-end justify-center gap-1" style={{ height: "40px" }}>
+                    {Array.from({ length: 9 }, (_, i) => (
+                      <div
+                        key={i}
+                        className="w-1.5 rounded-full bg-primary"
+                        style={{
+                          height: `${8 + Math.abs(Math.sin(i * 0.9)) * 24}px`,
+                          opacity: isRecording ? 1 : 0.3,
+                          transition: "opacity 0.3s ease",
+                          animation: isRecording
+                            ? `voiceBar 0.${5 + (i % 5)}s ease-in-out ${i * 0.09}s infinite alternate`
+                            : "none",
+                          transformOrigin: "bottom",
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Timer */}
+                  <span
+                    className={`font-mono text-sm tabular-nums ${
+                      isRecording ? "text-destructive font-bold" : "text-muted-foreground"
+                    }`}
+                  >
+                    {String(Math.floor(recordingTime / 60)).padStart(2, "0")}:{String(recordingTime % 60).padStart(2, "0")}
+                  </span>
+
+                  {/* Mic button / audio preview */}
+                  {!audioBlob ? (
                     <button
-                      key={t.value}
-                      onClick={() => setEntryType(t.value as BoardEntry["type"])}
-                      className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-all ${
-                        entryType === t.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                      onClick={isRecording ? handleStopRecording : handleStartRecording}
+                      aria-label={isRecording ? "Detener grabación" : "Iniciar grabación"}
+                      className={`w-16 h-16 rounded-full flex items-center justify-center active:scale-95 transition-all touch-target ${
+                        isRecording
+                          ? "bg-destructive text-white shadow-lg shadow-destructive/30 animate-pulse"
+                          : "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
                       }`}
                     >
-                      <Icon className="w-3.5 h-3.5" /> {t.label}
+                      {isRecording ? <MicOff className="w-7 h-7" /> : <Mic className="w-7 h-7" />}
                     </button>
-                  );
-                })}
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 w-full">
+                      <audio controls src={audioPreviewUrl || ""} className="w-full h-9" />
+                      <button
+                        onClick={() => {
+                          setAudioBlob(null);
+                          if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+                          setAudioPreviewUrl(null);
+                          setRecordingTime(0);
+                        }}
+                        className="text-xs text-muted-foreground underline"
+                      >
+                        Grabar de nuevo
+                      </button>
+                    </div>
+                  )}
+
+                  {isRecording && (
+                    <p className="text-[11px] text-muted-foreground animate-pulse">
+                      Grabando… toca el botón para detener
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <button
+                    onClick={() => audioInputRef.current?.click()}
+                    className="w-full rounded-2xl border-2 border-dashed border-border bg-card/50 p-6 flex flex-col items-center gap-2 active:scale-[0.99] transition-transform"
+                  >
+                    <Upload className="w-7 h-7 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Toca para seleccionar audio</span>
+                    <span className="text-[11px] text-muted-foreground/60">.mp3 .m4a .webm .wav</span>
+                  </button>
+
+                  {audioUploadFile && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary border border-border">
+                      <Mic className="w-4 h-4 text-primary shrink-0" />
+                      <span className="text-sm truncate flex-1">{audioUploadFile.name}</span>
+                      <button
+                        onClick={() => setAudioUploadFile(null)}
+                        className="shrink-0 text-muted-foreground"
+                        aria-label="Quitar archivo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <input
+                    ref={audioInputRef}
+                    type="file"
+                    accept="audio/*,.mp3,.m4a,.webm,.wav"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) setAudioUploadFile(f); }}
+                    className="hidden"
+                  />
+                </div>
+              )}
+
+              {/* Context badge */}
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary/50 border border-border text-xs">
+                <span className="text-base">{subject?.emoji}</span>
+                <span className="text-muted-foreground">{subject?.name} &middot; {classSession?.title}</span>
               </div>
+
+              {/* Process button */}
+              <button
+                onClick={handleProcessVoice}
+                disabled={processingVoice || (!audioBlob && !audioUploadFile)}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {processingVoice ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> {processStep || "Procesando..."}</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> Transcribir con IA</>
+                )}
+              </button>
             </div>
           )}
 
@@ -819,13 +1157,15 @@ export default function BoardPage() {
             </>
           )}
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
-          >
-            {saving ? "Guardando..." : editingId ? "Guardar cambios" : entryType === "task" ? "Crear tarea" : "Crear entrada"}
-          </button>
+          {entryType !== "voice" && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              {saving ? "Guardando..." : editingId ? "Guardar cambios" : entryType === "task" ? "Crear tarea" : "Crear entrada"}
+            </button>
+          )}
         </div>
       </Sheet>
 

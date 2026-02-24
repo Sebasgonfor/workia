@@ -189,7 +189,7 @@ export default function NotasPage() {
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background page-enter">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border px-4 pt-safe pb-3">
           <div className="flex items-center gap-2">

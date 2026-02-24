@@ -16,3 +16,8 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Request Google Calendar access in addition to the default profile/email scopes
+googleProvider.addScope("https://www.googleapis.com/auth/calendar.events");
+// Prompt account selection so a fresh token is always returned
+googleProvider.setCustomParameters({ prompt: "consent", access_type: "online" });
