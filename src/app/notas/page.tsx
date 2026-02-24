@@ -7,6 +7,8 @@ import {
   Sparkles,
   CheckCircle,
   AlertTriangle,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
@@ -48,6 +50,7 @@ const calcSummary = (c1: CorteGrades, c2: CorteGrades, c3: CorteGrades) => {
 // ── Types ──
 
 type EditState = { corte1: CorteGrades; corte2: CorteGrades; corte3: CorteGrades };
+type CorteKey = keyof EditState;
 type AiResult = { analysis: string } | null;
 
 const FIELD_LABELS: Record<keyof CorteGrades, string> = {
@@ -104,6 +107,7 @@ export default function NotasPage() {
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult>(null);
+  const [activeCorte, setActiveCorte] = useState<CorteKey | null>(null);
 
   const gradeMap = useMemo(
     () => Object.fromEntries(grades.map((g) => [g.subjectId, g])),
@@ -128,7 +132,13 @@ export default function NotasPage() {
       corte3: rec?.corte3 ?? { ...EMPTY_CORTE },
     });
     setAiResult(null);
+    setActiveCorte(null);
     setSelectedId(subjectId);
+  };
+
+  const handleCloseSheet = () => {
+    setSelectedId(null);
+    setActiveCorte(null);
   };
 
   const handleGradeChange = (
@@ -181,7 +191,7 @@ export default function NotasPage() {
     <AppShell>
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border px-4 py-3">
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border px-4 pt-safe pb-3">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-primary" />
             <h1 className="text-lg font-semibold">Notas</h1>
@@ -273,7 +283,7 @@ export default function NotasPage() {
       {/* Grade Editor Sheet */}
       <Sheet
         open={!!selectedId}
-        onClose={() => setSelectedId(null)}
+        onClose={handleCloseSheet}
         title={
           selectedSubject
             ? `${selectedSubject.emoji} ${selectedSubject.name}`
@@ -308,81 +318,135 @@ export default function NotasPage() {
             </div>
           )}
 
-          {/* Corte sections */}
-          {(["corte1", "corte2", "corte3"] as const).map((key, i) => {
-            const c = editState[key];
-            const complete = isCorteComplete(c);
-            const avg = complete ? calcCorteGrade(c) : null;
-            return (
-              <div key={key} className="rounded-xl border border-border p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-semibold text-sm">
-                    Corte {i + 1}{" "}
-                    <span className="text-muted-foreground font-normal">
-                      ({CORTE_WEIGHTS[i] * 100}% final)
-                    </span>
-                  </h3>
-                  {avg !== null && (
-                    <span
-                      className={cn(
-                        "text-xs font-bold",
-                        avg >= MIN_PASSING_GRADE ? "text-emerald-500" : "text-red-500"
+          {/* Step 1 – Corte selector */}
+          {activeCorte === null ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground px-0.5">Selecciona el corte que quieres registrar:</p>
+              {(["corte1", "corte2", "corte3"] as CorteKey[]).map((key, i) => {
+                const c = editState[key];
+                const complete = isCorteComplete(c);
+                const avg = complete ? calcCorteGrade(c) : null;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveCorte(key)}
+                    aria-label={`Editar corte ${i + 1}`}
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === "Enter" && setActiveCorte(key)}
+                    className="w-full flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-accent active:scale-[0.99] transition-all"
+                  >
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="font-semibold text-sm">Corte {i + 1}</span>
+                      <span className="text-xs text-muted-foreground">{CORTE_WEIGHTS[i] * 100}% de la nota final</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {avg !== null ? (
+                        <span
+                          className={cn(
+                            "text-sm font-bold",
+                            avg >= MIN_PASSING_GRADE ? "text-emerald-500" : "text-red-500"
+                          )}
+                        >
+                          {avg.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sin notas</span>
                       )}
-                    >
-                      {avg.toFixed(2)} / 5.0
-                    </span>
-                  )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* AI analysis */}
+              <div className="rounded-xl border border-border p-4 space-y-3 mt-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <h3 className="font-semibold text-sm">Análisis con IA</h3>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {(
-                    ["formativa1", "formativa2", "parcial"] as (keyof CorteGrades)[]
-                  ).map((field) => (
-                    <GradeInput
-                      key={field}
-                      label={FIELD_LABELS[field]}
-                      value={c[field]}
-                      onChange={(v) => handleGradeChange(key, field, v)}
-                      ariaLabel={`${FIELD_LABELS[field]} corte ${i + 1}`}
-                    />
-                  ))}
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Analiza tu rendimiento para saber exactamente qué necesitas en cada evaluación pendiente.
+                </p>
+                <button
+                  onClick={handleAnalyze}
+                  disabled={aiLoading}
+                  aria-label="Analizar rendimiento con inteligencia artificial"
+                  className="w-full py-2.5 rounded-lg border border-primary text-primary text-sm font-medium disabled:opacity-60 active:scale-[0.99] transition-transform"
+                >
+                  {aiLoading ? "Analizando..." : "Analizar mi rendimiento"}
+                </button>
+                {aiResult && (
+                  <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap bg-muted/50 rounded-lg p-3 border border-border">
+                    {aiResult.analysis}
+                  </div>
+                )}
               </div>
-            );
-          })}
-
-          {/* Save */}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-60 active:scale-[0.99] transition-transform"
-          >
-            {saving ? "Guardando..." : "Guardar notas"}
-          </button>
-
-          {/* AI analysis */}
-          <div className="rounded-xl border border-border p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h3 className="font-semibold text-sm">Análisis con IA</h3>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Guarda tus notas y luego analiza tu rendimiento para saber exactamente
-              qué necesitas en cada evaluación pendiente.
-            </p>
-            <button
-              onClick={handleAnalyze}
-              disabled={aiLoading}
-              aria-label="Analizar rendimiento con inteligencia artificial"
-              className="w-full py-2.5 rounded-lg border border-primary text-primary text-sm font-medium disabled:opacity-60 active:scale-[0.99] transition-transform"
-            >
-              {aiLoading ? "Analizando..." : "Analizar mi rendimiento"}
-            </button>
-            {aiResult && (
-              <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap bg-muted/50 rounded-lg p-3 border border-border">
-                {aiResult.analysis}
-              </div>
-            )}
-          </div>
+          ) : (
+            /* Step 2 – Grade inputs for selected corte */
+            (() => {
+              const idx = ["corte1", "corte2", "corte3"].indexOf(activeCorte);
+              const c = editState[activeCorte];
+              const complete = isCorteComplete(c);
+              const avg = complete ? calcCorteGrade(c) : null;
+              return (
+                <div className="space-y-4">
+                  {/* Back + title */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setActiveCorte(null)}
+                      aria-label="Volver a selección de corte"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === "Enter" && setActiveCorte(null)}
+                      className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                      <p className="font-semibold text-sm">Corte {idx + 1}</p>
+                      <p className="text-xs text-muted-foreground">{CORTE_WEIGHTS[idx] * 100}% de la nota final</p>
+                    </div>
+                    {avg !== null && (
+                      <span
+                        className={cn(
+                          "ml-auto text-sm font-bold",
+                          avg >= MIN_PASSING_GRADE ? "text-emerald-500" : "text-red-500"
+                        )}
+                      >
+                        {avg.toFixed(2)} / 5.0
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Inputs */}
+                  <div className="rounded-xl border border-border p-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {(["formativa1", "formativa2", "parcial"] as (keyof CorteGrades)[]).map(
+                        (field) => (
+                          <GradeInput
+                            key={field}
+                            label={FIELD_LABELS[field]}
+                            value={c[field]}
+                            onChange={(v) => handleGradeChange(activeCorte, field, v)}
+                            ariaLabel={`${FIELD_LABELS[field]} corte ${idx + 1}`}
+                          />
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Save */}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-60 active:scale-[0.99] transition-transform"
+                  >
+                    {saving ? "Guardando..." : "Guardar notas"}
+                  </button>
+                </div>
+              );
+            })()
+          )}
         </div>
       </Sheet>
     </AppShell>
