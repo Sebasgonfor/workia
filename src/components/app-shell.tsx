@@ -27,7 +27,7 @@ function NotificationChecker() {
   return null;
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, hideBottomNav = false }: { children: ReactNode, hideBottomNav?: boolean }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -48,10 +48,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!user) return null;
 
   return (
-    <div className="pb-20">
+    <div className={hideBottomNav ? "" : "pb-20"}>
       {children}
       <NotificationChecker />
-      <BottomNav />
+      {!hideBottomNav && <BottomNav />}
     </div>
   );
 }

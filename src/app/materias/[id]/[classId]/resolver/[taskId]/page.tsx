@@ -211,7 +211,7 @@ export default function TaskSolverPage() {
 
   if (!task && !chatLoading) {
     return (
-      <AppShell>
+      <AppShell hideBottomNav={true}>
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
           <p className="text-muted-foreground text-sm">Tarea no encontrada</p>
           <button
@@ -228,7 +228,7 @@ export default function TaskSolverPage() {
   const hasInput = messages.length > 0 || isStreaming;
 
   return (
-    <AppShell>
+    <AppShell hideBottomNav={true}>
       {/* Fixed header */}
       <div
         ref={headerRef}
@@ -291,7 +291,7 @@ export default function TaskSolverPage() {
         className="overflow-y-auto px-4 space-y-4"
         style={{
           paddingTop: `${headerHeight + 16}px`,
-          paddingBottom: hasInput ? `${72 + 80 + 16}px` : `${80 + 16}px`,
+          paddingBottom: hasInput ? `100px` : `24px`,
           minHeight: "100dvh",
         }}
       >
@@ -345,10 +345,10 @@ export default function TaskSolverPage() {
                 )}
               </div>
               <div
-                className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed overflow-x-auto ${
                   msg.role === "assistant"
-                    ? "bg-card border border-border rounded-tl-sm"
-                    : "rounded-tr-sm"
+                    ? "bg-card border border-border rounded-tl-sm w-full max-w-[92%]"
+                    : "rounded-tr-sm max-w-[85%]"
                 }`}
                 style={
                   msg.role === "user"
@@ -380,11 +380,11 @@ export default function TaskSolverPage() {
         )}
       </div>
 
-      {/* Fixed input bar — above bottom nav (80px) */}
+      {/* Fixed input bar */}
       {hasInput && (
         <div
           className="fixed inset-x-0 z-20 px-4 pb-3 pt-2.5 border-t border-border bg-background"
-          style={{ bottom: "80px" }}
+          style={{ bottom: "0" }}
         >
           <div className="flex items-end gap-2">
             <textarea

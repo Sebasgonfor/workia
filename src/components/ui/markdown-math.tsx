@@ -69,7 +69,7 @@ const mdCodeRenderer = ({
 const mdPreRenderer = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
 
 const MdBlock = ({ content, className = "" }: { content: string; className?: string }) => (
-  <div className={`markdown-math prose prose-invert prose-sm max-w-none ${className}`}>
+  <div className={`markdown-math prose dark:prose-invert prose-sm max-w-none ${className}`}>
     <ReactMarkdown
       remarkPlugins={[remarkMath]}
       rehypePlugins={[rehypeKatex]}
