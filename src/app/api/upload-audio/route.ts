@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
 
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    // resource_type=video is required for audio files in Cloudinary
+    // Cloudinary signature must NOT include resource_type (it is a delivery param, not an upload param)
     const paramsToSign = folder
-      ? `folder=${folder}&resource_type=video&timestamp=${timestamp}`
-      : `resource_type=video&timestamp=${timestamp}`;
+      ? `folder=${folder}&timestamp=${timestamp}`
+      : `timestamp=${timestamp}`;
 
     const encoder = new TextEncoder();
     const signatureString = paramsToSign + apiSecret;

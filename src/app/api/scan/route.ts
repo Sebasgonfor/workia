@@ -163,13 +163,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { images, type, subjectName, existingSubjects, currentDate, subjectDocuments } = body as {
+    const { images, type, subjectName, existingSubjects, currentDate, subjectDocuments, existingNotes } = body as {
       images: string[];
       type: "auto" | "notes" | "task";
       subjectName?: string;
       existingSubjects: string[];
       currentDate: string;
       subjectDocuments?: DocRef[];
+      existingNotes?: string[];
     };
 
     if (!images || images.length === 0) {
@@ -189,6 +190,15 @@ export async function POST(req: NextRequest) {
       .replaceAll("{currentDate}", currentDate)
       .replaceAll("{existingSubjects}", existingSubjects.join(", "))
       .replaceAll("{subjectName}", subjectName || "No especificada");
+
+    // Inject existing class notes as context for better AI understanding
+    if (Array.isArray(existingNotes) && existingNotes.length > 0) {
+      const notesContext = existingNotes
+        .slice(0, 5)
+        .map((n, i) => `## Apunte previo ${i + 1}\n${n}`)
+        .join("\n\n");
+      prompt += `\n\nAPUNTES PREVIOS DE ESTA CLASE (úsalos como contexto del tema para enriquecer el output, no los repitas literalmente):\n${notesContext}`;
+    }
 
     // Build document context from subject library
     const documentContext = await buildDocumentContext(subjectDocuments || []);

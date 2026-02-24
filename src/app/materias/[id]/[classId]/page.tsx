@@ -428,6 +428,10 @@ export default function BoardPage() {
           existingSubjects: subjects.map((s) => s.name),
           currentDate: new Date().toISOString().split("T")[0],
           subjectDocuments: subjectDocuments.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name })),
+          existingNotes: entries
+            .filter((e) => e.type === "notes" && e.content.trim().length > 30)
+            .slice(0, 5)
+            .map((e) => e.content),
         }),
       });
 
@@ -534,10 +538,21 @@ export default function BoardPage() {
         });
       }
 
-      // If "both" mode, also save notes as board entry
+      // If "both" mode, also save notes — merge into most recent note if one exists
       if (scanResult?.type === "both" && editNotesContent.trim()) {
         const tags = editNotesTags.split(",").map((t) => t.trim()).filter(Boolean);
-        await addEntry({ type: "notes", content: editNotesContent.trim(), tags });
+        const existingNotesEntries = entries
+          .filter((e) => e.type === "notes")
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+        if (existingNotesEntries.length > 0) {
+          const target = existingNotesEntries[0];
+          const mergedContent = `${target.content}\n\n---\n\n${editNotesContent.trim()}`;
+          const mergedTags = Array.from(new Set([...target.tags, ...tags]));
+          await updateEntry(target.id, { type: "notes", content: mergedContent, tags: mergedTags });
+        } else {
+          await addEntry({ type: "notes", content: editNotesContent.trim(), tags });
+        }
       }
 
       const parts: string[] = [`${selected.length} tarea(s)`];
@@ -561,8 +576,25 @@ export default function BoardPage() {
     setSavingScan(true);
     try {
       const tags = editNotesTags.split(",").map((t) => t.trim()).filter(Boolean);
-      await addEntry({ type: "notes", content: editNotesContent.trim(), tags });
-      toast.success("Apuntes guardados en el tablero");
+
+      // Find the most recent notes entry from this class to merge into
+      const existingNotesEntries = entries
+        .filter((e) => e.type === "notes")
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      if (existingNotesEntries.length > 0) {
+        // Merge: append new content to the most recent note
+        const target = existingNotesEntries[0];
+        const mergedContent = `${target.content}\n\n---\n\n${editNotesContent.trim()}`;
+        const mergedTags = Array.from(new Set([...target.tags, ...tags]));
+        await updateEntry(target.id, { type: "notes", content: mergedContent, tags: mergedTags });
+        toast.success("Transcripción unificada con los apuntes existentes");
+      } else {
+        // No existing notes: create a new entry
+        await addEntry({ type: "notes", content: editNotesContent.trim(), tags });
+        toast.success("Apuntes guardados en el tablero");
+      }
+
       clearScan();
     } catch (err) {
       console.error("Error guardando apuntes:", err);
@@ -698,6 +730,10 @@ export default function BoardPage() {
           existingSubjects: subjects.map((s) => s.name),
           currentDate: new Date().toISOString().split("T")[0],
           subjectDocuments: subjectDocuments.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name })),
+          existingNotes: entries
+            .filter((e) => e.type === "notes" && e.content.trim().length > 30)
+            .slice(0, 5)
+            .map((e) => e.content),
         }),
       });
 

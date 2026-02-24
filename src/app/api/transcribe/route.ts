@@ -4,26 +4,34 @@ import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-con
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
-const VOICE_AUTO_PROMPT = `Escucha este audio de clase universitaria y extrae TODO su contenido.
+const VOICE_AUTO_PROMPT = `Escucha este audio de clase universitaria con MÁXIMA atención y extrae TODO su contenido con precisión absoluta.
 
 CONTEXTO:
 - Fecha actual: {currentDate}
 - Materias del usuario: {existingSubjects}
 - Materia seleccionada: {subjectName}
 
+REGLAS DE TRANSCRIPCIÓN:
+- Transcribe en el idioma en que fue hablado (español o inglés).
+- No inventes ni rellenes información que no esté en el audio. Si no entiendes una palabra, usa [inaudible].
+- Los nombres de profesores, términos técnicos y siglas: escríbelos como los escuches.
+- Si el profesor dicta fórmulas o ecuaciones, transcríbelas en LaTeX.
+- Captura TODO: preguntas del profesor, respuestas de estudiantes, explicaciones, ejemplos, tareas mencionadas.
+
 INSTRUCCIONES:
 
-1. APUNTES: Transcribe y estructura el contenido académico explicado en el audio.
+1. APUNTES: Organiza el contenido académico del audio en apuntes estructurados.
    - Usa Markdown: ## temas principales, ### subtemas, **negrita** para conceptos clave.
-   - ECUACIONES: Siempre en LaTeX. Inline con $...$ y en bloque con $$...$$
+   - ECUACIONES: Siempre en LaTeX. Inline con $...$ y bloque con $$...$$
    - Ejemplos: integral $\\int_0^1 x^2 dx$, derivada $\\frac{dy}{dx}$, matriz $\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$
-   - Si el profesor completa un desarrollo, inclúyelo completo.
+   - Si el profesor completa un desarrollo, inclúyelo completo con todos los pasos.
    - Marca aportes contextuales con: > 💡 **Complemento IA**: [aporte]
+   - Si el audio es corto o una sola idea, igualmente estructúralo como apunte de clase.
 
-2. TAREAS: Si en el audio se mencionan entregas, trabajos, evaluaciones, quizzes, parciales, proyectos o lecturas, extráelos como tareas.
+2. TAREAS: Si en el audio se mencionan entregas, trabajos, evaluaciones, quizzes, parciales, proyectos o lecturas, extráelos.
    - "entregar el viernes" → dueDate = viernes de esta semana
    - "para la próxima clase" → dueDate = 7 días desde hoy con dateConfidence "low"
-   - Si no hay tareas mencionadas, deja tasks vacío.
+   - Si no hay tareas, deja tasks como arreglo vacío [].
 
 3. TAGS: Genera 2-5 tags específicos del tema tratado. Ej: "cálculo-vectorial", "transformada-laplace".
 
@@ -63,13 +71,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { audioUrl, mimeType: providedMime, subjectName, existingSubjects, currentDate, subjectDocuments } = body as {
+    const { audioUrl, mimeType: providedMime, subjectName, existingSubjects, currentDate, subjectDocuments, existingNotes } = body as {
       audioUrl: string;
       mimeType?: string;
       subjectName?: string;
       existingSubjects: string[];
       currentDate: string;
       subjectDocuments?: DocRef[];
+      existingNotes?: string[];
     };
 
     if (!audioUrl) {
@@ -93,6 +102,15 @@ export async function POST(req: NextRequest) {
       .replaceAll("{currentDate}", currentDate)
       .replaceAll("{existingSubjects}", existingSubjects.join(", "))
       .replaceAll("{subjectName}", subjectName || "No especificada");
+
+    // Inject existing class notes as context so AI understands prior topics
+    if (Array.isArray(existingNotes) && existingNotes.length > 0) {
+      const notesContext = existingNotes
+        .slice(0, 5) // limit to 5 most recent notes to avoid token overflow
+        .map((n, i) => `## Apunte previo ${i + 1}\n${n}`)
+        .join("\n\n");
+      prompt += `\n\nAPUNTES PREVIOS DE ESTA CLASE (úsalos como contexto para entender mejor el audio, no los incluyas en el output):\n${notesContext}`;
+    }
 
     // Build document context from subject library
     const documentContext = await buildDocumentContext(subjectDocuments || []);
