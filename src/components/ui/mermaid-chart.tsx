@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useId } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const MERMAID_CDN =
   "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
@@ -15,23 +15,22 @@ declare global {
   }
 }
 
+// Counter-based ID: guaranteed safe CSS identifier, no special chars
+let _mermaidCounter = 0;
+const nextMermaidId = () => `workia_m${++_mermaidCounter}`;
+
+let _loadPromise: Promise<void> | null = null;
+
 function loadMermaid(): Promise<void> {
-  return new Promise((resolve, reject) => {
+  if (_loadPromise) return _loadPromise;
+
+  _loadPromise = new Promise((resolve, reject) => {
     if (typeof window === "undefined") return reject(new Error("SSR"));
 
-    if (window.mermaid && window.mermaid._workiaInit) return resolve();
+    // Already fully initialized
+    if (window.mermaid?._workiaInit) return resolve();
 
-    const existing = document.querySelector(`script[src="${MERMAID_CDN}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Script load failed")));
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = MERMAID_CDN;
-    script.async = true;
-    script.onload = () => {
+    const init = () => {
       window.mermaid?.initialize({
         startOnLoad: false,
         theme: "dark",
@@ -42,9 +41,32 @@ function loadMermaid(): Promise<void> {
       if (window.mermaid) window.mermaid._workiaInit = true;
       resolve();
     };
-    script.onerror = () => reject(new Error("Failed to load Mermaid CDN"));
+
+    // Script already in DOM — if window.mermaid exists it's ready, otherwise wait
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${MERMAID_CDN}"]`
+    );
+    if (existing) {
+      if (window.mermaid) {
+        init();
+      } else {
+        existing.addEventListener("load", init, { once: true });
+        existing.addEventListener("error", () => reject(new Error("Mermaid load failed")), { once: true });
+      }
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = MERMAID_CDN;
+    script.async = true;
+    script.addEventListener("load", init, { once: true });
+    script.addEventListener("error", () => reject(new Error("Mermaid CDN unreachable")), { once: true });
     document.head.appendChild(script);
   });
+
+  // Reset so a future call retries on failure
+  _loadPromise.catch(() => { _loadPromise = null; });
+  return _loadPromise;
 }
 
 interface MermaidChartProps {
@@ -72,7 +94,8 @@ function sanitizeMermaid(raw: string): string {
 }
 
 export function MermaidChart({ code }: MermaidChartProps) {
-  const uid = useId().replace(/:/g, "m");
+  // Stable counter-based ID: no special characters, guaranteed CSS-safe
+  const uid = useRef(nextMermaidId()).current;
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -88,7 +111,13 @@ export function MermaidChart({ code }: MermaidChartProps) {
         try {
           const cleaned = sanitizeMermaid(code);
           setCleanCode(cleaned);
-          const result = await window.mermaid!.render(uid, cleaned);
+
+          // Race render against a timeout so it can never hang the UI
+          const renderPromise = window.mermaid!.render(uid, cleaned);
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 8000)
+          );
+          const result = await Promise.race([renderPromise, timeoutPromise]);
           // Mermaid v11 renders syntax errors as SVG with "Syntax error" text
           // instead of throwing — detect and treat as error
           const isSyntaxError =
