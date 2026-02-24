@@ -120,7 +120,7 @@ export default function InicioPage() {
               ))}
             </div>
           ) : pendingTasks.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-3 stagger-children">
               {pendingTasks.map((task) => {
                 const diffDays = getDiffDays(task.dueDate);
                 const isOverdue = diffDays < 0;
@@ -191,7 +191,7 @@ export default function InicioPage() {
               ))}
             </div>
           ) : subjects.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 stagger-children">
               {subjects.slice(0, 4).map((subject) => (
                 <Link
                   key={subject.id}
@@ -250,7 +250,7 @@ export default function InicioPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 stagger-children">
               {subjects.slice(0, 4).map((subject) => {
                 const rec = gradeMap[subject.id] as SubjectGradeRecord | undefined;
                 const { avg, canStillPass } = rec

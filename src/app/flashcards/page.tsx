@@ -293,28 +293,42 @@ export default function FlashcardsPage() {
 
               {/* Card */}
               <div className="flex-1 flex flex-col items-center justify-center">
-                <button
-                  onClick={() => setFlipped(!flipped)}
-                  className="w-full max-w-sm aspect-[3/4] rounded-2xl bg-card border border-border p-6 flex flex-col items-center justify-center text-center active:scale-[0.98] transition-transform"
-                  style={{ perspective: "1000px" }}
-                >
-                  <span className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-3">
-                    {flipped ? "Respuesta" : "Pregunta"}
-                  </span>
-                  <div className={`text-base leading-relaxed ${flipped ? "text-emerald-400" : "text-foreground"}`}>
-                    <MarkdownMath content={flipped ? currentCard.answer : currentCard.question} />
-                  </div>
-                  {!flipped && (
-                    <p className="text-[10px] text-muted-foreground/50 mt-4">
-                      Toca para ver respuesta
-                    </p>
-                  )}
-                </button>
+                <div style={{ perspective: "1200px" }} className="w-full max-w-sm">
+                  <button
+                    onClick={() => setFlipped(!flipped)}
+                    aria-label={flipped ? "Ver pregunta" : "Ver respuesta"}
+                    className={`relative w-full aspect-[3/4] transition-[transform] duration-500 [transform-style:preserve-3d] active:brightness-95 ${
+                      flipped ? "[transform:rotateY(180deg)]" : ""
+                    }`}
+                  >
+                    {/* Front — Question */}
+                    <div className="absolute inset-0 rounded-2xl bg-card border border-border p-6 flex flex-col items-center justify-center text-center [backface-visibility:hidden]">
+                      <span className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-3">
+                        Pregunta
+                      </span>
+                      <div className="text-base leading-relaxed text-foreground">
+                        <MarkdownMath content={currentCard.question} />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/50 mt-4">
+                        Toca para ver respuesta
+                      </p>
+                    </div>
+                    {/* Back — Answer */}
+                    <div className="absolute inset-0 rounded-2xl bg-card border border-emerald-500/30 p-6 flex flex-col items-center justify-center text-center [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                      <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide mb-3">
+                        Respuesta
+                      </span>
+                      <div className="text-base leading-relaxed text-emerald-400">
+                        <MarkdownMath content={currentCard.answer} />
+                      </div>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Rating buttons */}
               {flipped && (
-                <div className="grid grid-cols-4 gap-2 mt-4 mb-4">
+                <div className="grid grid-cols-4 gap-2 mt-4 mb-4 ratings-enter">
                   {REVIEW_RATINGS.map((r) => (
                     <button
                       key={r.value}
@@ -409,7 +423,7 @@ export default function FlashcardsPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 stagger-children">
               {decks.map((deck) => (
                 <button
                   key={deck.subjectId}

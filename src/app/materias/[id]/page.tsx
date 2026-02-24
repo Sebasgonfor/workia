@@ -182,7 +182,7 @@ export default function SubjectDetailPage() {
         {/* Tab content */}
         <div className="px-4">
           {activeTab === "documentos" && (
-            <div className="mt-3">
+            <div className="mt-3 tab-enter">
               <SubjectDocuments subjectId={subjectId} subject={subject} />
             </div>
           )}
@@ -209,7 +209,7 @@ export default function SubjectDetailPage() {
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                         {month}
                       </p>
-                      <div className="space-y-2">
+                      <div className="space-y-2 stagger-children">
                         {monthClasses.map((cls) => (
                           <div key={cls.id} className="relative">
                             <button
@@ -243,7 +243,7 @@ export default function SubjectDetailPage() {
                             {menuOpen === cls.id && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
-                                <div className="absolute top-11 right-10 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
+                                <div className="absolute top-11 right-10 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px] menu-enter">
                                   <button onClick={() => openEdit(cls.id)} className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50">
                                     <Pencil className="w-4 h-4" /> Editar
                                   </button>

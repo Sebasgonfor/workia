@@ -202,7 +202,7 @@ export default function NotasPage() {
         </div>
 
         {/* Subject list */}
-        <div className="px-4 py-4 space-y-3 max-w-lg mx-auto">
+        <div className="px-4 py-4 space-y-3 stagger-children max-w-lg mx-auto">
           {subjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
               <BookOpen className="w-12 h-12 text-muted-foreground/40" />

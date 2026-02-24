@@ -121,18 +121,81 @@
 
 /* Smooth page transitions */
 .page-enter {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.25s ease-out both;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ── Staggered list entrance ── */
+.stagger-children > * {
+  animation: fadeInUp 0.28s ease-out both;
+}
+.stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2)  { animation-delay: 45ms; }
+.stagger-children > *:nth-child(3)  { animation-delay: 90ms; }
+.stagger-children > *:nth-child(4)  { animation-delay: 135ms; }
+.stagger-children > *:nth-child(5)  { animation-delay: 180ms; }
+.stagger-children > *:nth-child(6)  { animation-delay: 225ms; }
+.stagger-children > *:nth-child(7)  { animation-delay: 270ms; }
+.stagger-children > *:nth-child(8)  { animation-delay: 315ms; }
+.stagger-children > *:nth-child(9)  { animation-delay: 360ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 405ms; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Dropdown context menu ── */
+.menu-enter {
+  animation: menuPop 0.14s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: top right;
+}
+
+@keyframes menuPop {
+  from { opacity: 0; transform: scale(0.88) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Calendar week slide ── */
+.slide-from-right {
+  animation: slideFromRight 0.22s ease-out both;
+}
+.slide-from-left {
+  animation: slideFromLeft 0.22s ease-out both;
+}
+
+@keyframes slideFromRight {
+  from { opacity: 0; transform: translateX(22px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideFromLeft {
+  from { opacity: 0; transform: translateX(-22px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Flashcard rating buttons slide up ── */
+.ratings-enter {
+  animation: ratingsSlideUp 0.22s ease-out both;
+}
+
+@keyframes ratingsSlideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Fade-in for tab content ── */
+.tab-enter {
+  animation: fadeInUp 0.18s ease-out both;
 }
 
 /* Standalone PWA — safe area is handled per-page via pt-safe class */

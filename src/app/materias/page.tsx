@@ -122,7 +122,7 @@ export default function MateriasPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 stagger-children">
             {subjects.map((subject) => (
               <div key={subject.id} className="relative">
                 <button
@@ -164,7 +164,7 @@ export default function MateriasPage() {
                 {menuOpen === subject.id && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
-                    <div className="absolute top-12 right-3 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px]">
+                    <div className="absolute top-12 right-3 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden min-w-[140px] menu-enter">
                       <button
                         onClick={() => openEdit(subject.id)}
                         className="w-full flex items-center gap-3 px-4 py-3 text-sm active:bg-secondary/50"

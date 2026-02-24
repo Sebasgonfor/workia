@@ -202,60 +202,63 @@ export default function HorarioPage() {
             </div>
           )}
 
-          {!loading &&
-            slotsForDay.map((slot) => {
-              const subject = getSubject(slot.subjectId);
-              return (
-                <div
-                  key={slot.id}
-                  className="flex items-center gap-3 p-4 rounded-2xl bg-card border border-border"
-                >
-                  {/* Color indicator */}
+          {!loading && slotsForDay.length > 0 && (
+            <div className="space-y-2 stagger-children">
+              {slotsForDay.map((slot) => {
+                const subject = getSubject(slot.subjectId);
+                return (
                   <div
-                    className="w-1 self-stretch rounded-full flex-shrink-0"
-                    style={{ backgroundColor: subject?.color ?? "#6366f1" }}
-                  />
+                    key={slot.id}
+                    className="flex items-center gap-3 p-4 rounded-2xl bg-card border border-border"
+                  >
+                    {/* Color indicator */}
+                    <div
+                      className="w-1 self-stretch rounded-full flex-shrink-0"
+                      style={{ backgroundColor: subject?.color ?? "#6366f1" }}
+                    />
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-base leading-none">{subject?.emoji}</span>
-                      <span className="font-semibold text-sm truncate">{subject?.name ?? "Materia eliminada"}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
-                      </span>
-                      {slot.room && (
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-base leading-none">{subject?.emoji}</span>
+                        <span className="font-semibold text-sm truncate">{subject?.name ?? "Materia eliminada"}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {slot.room}
+                          <Clock className="w-3 h-3" />
+                          {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
                         </span>
-                      )}
+                        {slot.room && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {slot.room}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(slot)}
+                        aria-label="Editar clase"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground active:bg-secondary touch-target"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteId(slot.id)}
+                        aria-label="Eliminar clase"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground active:bg-secondary touch-target"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEdit(slot)}
-                      aria-label="Editar clase"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground active:bg-secondary touch-target"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteId(slot.id)}
-                      aria-label="Eliminar clase"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground active:bg-secondary touch-target"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
