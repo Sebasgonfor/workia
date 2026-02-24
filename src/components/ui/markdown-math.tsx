@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { MermaidChart } from "./mermaid-chart";
 
 // ── Note color segment system ──
 
@@ -50,9 +51,33 @@ const parseSegments = (text: string): NoteSegment[] => {
 
 // ── Internal markdown block ──
 
+// Renders ```mermaid blocks as live interactive diagrams
+const mdCodeRenderer = ({
+  className,
+  children,
+}: {
+  className?: string;
+  children?: React.ReactNode;
+}) => {
+  const lang = /language-(\w+)/.exec(className || "")?.[1];
+  const codeStr = String(children).replace(/\n$/, "");
+  if (lang === "mermaid") return <MermaidChart code={codeStr} />;
+  return <code className={className}>{children}</code>;
+};
+
+// Unwrap <pre> wrapper so MermaidChart controls its own container
+const mdPreRenderer = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+
 const MdBlock = ({ content, className = "" }: { content: string; className?: string }) => (
   <div className={`markdown-math prose prose-invert prose-sm max-w-none ${className}`}>
-    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+    <ReactMarkdown
+      remarkPlugins={[remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        code: mdCodeRenderer as never,
+        pre: mdPreRenderer as never,
+      }}
+    >
       {content}
     </ReactMarkdown>
   </div>

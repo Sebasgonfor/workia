@@ -90,10 +90,27 @@ INSTRUCCIONES CRÍTICAS:
 
 6. GENERA 2-5 tags específicos. Ej: "cálculo-vectorial", "transformada-laplace", "EDO-segundo-orden".
 
+7. DIAGRAMAS Y GRÁFICOS (REGLA CLAVE):
+   Si detectas en la imagen cualquier diagrama, gráfico, flujo o figura, conviértelo a Mermaid.
+   Incluye el bloque directamente en el "content" como:
+      ```mermaid
+      flowchart TD
+        ...
+      ```
+   Tipos de diagrama según lo que veas:
+   - Diagrama de flujo / algoritmo / proceso paso a paso   → flowchart TD
+   - Interacciones entre sistemas o clases                  → sequenceDiagram
+   - Diagrama UML de clases / herencia                     → classDiagram
+   - Árbol / jerarquía / taxonomía                         → graph TB
+   - Máquina de estados / autómata                        → stateDiagram-v2
+   - Diagrama entidad-relación                             → erDiagram
+   Si el gráfico es una función matemática, circuito eléctrico, diagrama de cuerpo libre
+   u otro tipo NO representable en Mermaid, descríbelo detalladamente con texto y LaTeX.
+
 RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 {
   "topic": "Tema principal detectado",
-  "content": "Markdown completo con LaTeX y etiquetas <nc-*> aquí",
+  "content": "Markdown completo con LaTeX, etiquetas <nc-*> y bloques ```mermaid si aplica",
   "tags": ["tag1", "tag2"],
   "detectedSubject": "nombre de materia detectada",
   "subjectConfidence": "high|medium|low"
@@ -122,12 +139,17 @@ INSTRUCCIONES:
 7. Para los apuntes, aplica el sistema de colores con etiquetas <nc-*>:
    - <nc-formula> para ecuaciones (incluye explicación si el apunte no la tiene)
    - <nc-def> para definiciones, <nc-warn> para condiciones, <nc-ex> para ejemplos, <nc-ai> para aportes IA
+8. DIAGRAMAS Y GRÁFICOS: Si detectas cualquier diagrama, flujo o figura, conviértelo a código Mermaid
+   dentro del campo "content" de los apuntes:
+      ```mermaid\nflowchart TD\n  ...\n```
+   Tipos: flowchart TD / sequenceDiagram / classDiagram / graph TB / stateDiagram-v2 / erDiagram.
+   Si no es representable en Mermaid (circuito, función matemática, dibujo libre), descríbelo en texto.
 
 RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 {
   "type": "both",
   "tasks": [{"title":"","description":"con $LaTeX$","dueDate":"YYYY-MM-DD","assignedDate":"{currentDate}","dateConfidence":"high|medium|low","priority":"high|medium|low","taskType":"taller|quiz|parcial|proyecto|lectura|otro","detectedSubject":"","subjectConfidence":"high|medium|low"}],
-  "notes": {"topic":"","content":"markdown con $LaTeX$ y etiquetas <nc-*>","tags":[],"detectedSubject":"","subjectConfidence":"high|medium|low"} | null,
+  "notes": {"topic":"","content":"markdown con $LaTeX$, etiquetas <nc-*> y bloques ```mermaid si aplica","tags":[],"detectedSubject":"","subjectConfidence":"high|medium|low"} | null,
   "rawText": "transcripción completa"
 }`;
 
@@ -184,7 +206,7 @@ export async function POST(req: NextRequest) {
     });
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.0-pro-exp",
       generationConfig: {
         responseMimeType: "application/json",
       },

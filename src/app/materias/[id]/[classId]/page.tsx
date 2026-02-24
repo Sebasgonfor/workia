@@ -24,13 +24,14 @@ import {
   MicOff,
   Upload,
   Brain,
+  GitBranch,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
-import { uploadScanImage, uploadAudio } from "@/lib/storage";
+import { uploadScanImage, uploadAudio, uploadNoteImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
 import type { BoardEntry, Task, Flashcard, Quiz } from "@/types";
@@ -151,6 +152,13 @@ export default function BoardPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const noteImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Diagram / note image state
+  const [uploadingNoteImage, setUploadingNoteImage] = useState(false);
+  const [showDiagramGen, setShowDiagramGen] = useState(false);
+  const [diagramPrompt, setDiagramPrompt] = useState("");
+  const [generatingDiagram, setGeneratingDiagram] = useState(false);
 
   // Scan state
   const [showScan, setShowScan] = useState(false);
@@ -188,6 +196,9 @@ export default function BoardPage() {
     setVoiceTab("record");
     if (timerRef.current) clearInterval(timerRef.current);
     if (mediaRecorderRef.current && isRecording) mediaRecorderRef.current.stop();
+    // Diagram cleanup
+    setShowDiagramGen(false);
+    setDiagramPrompt("");
   };
   const openCreate = () => { resetForm(); setShowSheet(true); };
 
@@ -505,6 +516,47 @@ export default function BoardPage() {
 
   const updateTaskField = (idx: number, field: string, value: string | boolean) => {
     setEditTasks((prev) => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));
+  };
+
+  // ── Note image upload ──
+
+  const handleNoteImageUpload = async (file: File) => {
+    if (!user) { toast.error("Debes iniciar sesión"); return; }
+    setUploadingNoteImage(true);
+    try {
+      const url = await uploadNoteImage(user.uid, file);
+      setContent((prev) => `${prev}\n![imagen](${url})\n`);
+      toast.success("Imagen adjuntada");
+    } catch {
+      toast.error("Error al subir imagen");
+    } finally {
+      setUploadingNoteImage(false);
+    }
+  };
+
+  // ── AI diagram generation ──
+
+  const handleGenerateDiagram = async () => {
+    if (!diagramPrompt.trim()) { toast.error("Describe el diagrama primero"); return; }
+    setGeneratingDiagram(true);
+    try {
+      const res = await fetch("/api/diagrams/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: diagramPrompt }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Error al generar");
+      const mermaidBlock = `\n\`\`\`mermaid\n${data.code}\n\`\`\`\n`;
+      setContent((prev) => prev + mermaidBlock);
+      setDiagramPrompt("");
+      setShowDiagramGen(false);
+      toast.success("Diagrama añadido a los apuntes");
+    } catch {
+      toast.error("Error al generar diagrama");
+    } finally {
+      setGeneratingDiagram(false);
+    }
   };
 
   // ── Voice recording functions ──
@@ -1165,6 +1217,58 @@ export default function BoardPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
+
+              {/* Diagram and image toolbar — Notes/Resource only */}
+              {(entryType === "notes" || entryType === "resource") && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => noteImageInputRef.current?.click()}
+                      disabled={uploadingNoteImage}
+                      aria-label="Adjuntar imagen o escaneo"
+                      className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-xl bg-secondary text-foreground text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-50 touch-target"
+                    >
+                      {uploadingNoteImage
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Subiendo...</>
+                        : <><ImagePlus className="w-3.5 h-3.5" /> Adjuntar imagen</>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowDiagramGen((v) => !v); setDiagramPrompt(""); }}
+                      aria-label="Generar diagrama con IA"
+                      className={`flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-xl text-xs font-medium active:scale-[0.98] transition-transform touch-target ${
+                        showDiagramGen ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"
+                      }`}
+                    >
+                      <GitBranch className="w-3.5 h-3.5" /> Diagrama IA
+                    </button>
+                  </div>
+
+                  {showDiagramGen && (
+                    <div className="rounded-xl bg-secondary/50 border border-border p-3 space-y-2">
+                      <p className="text-[11px] text-muted-foreground">Describe el diagrama que quieres generar</p>
+                      <input
+                        type="text"
+                        value={diagramPrompt}
+                        onChange={(e) => setDiagramPrompt(e.target.value)}
+                        placeholder="Ej: diagrama de flujo de un algoritmo de ordenamiento burbuja"
+                        onKeyDown={(e) => { if (e.key === "Enter") handleGenerateDiagram(); }}
+                        className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <button
+                        onClick={handleGenerateDiagram}
+                        disabled={generatingDiagram || !diagramPrompt.trim()}
+                        className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {generatingDiagram
+                          ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generando...</>
+                          : <><Sparkles className="w-3.5 h-3.5" /> Generar diagrama</>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -1228,6 +1332,18 @@ export default function BoardPage() {
 
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => handleScanFiles(e.target.files)} className="hidden" />
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={(e) => handleScanFiles(e.target.files)} className="hidden" />
+          {/* Hidden input for attaching images to notes */}
+          <input
+            ref={noteImageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleNoteImageUpload(file);
+              e.target.value = "";
+            }}
+            className="hidden"
+          />
 
           {/* Scan type */}
           <div>

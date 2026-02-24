@@ -23,6 +23,23 @@ export async function uploadScanImage(
   return data.url;
 }
 
+export async function uploadNoteImage(userId: string, file: File): Promise<string> {
+  const folder = `workia/${userId}/note-images`;
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("folder", folder);
+
+  const res = await fetch("/api/upload", { method: "POST", body: formData });
+  const data = await res.json();
+
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || "Error subiendo imagen");
+  }
+
+  return data.url as string;
+}
+
 export async function uploadAudio(
   userId: string,
   file: File
