@@ -37,6 +37,7 @@ function loadMermaid(): Promise<void> {
         theme: "dark",
         fontFamily: "inherit",
         securityLevel: "loose",
+        suppressErrorRendering: true,
       });
       if (window.mermaid) window.mermaid._workiaInit = true;
       resolve();
@@ -50,11 +51,32 @@ interface MermaidChartProps {
   code: string;
 }
 
+/** Clean common AI-generation issues before passing to Mermaid */
+function sanitizeMermaid(raw: string): string {
+  return raw
+    .trim()
+    // Unescape JSON-escaped newlines/tabs that may survive markdown parsing
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "  ")
+    // Smart/curly quotes → straight
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    // En/em dashes → regular hyphen (safe in labels)
+    .replace(/[\u2013\u2014]/g, "-")
+    // Remove zero-width spaces and other invisible chars
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, "")
+    // Strip surrounding backtick fences if the model included them
+    .replace(/^```(?:mermaid)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+}
+
 export function MermaidChart({ code }: MermaidChartProps) {
   const uid = useId().replace(/:/g, "m");
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [cleanCode, setCleanCode] = useState("");
   const attemptedRef = useRef(false);
 
   useEffect(() => {
@@ -64,8 +86,20 @@ export function MermaidChart({ code }: MermaidChartProps) {
     loadMermaid()
       .then(async () => {
         try {
-          const result = await window.mermaid!.render(uid, code.trim());
-          setSvg(result.svg);
+          const cleaned = sanitizeMermaid(code);
+          setCleanCode(cleaned);
+          const result = await window.mermaid!.render(uid, cleaned);
+          // Mermaid v11 renders syntax errors as SVG with "Syntax error" text
+          // instead of throwing — detect and treat as error
+          const isSyntaxError =
+            result.svg.includes("Syntax error") ||
+            result.svg.includes("mermaid-error") ||
+            result.svg.includes("syntax-error");
+          if (isSyntaxError) {
+            setError(true);
+          } else {
+            setSvg(result.svg);
+          }
         } catch {
           setError(true);
         } finally {
@@ -88,9 +122,14 @@ export function MermaidChart({ code }: MermaidChartProps) {
 
   if (error) {
     return (
-      <pre className="text-xs bg-secondary/50 rounded-xl p-3 overflow-x-auto text-muted-foreground my-2 whitespace-pre-wrap">
-        {code}
-      </pre>
+      <div className="rounded-xl bg-secondary/50 border border-border my-2 overflow-hidden">
+        <div className="px-3 py-1.5 border-b border-border flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Diagrama (código)</span>
+        </div>
+        <pre className="text-xs p-3 overflow-x-auto text-muted-foreground whitespace-pre-wrap leading-relaxed">
+          {cleanCode || code}
+        </pre>
+      </div>
     );
   }
 
