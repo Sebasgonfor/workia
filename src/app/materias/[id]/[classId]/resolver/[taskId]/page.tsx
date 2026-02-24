@@ -232,12 +232,12 @@ export default function TaskSolverPage() {
       {/* Fixed header */}
       <div
         ref={headerRef}
-        className="fixed top-0 inset-x-0 z-20 px-4 pt-safe pb-3 border-b border-border"
-        style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%), var(--background, #fff)` }}
+        className="fixed top-0 inset-x-0 z-20 px-4 pt-2 pb-2.5 border-b border-border bg-background"
+        style={{ backgroundImage: `linear-gradient(135deg, ${color}18 0%, transparent 60%)` }}
       >
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-1.5 text-muted-foreground mb-2 active:opacity-70 touch-target"
+          className="flex items-center gap-1.5 text-muted-foreground mb-1 active:opacity-70 touch-target"
           aria-label="Volver"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -383,8 +383,8 @@ export default function TaskSolverPage() {
       {/* Fixed input bar — above bottom nav (80px) */}
       {hasInput && (
         <div
-          className="fixed inset-x-0 z-20 px-4 pb-3 pt-2 border-t border-border"
-          style={{ bottom: "80px", backgroundColor: "var(--background, #fff)" }}
+          className="fixed inset-x-0 z-20 px-4 pb-3 pt-2.5 border-t border-border bg-background"
+          style={{ bottom: "80px" }}
         >
           <div className="flex items-end gap-2">
             <textarea
