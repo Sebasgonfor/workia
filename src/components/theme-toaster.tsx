@@ -11,6 +11,7 @@ export function ThemeToaster() {
   return (
     <Toaster
       position="top-center"
+      offset={80}
       theme={theme}
       toastOptions={{
         style:
