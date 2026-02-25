@@ -20,7 +20,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import type { Subject, ClassSession, BoardEntry, Task, Flashcard, ScheduleSlot, SubjectGradeRecord, CorteGrades, Quiz, QuizAttempt, SubjectDocument, TaskSolverMessage, DynamicBoard } from "@/types";
+import type { Subject, ClassSession, BoardEntry, Task, Flashcard, ScheduleSlot, SubjectGradeRecord, CorteGrades, Quiz, QuizAttempt, SubjectDocument, ClassDocument, TaskSolverMessage, DynamicBoard } from "@/types";
 
 // ── Subjects ──
 
@@ -96,6 +96,9 @@ export function useSubjects() {
         const entriesRef = collection(classDoc.ref, "entries");
         const entriesSnap = await getDocs(entriesRef);
         entriesSnap.docs.forEach((d) => batch.delete(d.ref));
+        const classDocsRef = collection(classDoc.ref, "documents");
+        const classDocsSnap = await getDocs(classDocsRef);
+        classDocsSnap.docs.forEach((d) => batch.delete(d.ref));
         batch.delete(classDoc.ref);
       }
       // Delete tasks linked to this subject
@@ -194,6 +197,12 @@ export function useClasses(subjectId: string | null) {
       );
       const entriesSnap = await getDocs(entriesRef);
       entriesSnap.docs.forEach((d) => batch.delete(d.ref));
+      // Delete class documents
+      const docsRef = collection(
+        db, "users", user.uid, "subjects", subjectId, "classes", id, "documents"
+      );
+      const docsSnap = await getDocs(docsRef);
+      docsSnap.docs.forEach((d) => batch.delete(d.ref));
       batch.delete(doc(db, "users", user.uid, "subjects", subjectId, "classes", id));
       await batch.commit();
     },
@@ -806,6 +815,80 @@ export function useSubjectDocuments(subjectId: string | null) {
       );
     },
     [user, subjectId]
+  );
+
+  return { documents, loading, addDocument, deleteDocument };
+}
+
+// ── Class Documents ──
+
+export function useClassDocuments(subjectId: string | null, classId: string | null) {
+  const { user } = useAuth();
+  const [documents, setDocuments] = useState<ClassDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user || !subjectId || !classId) {
+      setDocuments([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(
+        db, "users", user.uid, "subjects", subjectId, "classes", classId, "documents"
+      ),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          subjectId,
+          classSessionId: classId,
+          createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+        })) as ClassDocument[];
+        setDocuments(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useClassDocuments snapshot error:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user, subjectId, classId]);
+
+  const addDocument = useCallback(
+    async (data: Omit<ClassDocument, "id" | "createdAt" | "subjectId" | "classSessionId">) => {
+      if (!user || !subjectId || !classId) return;
+      await addDoc(
+        collection(
+          db, "users", user.uid, "subjects", subjectId, "classes", classId, "documents"
+        ),
+        {
+          ...data,
+          subjectId,
+          classSessionId: classId,
+          createdAt: serverTimestamp(),
+        }
+      );
+    },
+    [user, subjectId, classId]
+  );
+
+  const deleteDocument = useCallback(
+    async (id: string) => {
+      if (!user || !subjectId || !classId) return;
+      await deleteDoc(
+        doc(db, "users", user.uid, "subjects", subjectId, "classes", classId, "documents", id)
+      );
+    },
+    [user, subjectId, classId]
   );
 
   return { documents, loading, addDocument, deleteDocument };
