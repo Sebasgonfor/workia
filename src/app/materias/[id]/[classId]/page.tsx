@@ -479,11 +479,51 @@ export default function BoardPage() {
         setShowScanResult(true);
         toast.success(`Listo: ${summary}`);
       } else {
-        // User navigated away — show a persistent toast they can act on later
-        toast.success(`Escaneo listo: ${summary}`, {
-          description: "Vuelve a la clase para ver el resultado",
-          duration: 8000,
-        });
+        // User navigated away — auto-save directly to Firebase so nothing is lost
+        try {
+          const savedParts: string[] = [];
+
+          // Auto-save detected tasks
+          for (const task of tasks) {
+            const dueDateObj = task.dueDate
+              ? new Date(task.dueDate + "T23:59:59")
+              : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            const assignedDateObj = task.assignedDate
+              ? new Date(task.assignedDate + "T00:00:00")
+              : new Date();
+            await addTask({
+              title: task.title.trim(),
+              subjectId,
+              subjectName: subject?.name || "",
+              description: task.description.trim(),
+              assignedDate: assignedDateObj,
+              dueDate: dueDateObj,
+              status: "pending",
+              priority: (task.priority as Task["priority"]) || "medium",
+              type: (task.taskType as Task["type"]) || "otro",
+              sourceImageUrl: null,
+              classSessionId: classId,
+            });
+          }
+          if (tasks.length > 0) savedParts.push(`${tasks.length} tarea(s)`);
+
+          // Auto-save detected notes
+          if (notesData?.content) {
+            const tags = notesData.tags || [];
+            await addEntry({ type: "notes", content: notesData.content.trim(), tags });
+            savedParts.push("apuntes");
+          }
+
+          toast.success(
+            `Guardado automáticamente: ${savedParts.join(" + ") || "contenido"}`,
+            { description: "El contenido fue guardado en la clase", duration: 8000 }
+          );
+        } catch {
+          toast.error("Error al guardar automáticamente", {
+            description: "Vuelve a la clase para intentar de nuevo",
+            duration: 8000,
+          });
+        }
       }
     } catch (err) {
       toast.dismiss(toastId);
