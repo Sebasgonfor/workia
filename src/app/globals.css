@@ -78,6 +78,15 @@
   input, textarea, select {
     font-size: 16px;
   }
+  /* Constrain native date inputs to respect container width */
+  input[type="date"] {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }
 
 /* Safe areas for iOS (notch + home indicator) */
