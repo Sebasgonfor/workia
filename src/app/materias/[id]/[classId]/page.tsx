@@ -30,12 +30,14 @@ import {
   Clock,
   ChevronRight,
   Bot,
+  FolderOpen,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { DynamicBoardTab } from "@/components/dynamic-board-tab";
+import { ClassDocuments } from "@/components/class-documents";
 import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
 import { uploadScanImage, uploadAudio, uploadNoteImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
@@ -158,7 +160,7 @@ export default function BoardPage() {
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"apuntes" | "tablero">("apuntes");
+  const [activeTab, setActiveTab] = useState<"apuntes" | "tablero" | "documentos">("apuntes");
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
@@ -889,6 +891,18 @@ export default function BoardPage() {
               <Sparkles className="w-3 h-3" />
               Tablero
             </button>
+            <button
+              onClick={() => setActiveTab("documentos")}
+              aria-label="Ver documentos de clase"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "documentos"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
+            >
+              <FolderOpen className="w-3 h-3" />
+              Docs
+            </button>
           </div>
         </div>
 
@@ -1142,6 +1156,16 @@ export default function BoardPage() {
               subjectName={subject?.name || ""}
               color={color}
               boardEntries={entries}
+            />
+          </div>
+        )}
+
+        {activeTab === "documentos" && (
+          <div className="px-4 pt-2">
+            <ClassDocuments
+              subjectId={subjectId}
+              classId={classId}
+              color={color}
             />
           </div>
         )}
