@@ -1460,23 +1460,23 @@ export default function BoardPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
+              <div className="grid grid-cols-2 gap-2.5 overflow-hidden">
+                <div className="min-w-0 overflow-hidden">
                   <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Asignada</label>
                   <input
                     type="date"
                     value={taskAssignedDate}
                     onChange={(e) => setTaskAssignedDate(e.target.value)}
-                    className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                    className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                   />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 overflow-hidden">
                   <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Entrega</label>
                   <input
                     type="date"
                     value={taskDueDate}
                     onChange={(e) => setTaskDueDate(e.target.value)}
-                    className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                    className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                   />
                 </div>
               </div>
@@ -1792,23 +1792,23 @@ export default function BoardPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="min-w-0">
+                <div className="grid grid-cols-2 gap-2 overflow-hidden">
+                  <div className="min-w-0 overflow-hidden">
                     <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Asignada</label>
                     <input
                       type="date"
                       value={currentTask.assignedDate}
                       onChange={(e) => updateTaskField(editingTaskIdx, "assignedDate", e.target.value)}
-                      className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                      className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                     />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 overflow-hidden">
                     <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Entrega</label>
                     <input
                       type="date"
                       value={currentTask.dueDate}
                       onChange={(e) => updateTaskField(editingTaskIdx, "dueDate", e.target.value)}
-                      className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                      className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                     />
                   </div>
                 </div>
