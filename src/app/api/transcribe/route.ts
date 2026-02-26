@@ -154,12 +154,13 @@ export async function POST(req: NextRequest) {
       parsed.tasks = parsed.tasks ? [parsed.tasks] : [];
     }
 
-    if (parsed.notes && !parsed.notes.content) {
+    const notes = parsed.notes as Record<string, unknown> | null | undefined;
+    if (notes && !notes.content) {
       parsed.notes = null;
     }
 
     // If no tasks and no notes, wrap raw content
-    if (parsed.tasks.length === 0 && !parsed.notes) {
+    if ((parsed.tasks as unknown[]).length === 0 && !parsed.notes) {
       parsed.type = "notes";
       parsed.notes = {
         topic: "Clase transcrita",
