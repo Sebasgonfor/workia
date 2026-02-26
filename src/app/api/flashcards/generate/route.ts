@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
+import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -50,16 +51,6 @@ function cleanContentForPrompt(raw: string): string {
     .trim();
 }
 
-/** Extract the outermost JSON object from a string, handling markdown code fences */
-function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1].trim() : text.trim();
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) throw new Error("No JSON object found");
-  return JSON.parse(candidate.slice(start, end + 1));
-}
-
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -106,10 +97,10 @@ export async function POST(req: NextRequest) {
 
     let parsed;
     try {
-      parsed = extractJson(text);
+      parsed = parseGeminiResponse(text);
     } catch {
       return NextResponse.json(
-        { error: "Error al interpretar respuesta de IA", raw: text },
+        { error: "Error al interpretar respuesta de IA", raw: text.slice(0, 500) },
         { status: 500 }
       );
     }
