@@ -32,15 +32,25 @@ function formatDueLabel(date: Date): string {
 export function showTaskNotification(task: Task) {
   if (!isNotificationSupported() || Notification.permission !== "granted") return;
 
+  const title = "Recordatorio: " + task.title;
+  const options: NotificationOptions = {
+    body: `Vence ${formatDueLabel(task.dueDate)}${task.subjectName ? ` — ${task.subjectName}` : ""}`,
+    icon: "/icon-192.png",
+    tag: `task-${task.id}`,
+    silent: false,
+  };
+
   try {
-    new Notification("Recordatorio: " + task.title, {
-      body: `Vence ${formatDueLabel(task.dueDate)}${task.subjectName ? ` — ${task.subjectName}` : ""}`,
-      icon: "/icons/icon-192x192.png",
-      tag: `task-${task.id}`,
-      silent: false,
-    });
+    // Try service worker notification first (required on iOS PWA)
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.showNotification(title, options))
+        .catch(() => {});
+      return;
+    }
+    new Notification(title, options);
   } catch {
-    // Service worker context or notification blocked
+    // Notification API not available in this context (e.g. iOS standalone PWA)
   }
 }
 

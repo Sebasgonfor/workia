@@ -207,13 +207,19 @@ export async function POST(req: NextRequest) {
       prompt = `${prompt}\n\n${documentContext.contextText}`;
     }
 
-    const imageParts = images.map((dataUrl: string) => {
-      const [meta, base64] = dataUrl.split(",");
-      const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
-      return {
-        inlineData: { data: base64, mimeType },
-      };
-    });
+    const imageParts = images
+      .filter((dataUrl: string) => typeof dataUrl === "string" && dataUrl.includes(","))
+      .map((dataUrl: string) => {
+        const [meta, base64] = dataUrl.split(",");
+        const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
+        return {
+          inlineData: { data: base64, mimeType },
+        };
+      });
+
+    if (imageParts.length === 0) {
+      return NextResponse.json({ error: "No se pudieron procesar las imágenes" }, { status: 400 });
+    }
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-pro",
