@@ -10,6 +10,8 @@ import { useAuth } from "@/lib/auth-context";
 import type { BoardEntry } from "@/types";
 import { toast } from "sonner";
 
+class ApiError extends Error {}
+
 interface DynamicBoardTabProps {
   subjectId: string;
   classId: string;
@@ -128,7 +130,7 @@ export function DynamicBoardTab({
         });
 
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || "Error al enriquecer");
+        if (!response.ok || !data.success) throw new ApiError(data.error || "Error al enriquecer");
 
         await saveBoard(data.data.content, uploadedUrls);
 
@@ -141,7 +143,7 @@ export function DynamicBoardTab({
         toast.success("¡Tablero actualizado!");
       } catch (err) {
         toast.dismiss(toastId);
-        toast.error("Error al enriquecer el tablero");
+        toast.error(err instanceof ApiError ? err.message : "Error al enriquecer el tablero");
       } finally {
         setProcessing(false);
       }

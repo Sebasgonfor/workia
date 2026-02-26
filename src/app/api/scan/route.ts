@@ -153,6 +153,8 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
   "rawText": "transcripción completa"
 }`;
 
+export const maxDuration = 60; // Allow up to 60s for Gemini processing
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -259,6 +261,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: parsed });
   } catch (err: unknown) {
+    console.error("Scan route error:", err);
     const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
