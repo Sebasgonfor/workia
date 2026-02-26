@@ -232,9 +232,8 @@ export default function FlashcardsPage() {
       setShowGenerate(false);
       setGenContent("");
       setGenSubjectId("");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error desconocido";
-      toast.error(msg);
+    } catch {
+      toast.error("Error al generar flashcards");
     } finally {
       setGenerating(false);
     }

@@ -52,7 +52,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleDownload = async (doc: ClassDocument) => {
-    if (downloadingId === doc.id) return;
+    if (downloadingId === doc.id || !doc.url) return;
     setDownloadingId(doc.id);
     try {
       const response = await fetch(doc.url);
@@ -343,7 +343,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                   className="max-w-full max-h-full object-contain rounded-xl"
                 />
               </div>
-            ) : (
+            ) : preview.url ? (
               <iframe
                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(
                   preview.url
@@ -351,6 +351,10 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                 title={preview.name}
                 className="w-full h-full border-0"
               />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                No se puede previsualizar este archivo
+              </div>
             )}
           </div>
         </div>

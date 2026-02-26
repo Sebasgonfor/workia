@@ -345,8 +345,8 @@ export default function BoardPage() {
         }))
       );
       toast.success(`${generated.length} flashcards generadas`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+    } catch {
+      toast.error("Error al generar flashcards");
     } finally {
       setGeneratingId(null);
     }
@@ -379,8 +379,8 @@ export default function BoardPage() {
       if (!quizId) throw new Error("Error al guardar el quiz");
       toast.success("Quiz generado");
       router.push(`/quiz/${quizId}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+    } catch {
+      toast.error("Error al generar quiz");
     } finally {
       setGeneratingQuizId(null);
     }
@@ -560,9 +560,9 @@ export default function BoardPage() {
           });
         }
       }
-    } catch (err) {
+    } catch {
       stopScanProgress(false);
-      toast.error(err instanceof Error ? err.message : "Error al procesar imagen");
+      toast.error("Error al procesar imagen");
     } finally {
       if (isMountedRef.current) {
         setProcessing(false);
@@ -845,8 +845,8 @@ export default function BoardPage() {
       if (tasks.length > 0) parts.push(`${tasks.length} tarea(s)`);
       if (notesData?.content) parts.push("apuntes");
       toast.success(`Detectado: ${parts.join(" + ") || "contenido procesado"}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+    } catch {
+      toast.error("Error al procesar audio");
     } finally {
       setProcessingVoice(false);
       setProcessStep("");

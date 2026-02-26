@@ -118,11 +118,13 @@ export async function POST(req: NextRequest) {
       .replace("{notesSection}", notesSection);
 
     // Build Gemini parts: prompt text + images
-    const imageParts = (newImages || []).map((dataUrl: string) => {
-      const [meta, base64] = dataUrl.split(",");
-      const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
-      return { inlineData: { data: base64, mimeType } };
-    });
+    const imageParts = (newImages || [])
+      .filter((dataUrl: string) => typeof dataUrl === "string" && dataUrl.includes(","))
+      .map((dataUrl: string) => {
+        const [meta, base64] = dataUrl.split(",");
+        const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
+        return { inlineData: { data: base64, mimeType } };
+      });
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-pro",

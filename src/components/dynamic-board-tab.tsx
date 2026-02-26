@@ -141,7 +141,7 @@ export function DynamicBoardTab({
         toast.success("¡Tablero actualizado!");
       } catch (err) {
         toast.dismiss(toastId);
-        toast.error(err instanceof Error ? err.message : "Error desconocido");
+        toast.error("Error al enriquecer el tablero");
       } finally {
         setProcessing(false);
       }
