@@ -213,6 +213,8 @@ export default function BoardPage() {
   const [scanImages, setScanImages] = useState<{ url: string; file: File }[]>([]);
   const [processing, setProcessing] = useState(false);
   const [processStep, setProcessStep] = useState("");
+  const [scanProgress, setScanProgress] = useState(0);
+  const scanProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -402,16 +404,47 @@ export default function BoardPage() {
     });
   };
 
+  const startScanProgress = () => {
+    setScanProgress(0);
+    setProcessStep("Preparando imágenes...");
+    let progress = 0;
+    const steps = [
+      { at: 10, label: "Enviando a Gemini 2.5 Pro..." },
+      { at: 25, label: "Analizando contenido visual..." },
+      { at: 45, label: "Extrayendo texto y ecuaciones..." },
+      { at: 65, label: "Detectando tareas y apuntes..." },
+      { at: 80, label: "Procesando resultados..." },
+    ];
+    scanProgressRef.current = setInterval(() => {
+      progress += Math.random() * 2.5 + 0.5;
+      if (progress > 92) progress = 92;
+      const step = [...steps].reverse().find((s) => progress >= s.at);
+      if (step) setProcessStep(step.label);
+      setScanProgress(Math.round(progress));
+    }, 600);
+  };
+
+  const stopScanProgress = (success: boolean) => {
+    if (scanProgressRef.current) {
+      clearInterval(scanProgressRef.current);
+      scanProgressRef.current = null;
+    }
+    if (success) {
+      setProcessStep("¡Análisis completado!");
+      setScanProgress(100);
+      setTimeout(() => setScanProgress(0), 1500);
+    } else {
+      setScanProgress(0);
+    }
+  };
+
   const handleProcess = async () => {
     if (scanImages.length === 0) { toast.error("Agrega al menos una imagen"); return; }
 
     // Close the sheet immediately so the user can navigate freely
     setShowScan(false);
     setProcessing(true);
-
-    const toastId = toast.loading("Analizando imagen con IA...", {
-      description: "Puedes seguir usando la app mientras termina",
-    });
+    startScanProgress();
 
     // Snapshot images before they may be cleared
     const imageSnapshot = [...scanImages];
@@ -474,7 +507,7 @@ export default function BoardPage() {
       if (notesData?.content) parts.push("apuntes");
       const summary = parts.join(" + ") || "contenido procesado";
 
-      toast.dismiss(toastId);
+      stopScanProgress(true);
 
       if (isMountedRef.current) {
         // User is still on this page — open result sheet directly
@@ -528,7 +561,7 @@ export default function BoardPage() {
         }
       }
     } catch (err) {
-      toast.dismiss(toastId);
+      stopScanProgress(false);
       toast.error(err instanceof Error ? err.message : "Error al procesar imagen");
     } finally {
       if (isMountedRef.current) {
@@ -864,6 +897,34 @@ export default function BoardPage() {
             </div>
           </div>
         </div>
+
+        {/* Scan progress bar */}
+        {(processing || scanProgress > 0) && (
+          <div className="mx-4 mt-3 p-3 rounded-2xl bg-card border border-border shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="relative w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                {scanProgress < 100 ? (
+                  <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4 text-primary" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {scanProgress < 100 ? "Analizando imagen" : "¡Análisis completado!"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{processStep}</p>
+              </div>
+              <span className="text-xs font-semibold text-primary tabular-nums">{scanProgress}%</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                style={{ width: `${scanProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Tab bar */}
         <div className="px-4 pt-3 pb-1">
