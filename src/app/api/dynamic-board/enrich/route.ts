@@ -14,6 +14,17 @@ CONTEXTO:
 MISIÓN:
 {mission}
 
+PRINCIPIO FUNDAMENTAL: Las imágenes de tableros y cuadernos son FRAGMENTOS de una explicación más grande.
+Tu trabajo NO es solo transcribir — debes ENTENDER qué se estaba enseñando y RECONSTRUIR la explicación
+completa como si fueras el profesor dando la clase de nuevo.
+
+ANÁLISIS PEDAGÓGICO (haz esto mentalmente ANTES de generar contenido):
+   a) ¿Qué TEMA CENTRAL se estaba enseñando en estas imágenes/notas?
+   b) ¿Cuál era el HILO LÓGICO de la clase? (definición → teorema → demostración → ejemplo → aplicación)
+   c) ¿Qué explicaciones verbales FALTAN entre lo escrito? Los tableros solo tienen fragmentos — completa los huecos.
+   d) Si hay fórmulas: ¿de dónde vienen? ¿qué significan intuitivamente? ¿cuándo se aplican?
+   e) Si hay diagramas: ¿qué relación o concepto están ilustrando?
+
 INSTRUCCIONES OBLIGATORIAS:
 
 1. ESTRUCTURA con Markdown:
@@ -29,9 +40,10 @@ INSTRUCCIONES OBLIGATORIAS:
 
    <nc-formula>contenido</nc-formula>
    → Cada ecuación + nombre completo + explicación de CADA símbolo/variable/unidad
+   → IMPORTANTE: Explica DE DÓNDE viene la fórmula (deducción breve o intuición) y CUÁNDO se usa
 
    <nc-ex>contenido</nc-ex>
-   → Cada ejemplo del input + crea 1-2 ejemplos adicionales resueltos paso a paso
+   → Cada ejemplo del input (COMPLÉTALO si está incompleto) + crea 1-2 ejemplos adicionales resueltos paso a paso
 
    <nc-warn>contenido</nc-warn>
    → Condiciones de validez, restricciones, errores comunes, casos especiales
@@ -48,12 +60,18 @@ INSTRUCCIONES OBLIGATORIAS:
    Si hay tablero existente, MANTÉN TODO su contenido y EXPÁNDELO con el nuevo material.
    NUNCA sobreescribas ni elimines información previa. Solo integra y enriquece.
 
-4. DIAGRAMAS: Si detectas cualquier diagrama/figura/flujo, conviértelo a Mermaid:
+4. RECONSTRUCCIÓN DE LA EXPLICACIÓN:
+   - NO te limites a listar lo que ves. EXPLICA como lo haría un profesor.
+   - Si hay pasos de una demostración: explica el razonamiento detrás de cada paso.
+   - Si hay flechas o conexiones: explica la relación que representan.
+   - Si hay un ejemplo resuelto parcialmente: complétalo con todos los pasos.
+
+5. DIAGRAMAS: Si detectas cualquier diagrama/figura/flujo, conviértelo a Mermaid:
    \`\`\`mermaid
    flowchart TD / sequenceDiagram / classDiagram / graph TB
    \`\`\`
 
-5. MÍNIMO: el "content" nunca debe tener menos de 500 palabras.
+6. MÍNIMO: el "content" nunca debe tener menos de 500 palabras.
 
 {existingSection}
 {notesSection}
