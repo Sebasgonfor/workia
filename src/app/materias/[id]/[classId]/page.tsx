@@ -45,6 +45,13 @@ import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
 import type { BoardEntry, Task, Flashcard, Quiz } from "@/types";
 import { toast } from "sonner";
 
+/** Error thrown when our API returns a known error message (safe to show to user) */
+class ApiError extends Error {}
+
+function throwIfApiError(res: Response, data: { success?: boolean; error?: string }, fallback: string) {
+  if (!res.ok || !data.success) throw new ApiError(data.error || fallback);
+}
+
 const ENTRY_ICONS = {
   notes: FileText,
   task: CheckSquare,
@@ -331,9 +338,9 @@ export default function BoardPage() {
         }),
       });
       const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || "Error al generar");
+      throwIfApiError(response, data, "Error al generar");
       const generated = data.data.flashcards as { question: string; answer: string; type: string }[];
-      if (!generated || generated.length === 0) throw new Error("No se generaron flashcards");
+      if (!generated || generated.length === 0) throw new ApiError("No se generaron flashcards");
       await addFlashcards(
         generated.map((fc) => ({
           subjectId,
@@ -345,8 +352,8 @@ export default function BoardPage() {
         }))
       );
       toast.success(`${generated.length} flashcards generadas`);
-    } catch {
-      toast.error("Error al generar flashcards");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Error al generar flashcards");
     } finally {
       setGeneratingId(null);
     }
@@ -366,9 +373,9 @@ export default function BoardPage() {
         }),
       });
       const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || "Error al generar quiz");
+      throwIfApiError(response, data, "Error al generar quiz");
       const { title, questions } = data.data as { title: string; questions: unknown[] };
-      if (!questions || questions.length === 0) throw new Error("No se generaron preguntas");
+      if (!questions || questions.length === 0) throw new ApiError("No se generaron preguntas");
       const quizId = await addQuiz({
         subjectId,
         subjectName: subject?.name || "",
@@ -376,11 +383,11 @@ export default function BoardPage() {
         title: title || `Quiz — ${classSession?.title || "Clase"}`,
         questions: questions as Quiz["questions"],
       });
-      if (!quizId) throw new Error("Error al guardar el quiz");
+      if (!quizId) throw new ApiError("Error al guardar el quiz");
       toast.success("Quiz generado");
       router.push(`/quiz/${quizId}`);
-    } catch {
-      toast.error("Error al generar quiz");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Error al generar quiz");
     } finally {
       setGeneratingQuizId(null);
     }
@@ -470,8 +477,17 @@ export default function BoardPage() {
         }),
       });
 
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || "Error al procesar");
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new ApiError(
+          response.status === 413
+            ? "La imagen es muy grande. Intenta con una foto más pequeña."
+            : `Error del servidor (${response.status}). Intenta de nuevo.`
+        );
+      }
+      throwIfApiError(response, data, "Error al procesar");
 
       const result = data.data as ScanResult;
 
@@ -560,9 +576,10 @@ export default function BoardPage() {
           });
         }
       }
-    } catch {
+    } catch (err) {
+      console.error("Scan error:", err);
       stopScanProgress(false);
-      toast.error("Error al procesar imagen");
+      toast.error(err instanceof ApiError ? err.message : "Error al procesar imagen. Intenta de nuevo.");
     } finally {
       if (isMountedRef.current) {
         setProcessing(false);
@@ -813,9 +830,7 @@ export default function BoardPage() {
       });
 
       const transcribeData = await transcribeRes.json();
-      if (!transcribeRes.ok || !transcribeData.success) {
-        throw new Error(transcribeData.error || "Error al transcribir");
-      }
+      throwIfApiError(transcribeRes, transcribeData, "Error al transcribir");
 
       const result = transcribeData.data as ScanResult;
       setScanResult(result);
@@ -845,8 +860,8 @@ export default function BoardPage() {
       if (tasks.length > 0) parts.push(`${tasks.length} tarea(s)`);
       if (notesData?.content) parts.push("apuntes");
       toast.success(`Detectado: ${parts.join(" + ") || "contenido procesado"}`);
-    } catch {
-      toast.error("Error al procesar audio");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Error al procesar audio");
     } finally {
       setProcessingVoice(false);
       setProcessStep("");

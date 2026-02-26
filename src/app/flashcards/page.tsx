@@ -214,7 +214,7 @@ export default function FlashcardsPage() {
 
       const generated = data.data.flashcards as { question: string; answer: string; type: string }[];
       if (!generated || generated.length === 0) {
-        throw new Error("No se generaron flashcards");
+        throw new Error("No se generaron flashcards. Intenta con un contenido más largo.");
       }
 
       await addFlashcards(
@@ -232,8 +232,8 @@ export default function FlashcardsPage() {
       setShowGenerate(false);
       setGenContent("");
       setGenSubjectId("");
-    } catch {
-      toast.error("Error al generar flashcards");
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "Error al generar flashcards");
     } finally {
       setGenerating(false);
     }
