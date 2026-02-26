@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -133,19 +134,9 @@ export async function POST(req: NextRequest) {
 
     let parsed: { content: string };
     try {
-      parsed = JSON.parse(text);
+      parsed = parseGeminiResponse(text) as { content: string };
     } catch {
-      const cleaned = text
-        .replace(/^```(?:json)?\s*\n?/i, "")
-        .replace(/\n?```\s*$/i, "")
-        .trim();
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("No se pudo parsear la respuesta de la IA");
-        parsed = JSON.parse(jsonMatch[0]);
-      }
+      throw new Error("No se pudo interpretar la respuesta de la IA");
     }
 
     if (!parsed.content) throw new Error("La IA no devolvió contenido");
