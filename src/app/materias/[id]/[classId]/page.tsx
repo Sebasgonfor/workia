@@ -476,7 +476,9 @@ export default function BoardPage() {
         throw new ApiError(
           response.status === 413
             ? "Las imágenes son muy grandes. Intenta con menos fotos o fotos más pequeñas."
-            : `Error del servidor (${response.status}). Intenta de nuevo.`
+            : response.status === 504
+              ? "El análisis tardó demasiado. Intenta con menos imágenes."
+              : `Error del servidor (${response.status}). Intenta de nuevo.`
         );
       }
       throwIfApiError(response, data, "Error al procesar");

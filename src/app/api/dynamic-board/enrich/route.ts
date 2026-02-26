@@ -63,6 +63,8 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
   "content": "markdown enriquecido completo del tablero"
 }`;
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -127,7 +129,7 @@ export async function POST(req: NextRequest) {
       });
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.0-flash",
       generationConfig: { responseMimeType: "application/json" },
     });
 
