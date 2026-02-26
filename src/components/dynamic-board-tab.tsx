@@ -9,6 +9,7 @@ import { uploadScanImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import type { BoardEntry } from "@/types";
 import { toast } from "sonner";
+import { compressImageToBase64 } from "@/lib/utils";
 
 class ApiError extends Error {}
 
@@ -20,14 +21,6 @@ interface DynamicBoardTabProps {
   boardEntries: BoardEntry[];
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -111,7 +104,7 @@ export function DynamicBoardTab({
         }
 
         const base64Images = await Promise.all(
-          pendingImages.map((img) => fileToBase64(img.file))
+          pendingImages.map((img) => compressImageToBase64(img.file))
         );
 
         const importNotes = importEntryIds

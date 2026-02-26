@@ -44,6 +44,7 @@ import { useAuth } from "@/lib/auth-context";
 import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
 import type { BoardEntry, Task, Flashcard, Quiz } from "@/types";
 import { toast } from "sonner";
+import { compressImageToBase64 } from "@/lib/utils";
 
 /** Error thrown when our API returns a known error message (safe to show to user) */
 class ApiError extends Error {}
@@ -85,15 +86,6 @@ interface ScanResult {
   topic?: string;
   content?: string;
   tags?: string[];
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 function timeAgo(date: Date): string {
@@ -458,7 +450,7 @@ export default function BoardPage() {
     const scanTypeSnapshot = scanType;
 
     try {
-      const base64Images = await Promise.all(imageSnapshot.map((img) => fileToBase64(img.file)));
+      const base64Images = await Promise.all(imageSnapshot.map((img) => compressImageToBase64(img.file)));
 
       const response = await fetch("/api/scan", {
         method: "POST",
@@ -483,7 +475,7 @@ export default function BoardPage() {
       } catch {
         throw new ApiError(
           response.status === 413
-            ? "La imagen es muy grande. Intenta con una foto más pequeña."
+            ? "Las imágenes son muy grandes. Intenta con menos fotos o fotos más pequeñas."
             : `Error del servidor (${response.status}). Intenta de nuevo.`
         );
       }
