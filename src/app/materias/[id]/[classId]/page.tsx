@@ -823,7 +823,7 @@ export default function BoardPage() {
 
   if (!classSession && !loading) {
     return (
-      <AppShell>
+      <AppShell hideBottomNav={true}>
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
           <p className="text-muted-foreground">Clase no encontrada</p>
           <button onClick={() => router.replace(`/materias/${subjectId}`)} className="mt-4 text-primary text-sm font-medium">
@@ -835,7 +835,7 @@ export default function BoardPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell hideBottomNav={true}>
       <div className="page-enter">
         <div
           className="px-4 pt-safe pb-4"
