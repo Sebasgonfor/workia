@@ -32,11 +32,12 @@ import {
   Bot,
   FolderOpen,
   MessageCircle,
+  List,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
-import { MarkdownMath } from "@/components/ui/markdown-math";
+import { MarkdownMath, extractTOC } from "@/components/ui/markdown-math";
 import { DynamicBoardTab } from "@/components/dynamic-board-tab";
 import { ClassDocuments } from "@/components/class-documents";
 import { NotesChatPanel } from "@/components/notes-chat-panel";
@@ -165,6 +166,10 @@ export default function BoardPage() {
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
+  const [showTOC, setShowTOC] = useState(false);
+  const [readingProgress, setReadingProgress] = useState(0);
+  const readerContentRef = useRef<HTMLDivElement>(null);
+  const tocItems = useMemo(() => (readerEntry ? extractTOC(readerEntry.content) : []), [readerEntry]);
 
   const [entryType, setEntryType] = useState<BoardEntry["type"] | "voice">("notes");
   const [content, setContent] = useState("");
@@ -201,6 +206,18 @@ export default function BoardPage() {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
+
+  // Prevent outer page scroll when IA chat tab is active
+  useEffect(() => {
+    if (activeTab === "ia") {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [activeTab]);
 
   // Diagram / note image state
   const [uploadingNoteImage, setUploadingNoteImage] = useState(false);
@@ -959,6 +976,21 @@ export default function BoardPage() {
 
   const color = subject?.color || "#6366f1";
   const currentTask = editTasks[editingTaskIdx];
+
+  const handleReaderScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const total = el.scrollHeight - el.clientHeight;
+    if (total <= 0) return;
+    setReadingProgress(Math.round(Math.min(100, (el.scrollTop / total) * 100)));
+  };
+
+  const handleTocNavigate = (id: string) => {
+    setShowTOC(false);
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 160);
+  };
 
   if (!classSession && !loading) {
     return (
@@ -2183,6 +2215,13 @@ export default function BoardPage() {
       {/* Notes Reader Fullscreen */}
       {readerEntry && (
         <div className="fixed inset-0 z-50 bg-background flex flex-col">
+          {/* Reading progress bar */}
+          <div className="absolute top-0 left-0 right-0 h-[3px] z-10" style={{ backgroundColor: `${color}20` }}>
+            <div
+              className="h-full transition-all duration-150"
+              style={{ width: `${readingProgress}%`, backgroundColor: color }}
+            />
+          </div>
           {/* Hidden file inputs for reader image upload */}
           <input
             ref={readerFileInputRef}
@@ -2216,17 +2255,30 @@ export default function BoardPage() {
             <h1 className="text-lg font-bold leading-tight">
               {readerEntry.content.match(/^##?\s+(.+)/m)?.[1] || "Apuntes"}
             </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-muted-foreground">
-                {readerEntry.createdAt.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
-              </span>
-              {classSession && (
-                <span className="text-xs text-muted-foreground">&middot; {classSession.title}</span>
-              )}
-              {readerEntry.sourceImages && readerEntry.sourceImages.length > 0 && (
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">
-                  &middot; {readerEntry.sourceImages.length} foto{readerEntry.sourceImages.length !== 1 ? "s" : ""} fuente
+                  {readerEntry.createdAt.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
                 </span>
+                {classSession && (
+                  <span className="text-xs text-muted-foreground">&middot; {classSession.title}</span>
+                )}
+                {readerEntry.sourceImages && readerEntry.sourceImages.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    &middot; {readerEntry.sourceImages.length} foto{readerEntry.sourceImages.length !== 1 ? "s" : ""} fuente
+                  </span>
+                )}
+              </div>
+              {tocItems.length > 0 && (
+                <button
+                  onClick={() => setShowTOC(true)}
+                  aria-label="Tabla de contenidos"
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium active:opacity-70 transition-opacity"
+                  style={{ backgroundColor: `${color}18`, color }}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Índice</span>
+                </button>
               )}
             </div>
             {readerEntry.tags.length > 0 && (
@@ -2245,8 +2297,12 @@ export default function BoardPage() {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-5">
-            <MarkdownMath content={readerEntry.content} />
+          <div
+            ref={readerContentRef}
+            className="flex-1 overflow-y-auto px-4 py-5"
+            onScroll={handleReaderScroll}
+          >
+            <MarkdownMath content={readerEntry.content} subjectColor={color} />
           </div>
 
           {/* Pending images strip */}
@@ -2346,6 +2402,34 @@ export default function BoardPage() {
           </div>
         </div>
       )}
+
+      {/* TOC Sheet */}
+      <Sheet open={showTOC} onClose={() => setShowTOC(false)} title="Tabla de contenidos">
+        <div className="space-y-1 pb-2">
+          {tocItems.map((item, i) => (
+            <button
+              key={i}
+              onClick={() => handleTocNavigate(item.id)}
+              aria-label={`Ir a ${item.text}`}
+              className="w-full text-left px-3 py-2.5 rounded-xl active:opacity-70 transition-opacity"
+              style={{
+                paddingLeft: item.level === 3 ? "1.5rem" : "0.75rem",
+                backgroundColor: item.level === 2 ? `${color}10` : "transparent",
+              }}
+            >
+              <span
+                className="text-sm font-medium leading-snug"
+                style={{ color: item.level === 2 ? color : "inherit", fontWeight: item.level === 2 ? 700 : 500 }}
+              >
+                {item.level === 3 && (
+                  <span className="mr-1.5 opacity-40" style={{ color }}>›</span>
+                )}
+                {item.text}
+              </span>
+            </button>
+          ))}
+        </div>
+      </Sheet>
     </AppShell>
   );
 }

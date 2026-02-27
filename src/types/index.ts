@@ -259,6 +259,16 @@ export interface NotesChatMessage {
   createdAt: Date;
 }
 
+export interface ChatConversation {
+  id: string;
+  subjectId: string;
+  classSessionId: string;
+  title: string;
+  lastMessage: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Returns the next occurrence date+slot for a given subject, or null if no slots exist. */
 export const nextClassDate = (
   slots: ScheduleSlot[],

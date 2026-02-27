@@ -16,9 +16,12 @@ import {
   Pencil,
   ChevronDown,
   Image as ImageIcon,
+  Clock,
+  MessageSquarePlus,
 } from "lucide-react";
 import { MarkdownMath } from "@/components/ui/markdown-math";
-import { useNotesChat } from "@/lib/hooks";
+import { Sheet } from "@/components/ui/sheet";
+import { useNotesChat, useChatConversations } from "@/lib/hooks";
 import { uploadScanImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
@@ -127,8 +130,15 @@ export function NotesChatPanel({
   onTaskAction,
 }: NotesChatPanelProps) {
   const { user } = useAuth();
+  const { conversations, loading: convsLoading, createConversation, deleteConversation } =
+    useChatConversations(subjectId, classId);
+
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [creatingConv, setCreatingConv] = useState(false);
+
   const { messages, loading: chatLoading, addMessage, clearChat } =
-    useNotesChat(subjectId, classId);
+    useNotesChat(subjectId, classId, activeConversationId);
 
   const [input, setInput] = useState("");
   const [streamingText, setStreamingText] = useState("");
@@ -137,6 +147,23 @@ export function NotesChatPanel({
   const [executedActions, setExecutedActions] = useState<Set<string>>(new Set());
   const [showAiDocs, setShowAiDocs] = useState(false);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  // Auto-select the most recent conversation, or create one if none exist
+  useEffect(() => {
+    if (convsLoading) return;
+    if (conversations.length > 0) {
+      if (!activeConversationId || !conversations.find((c) => c.id === activeConversationId)) {
+        setActiveConversationId(conversations[0].id);
+      }
+    } else if (!creatingConv) {
+      setCreatingConv(true);
+      createConversation().then((id) => {
+        if (id) setActiveConversationId(id);
+        setCreatingConv(false);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, convsLoading]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -309,6 +336,45 @@ export function NotesChatPanel({
     toast.success("Conversación borrada");
   };
 
+  const handleNewConversation = async () => {
+    if (isStreaming) {
+      abortRef.current?.abort();
+      setStreamingText("");
+      setIsStreaming(false);
+    }
+    const id = await createConversation();
+    if (id) {
+      setActiveConversationId(id);
+      setExecutedActions(new Set());
+      setShowHistory(false);
+    }
+  };
+
+  const handleDeleteConversation = async (convId: string) => {
+    await deleteConversation(convId);
+    if (activeConversationId === convId) {
+      const remaining = conversations.filter((c) => c.id !== convId);
+      if (remaining.length > 0) {
+        setActiveConversationId(remaining[0].id);
+      } else {
+        setActiveConversationId(null);
+      }
+      setExecutedActions(new Set());
+    }
+    toast.success("Conversación eliminada");
+  };
+
+  const handleSelectConversation = (convId: string) => {
+    if (isStreaming) {
+      abortRef.current?.abort();
+      setStreamingText("");
+      setIsStreaming(false);
+    }
+    setActiveConversationId(convId);
+    setExecutedActions(new Set());
+    setShowHistory(false);
+  };
+
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -363,33 +429,100 @@ export function NotesChatPanel({
       : []),
   ];
 
+  const activeConversation = conversations.find((c) => c.id === activeConversationId) ?? null;
+
   return (
     <div className="flex flex-col" style={{ height: "calc(100dvh - 240px)", minHeight: "350px" }}>
+      {/* History Sheet */}
+      <Sheet open={showHistory} onClose={() => setShowHistory(false)} title="Historial de conversaciones">
+        <div className="flex flex-col gap-3 px-1">
+          <button
+            onClick={handleNewConversation}
+            className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl border-2 border-dashed text-sm font-semibold active:scale-[0.98] transition-transform"
+            style={{ borderColor: color + "60", color }}
+          >
+            <MessageSquarePlus className="w-4 h-4" />
+            Nueva conversación
+          </button>
+
+          {conversations.length === 0 && !convsLoading && (
+            <p className="text-xs text-center text-muted-foreground py-4">
+              No hay conversaciones todavía
+            </p>
+          )}
+
+          {conversations.map((conv) => {
+            const isActive = conv.id === activeConversationId;
+            return (
+              <div
+                key={conv.id}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all active:scale-[0.99]"
+                style={{
+                  backgroundColor: isActive ? color + "12" : undefined,
+                  borderColor: isActive ? color + "40" : "var(--border)",
+                }}
+              >
+                <button
+                  className="flex-1 text-left min-w-0"
+                  onClick={() => handleSelectConversation(conv.id)}
+                  aria-label={`Seleccionar conversación ${conv.title}`}
+                >
+                  <p className="text-xs font-semibold truncate" style={{ color: isActive ? color : undefined }}>
+                    {conv.title}
+                  </p>
+                  {conv.lastMessage && (
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      {conv.lastMessage}
+                    </p>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDeleteConversation(conv.id)}
+                  className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center active:scale-90 transition-transform shrink-0"
+                  aria-label="Eliminar conversación"
+                >
+                  <Trash2 className="w-3 h-3 text-muted-foreground" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Sheet>
+
       {/* Chat header */}
       <div className="flex items-center justify-between px-1 py-2 shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
+            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
             style={{ backgroundColor: color + "20" }}
           >
             <Bot className="w-4 h-4" style={{ color }} />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Chat IA</p>
-            <p className="text-[10px] text-muted-foreground">
-              {classNotes.length} apunte{classNotes.length !== 1 ? "s" : ""} · {tasks.length} tarea{tasks.length !== 1 ? "s" : ""} · {allNoteImages.length} imagen{allNoteImages.length !== 1 ? "es" : ""}
+            <p className="text-[10px] text-muted-foreground truncate">
+              {activeConversation?.title ?? ""}
             </p>
           </div>
         </div>
-        {messages.length > 0 && !isStreaming && (
+        <div className="flex items-center gap-1 shrink-0">
+          {messages.length > 0 && !isStreaming && (
+            <button
+              onClick={handleClearChat}
+              className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center active:scale-95 transition-transform touch-target"
+              aria-label="Borrar mensajes"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          )}
           <button
-            onClick={handleClearChat}
+            onClick={() => setShowHistory(true)}
             className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center active:scale-95 transition-transform touch-target"
-            aria-label="Borrar conversación"
+            aria-label="Ver historial"
           >
-            <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
-        )}
+        </div>
       </div>
 
       {/* AI Documents section */}

@@ -20,7 +20,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import type { Subject, ClassSession, BoardEntry, Task, Flashcard, ScheduleSlot, SubjectGradeRecord, CorteGrades, Quiz, QuizAttempt, SubjectDocument, ClassDocument, TaskSolverMessage, DynamicBoard, NotesChatMessage } from "@/types";
+import type { Subject, ClassSession, BoardEntry, Task, Flashcard, ScheduleSlot, SubjectGradeRecord, CorteGrades, Quiz, QuizAttempt, SubjectDocument, ClassDocument, TaskSolverMessage, DynamicBoard, NotesChatMessage, ChatConversation } from "@/types";
 
 // ── Subjects ──
 
@@ -1057,13 +1057,99 @@ export function useDynamicBoard(subjectId: string | null, classId: string | null
 
 // ── Notes AI Chat ──
 
-export function useNotesChat(subjectId: string | null, classId: string | null) {
+// ── Chat Conversations ──
+
+export function useChatConversations(subjectId: string | null, classId: string | null) {
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user || !subjectId || !classId) {
+      setConversations([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "users", user.uid, "subjects", subjectId, "classes", classId, "chatConversations"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+          updatedAt: (d.data().updatedAt as Timestamp)?.toDate() || new Date(),
+        })) as ChatConversation[];
+        setConversations(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useChatConversations snapshot error:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user, subjectId, classId]);
+
+  const createConversation = useCallback(
+    async (): Promise<string | null> => {
+      if (!user || !subjectId || !classId) return null;
+
+      const now = new Date();
+      const title = now.toLocaleDateString("es-CO", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }) + ", " + now.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+      const ref = await addDoc(
+        collection(db, "users", user.uid, "subjects", subjectId, "classes", classId, "chatConversations"),
+        {
+          subjectId,
+          classSessionId: classId,
+          title,
+          lastMessage: "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }
+      );
+      return ref.id;
+    },
+    [user, subjectId, classId]
+  );
+
+  const deleteConversation = useCallback(
+    async (conversationId: string) => {
+      if (!user || !subjectId || !classId) return;
+      const batch = writeBatch(db);
+      const messagesRef = collection(
+        db, "users", user.uid, "subjects", subjectId, "classes", classId,
+        "chatConversations", conversationId, "messages"
+      );
+      const snap = await getDocs(messagesRef);
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      batch.delete(doc(db, "users", user.uid, "subjects", subjectId, "classes", classId, "chatConversations", conversationId));
+      await batch.commit();
+    },
+    [user, subjectId, classId]
+  );
+
+  return { conversations, loading, createConversation, deleteConversation };
+}
+
+export function useNotesChat(subjectId: string | null, classId: string | null, conversationId: string | null) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<NotesChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !subjectId || !classId) {
+    if (!user || !subjectId || !classId || !conversationId) {
       setMessages([]);
       setLoading(false);
       return;
@@ -1075,7 +1161,8 @@ export function useNotesChat(subjectId: string | null, classId: string | null) {
         "users", user.uid,
         "subjects", subjectId,
         "classes", classId,
-        "notesChat"
+        "chatConversations", conversationId,
+        "messages"
       ),
       orderBy("createdAt", "asc")
     );
@@ -1098,18 +1185,20 @@ export function useNotesChat(subjectId: string | null, classId: string | null) {
     );
 
     return () => unsubscribe();
-  }, [user, subjectId, classId]);
+  }, [user, subjectId, classId, conversationId]);
 
   const addMessage = useCallback(
     async (role: "user" | "assistant", content: string, imageUrls: string[] = []) => {
-      if (!user || !subjectId || !classId) return;
+      if (!user || !subjectId || !classId || !conversationId) return;
+
       await addDoc(
         collection(
           db,
           "users", user.uid,
           "subjects", subjectId,
           "classes", classId,
-          "notesChat"
+          "chatConversations", conversationId,
+          "messages"
         ),
         {
           subjectId,
@@ -1120,24 +1209,39 @@ export function useNotesChat(subjectId: string | null, classId: string | null) {
           createdAt: serverTimestamp(),
         }
       );
+
+      // Update lastMessage preview on the conversation
+      await updateDoc(
+        doc(db, "users", user.uid, "subjects", subjectId, "classes", classId, "chatConversations", conversationId),
+        {
+          lastMessage: content.slice(0, 80),
+          updatedAt: serverTimestamp(),
+        }
+      );
     },
-    [user, subjectId, classId]
+    [user, subjectId, classId, conversationId]
   );
 
   const clearChat = useCallback(async () => {
-    if (!user || !subjectId || !classId) return;
+    if (!user || !subjectId || !classId || !conversationId) return;
     const batch = writeBatch(db);
     const ref = collection(
       db,
       "users", user.uid,
       "subjects", subjectId,
       "classes", classId,
-      "notesChat"
+      "chatConversations", conversationId,
+      "messages"
     );
     const snap = await getDocs(ref);
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
-  }, [user, subjectId, classId]);
+    await updateDoc(
+      doc(db, "users", user.uid, "subjects", subjectId, "classes", classId, "chatConversations", conversationId),
+      { lastMessage: "", updatedAt: serverTimestamp() }
+    );
+  }, [user, subjectId, classId, conversationId]);
 
   return { messages, loading, addMessage, clearChat };
 }
+
