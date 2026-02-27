@@ -31,9 +31,8 @@ export async function signCloudinaryUrl(
   const hashBuffer = await crypto.subtle.digest("SHA-1", data);
 
   // Convert to base64url
-  const hashArray = new Uint8Array(hashBuffer);
-  let binary = "";
-  for (const byte of hashArray) binary += String.fromCharCode(byte);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const binary = hashArray.map((b) => String.fromCharCode(b)).join("");
   const base64 = btoa(binary);
   const base64url = base64.replace(/\+/g, "-").replace(/\//g, "_");
   const signature = base64url.substring(0, 8);
