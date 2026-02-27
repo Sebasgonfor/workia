@@ -208,8 +208,9 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
     return <MdBlock content={content} className={className} subjectColor={subjectColor} />;
   }
 
-  // Group consecutive colored-card segments so they can be placed in a 2-col grid,
+  // Group consecutive colored-card segments so they can be placed in a responsive grid,
   // while plain `md` segments always span full width.
+  // Two cards separated by only whitespace-only md segments are still grouped together.
   type SegmentGroup =
     | { kind: "md"; segment: NoteSegment; index: number }
     | { kind: "cards"; items: { segment: NoteSegment; index: number }[] };
@@ -217,15 +218,25 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
   const groups: SegmentGroup[] = [];
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
-    if (seg.type === "md") {
-      groups.push({ kind: "md", segment: seg, index: i });
-    } else {
+    if (seg.type !== "md") {
+      // It's a card — append to last cards group or create a new one
       const last = groups[groups.length - 1];
       if (last && last.kind === "cards") {
         last.items.push({ segment: seg, index: i });
       } else {
         groups.push({ kind: "cards", items: [{ segment: seg, index: i }] });
       }
+    } else {
+      // Plain md — check whether the previous and next non-whitespace tokens are both cards
+      // (i.e. this md block is just blank lines between cards); if so, skip it (merge groups)
+      const isBlank = seg.content.trim() === "";
+      const prevGroup = groups[groups.length - 1];
+      const nextNonBlank = segments.slice(i + 1).find((s) => s.type !== "md" || s.content.trim() !== "");
+      if (isBlank && prevGroup?.kind === "cards" && nextNonBlank && nextNonBlank.type !== "md") {
+        // Skip this blank separator — the next card will be appended to the current cards group
+        continue;
+      }
+      groups.push({ kind: "md", segment: seg, index: i });
     }
   }
 

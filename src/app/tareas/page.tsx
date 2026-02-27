@@ -215,7 +215,7 @@ export default function TareasPage() {
 
   return (
     <AppShell>
-      <div className="page-enter md:max-w-5xl md:mx-auto">
+      <div className="page-enter">
         {/* Header */}
         <div className="px-4 pt-safe pb-2 md:px-8 md:pt-8">
           <div className="flex items-center justify-between mb-3">

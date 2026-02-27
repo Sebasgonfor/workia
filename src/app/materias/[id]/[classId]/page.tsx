@@ -1007,7 +1007,7 @@ export default function BoardPage() {
 
   return (
     <AppShell hideBottomNav={true}>
-      <div className="page-enter md:max-w-5xl md:mx-auto">
+      <div className="page-enter">
         <div
           className="px-4 pt-safe pb-4 md:px-8"
           style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)` }}
@@ -2214,7 +2214,7 @@ export default function BoardPage() {
 
       {/* Notes Reader Fullscreen */}
       {readerEntry && (
-        <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        <div className="fixed inset-0 z-50 bg-background flex flex-col md:left-56">
           {/* Reading progress bar */}
           <div className="absolute top-0 left-0 right-0 h-[3px] z-10" style={{ backgroundColor: `${color}20` }}>
             <div
@@ -2242,7 +2242,7 @@ export default function BoardPage() {
 
           {/* Header */}
           <div
-            className="shrink-0 px-4 pt-safe pb-3 border-b border-border"
+            className="shrink-0 px-4 pt-safe pb-3 border-b border-border md:px-12"
             style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)` }}
           >
             <button
@@ -2299,7 +2299,7 @@ export default function BoardPage() {
           {/* Content */}
           <div
             ref={readerContentRef}
-            className="flex-1 overflow-y-auto px-4 py-5"
+            className="flex-1 overflow-y-auto px-4 py-5 md:px-12"
             onScroll={handleReaderScroll}
           >
             <MarkdownMath content={readerEntry.content} subjectColor={color} />

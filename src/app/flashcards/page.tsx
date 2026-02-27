@@ -257,7 +257,7 @@ export default function FlashcardsPage() {
   if (view === "study") {
     return (
       <AppShell>
-        <div className="px-4 pt-safe page-enter min-h-[80vh] flex flex-col md:px-8 md:pt-8 md:max-w-5xl md:mx-auto">
+        <div className="px-4 pt-safe page-enter min-h-[80vh] flex flex-col md:px-8 md:pt-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -350,7 +350,7 @@ export default function FlashcardsPage() {
   // ── List View ──
   return (
     <AppShell>
-      <div className="page-enter md:max-w-5xl md:mx-auto">
+      <div className="page-enter">
         <div className="px-4 pt-safe pb-3 md:px-8 md:pt-8">
           <div className="flex items-center justify-between">
             <div>

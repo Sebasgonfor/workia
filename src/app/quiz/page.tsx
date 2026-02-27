@@ -73,7 +73,7 @@ export default function QuizListPage() {
 
   return (
     <AppShell>
-      <div className="px-4 pt-6 pb-32 max-w-lg mx-auto md:px-8 md:pt-8 md:max-w-5xl">
+      <div className="px-4 pt-6 pb-32 md:px-8 md:pt-8">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Quiz</h1>

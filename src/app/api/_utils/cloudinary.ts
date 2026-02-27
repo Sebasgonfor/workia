@@ -24,13 +24,14 @@ export async function signCloudinaryUrl(
   // Already signed — don't double-sign
   if (/\/s--[A-Za-z0-9_-]{8}--\//.test(pathname)) return url;
 
-  let toSign = pathname.substring(uploadIdx + "/upload/".length);
+  // Full path after /upload/ — kept intact for building the signed URL (version must stay)
+  const pathAfterUpload = pathname.substring(uploadIdx + "/upload/".length);
 
-  // Cloudinary signs only the public_id — strip the version prefix (e.g. "v1234567890/")
-  toSign = toSign.replace(/^v\d+\//, "");
+  // Cloudinary signs only the public_id, without the version prefix (e.g. "v1234567890/")
+  const signInput = pathAfterUpload.replace(/^v\d+\//, "");
 
   const encoder = new TextEncoder();
-  const data = encoder.encode(toSign + apiSecret);
+  const data = encoder.encode(signInput + apiSecret);
   const hashBuffer = await crypto.subtle.digest("SHA-1", data);
 
   // Convert to base64url
@@ -40,8 +41,9 @@ export async function signCloudinaryUrl(
   const base64url = base64.replace(/\+/g, "-").replace(/\//g, "_");
   const signature = base64url.substring(0, 8);
 
+  // Insert s--{signature}-- right after /upload/, keeping the version and public_id intact
   const prefix = pathname.substring(0, uploadIdx + "/upload/".length);
-  const signedPath = `${prefix}s--${signature}--/${toSign}`;
+  const signedPath = `${prefix}s--${signature}--/${pathAfterUpload}`;
 
   return `${parsed.origin}${signedPath}${parsed.search}`;
 }
