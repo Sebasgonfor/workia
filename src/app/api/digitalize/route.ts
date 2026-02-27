@@ -31,9 +31,6 @@ RULES:
 - If no clear document/paper is found, return: {"found": false}
 - Return ONLY JSON, no markdown, no backticks.`;
 
-/**
- * Detect document corners using Gemini Vision.
- */
 async function detectCorners(
   imageBase64: string,
   width: number,
@@ -69,7 +66,6 @@ async function detectCorners(
         c.x < 0 || c.y < 0 ||
         c.x > width || c.y > height
       ) {
-        console.error("Invalid corner coordinates:", corners);
         return null;
       }
     }
@@ -82,47 +78,108 @@ async function detectCorners(
 }
 
 /**
- * Remove shadows using divide-by-background technique.
- * Creates a heavily blurred version (background estimate), then divides
- * the original by it to normalize lighting.
+ * Shadow removal using morphological closing + illumination normalization.
+ * This is the standard technique used by CamScanner, OpenCV, and document scanning apps:
+ *   1. Estimate background illumination via morphological closing (dilate → erode)
+ *   2. Divide original by background to flatten lighting
+ *   3. Normalize result to full 0-255 range
+ *
+ * The closing operation removes text/foreground while preserving shadow gradients,
+ * giving us a pure illumination map. Dividing by it cancels out shadows.
  */
 async function removeShadows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sharp: any,
-  imageBuffer: Buffer,
-  strength: number = 220
+  imageBuffer: Buffer
 ): Promise<Buffer> {
-  // Get image info
   const meta = await sharp(imageBuffer).metadata();
   const w = meta.width!;
   const h = meta.height!;
 
-  // Get raw pixels of original
-  const origRaw = await sharp(imageBuffer)
+  // Step 1: Morphological closing = dilate then erode
+  // Large kernel to bridge over text while keeping shadow structure
+  // Kernel size proportional to image size (similar to OpenCV's 150x150 for ~2000px images)
+  const morphSize = Math.max(15, Math.round(Math.min(w, h) / 14));
+
+  const backgroundBuffer = await sharp(imageBuffer)
+    .greyscale()
+    .dilate(morphSize)  // Expand bright areas → fills in text gaps
+    .erode(morphSize)   // Shrink back → background estimate without text
+    .blur(Math.max(5, Math.round(morphSize / 3))) // Smooth the estimate
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Get raw pixels of heavily blurred version (background light estimate)
-  const blurRadius = Math.max(31, Math.round(Math.min(w, h) / 15));
-  // blur sigma must be 0.3-1000, radius is derived; use sigma for flexibility
-  const blurSigma = blurRadius / 2;
-  const blurRaw = await sharp(imageBuffer)
-    .blur(blurSigma)
+  // Step 2: Get original grayscale pixels
+  const originalBuffer = await sharp(imageBuffer)
+    .greyscale()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  const channels = origRaw.info.channels;
-  const pixels = Buffer.alloc(origRaw.data.length);
+  // Step 3: Divide original by background to normalize illumination
+  const pixelCount = w * h;
+  const result = Buffer.alloc(pixelCount);
 
-  // Divide original by background: output = clamp(orig / blur * strength, 0, 255)
-  for (let i = 0; i < origRaw.data.length; i++) {
-    const bg = Math.max(blurRaw.data[i], 1); // avoid division by zero
-    const val = Math.round((origRaw.data[i] / bg) * strength);
-    pixels[i] = Math.min(255, Math.max(0, val));
+  for (let i = 0; i < pixelCount; i++) {
+    const orig = originalBuffer.data[i];
+    const bg = Math.max(backgroundBuffer.data[i], 1);
+    // Standard formula: output = orig * 255 / bg
+    // This makes paper white and text dark regardless of shadow
+    const val = Math.round((orig / bg) * 255);
+    result[i] = Math.min(255, Math.max(0, val));
   }
 
-  // Convert back to image
-  return sharp(pixels, { raw: { width: w, height: h, channels } })
+  return sharp(result, { raw: { width: w, height: h, channels: 1 } })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+}
+
+/**
+ * Color-preserving shadow removal for enhanced/auto modes.
+ * Applies the illumination correction per-channel.
+ */
+async function removeShadowsColor(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sharp: any,
+  imageBuffer: Buffer
+): Promise<Buffer> {
+  const meta = await sharp(imageBuffer).metadata();
+  const w = meta.width!;
+  const h = meta.height!;
+
+  const morphSize = Math.max(15, Math.round(Math.min(w, h) / 14));
+
+  // Background estimate from grayscale version
+  const bgBuffer = await sharp(imageBuffer)
+    .greyscale()
+    .dilate(morphSize)
+    .erode(morphSize)
+    .blur(Math.max(5, Math.round(morphSize / 3)))
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  // Original in RGB
+  const origBuffer = await sharp(imageBuffer)
+    .toColorspace("srgb")
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const channels = 3;
+  const pixelCount = w * h;
+  const result = Buffer.alloc(pixelCount * channels);
+
+  for (let i = 0; i < pixelCount; i++) {
+    const bg = Math.max(bgBuffer.data[i], 1);
+    const scale = 255 / bg; // illumination correction factor
+
+    for (let c = 0; c < channels; c++) {
+      const orig = origBuffer.data[i * channels + c];
+      const val = Math.round(orig * scale);
+      result[i * channels + c] = Math.min(255, Math.max(0, val));
+    }
+  }
+
+  return sharp(result, { raw: { width: w, height: h, channels } })
     .jpeg({ quality: 95 })
     .toBuffer();
 }
@@ -148,7 +205,7 @@ export async function POST(req: NextRequest) {
       const inputBuffer = Buffer.from(arrayBuf);
 
       // Step 1: Resize + auto-rotate via EXIF
-      let prepBuffer = await sharp(inputBuffer)
+      const prepBuffer = await sharp(inputBuffer)
         .rotate()
         .resize(MAX_PROCESS_DIM, MAX_PROCESS_DIM, {
           fit: "inside",
@@ -191,68 +248,71 @@ export async function POST(req: NextRequest) {
         documentBuffer = prepBuffer;
       }
 
-      // Step 4: Shadow removal (for all modes except "original")
-      let cleanBuffer: Buffer;
-      if (filter !== "original") {
-        cleanBuffer = await removeShadows(sharp, documentBuffer, 210);
-      } else {
-        cleanBuffer = documentBuffer;
-      }
-
-      // Step 5: Apply filter-specific enhancement
-      let pipeline = sharp(cleanBuffer);
+      // Step 4: Apply filter with shadow removal
+      let finalBuffer: Buffer;
 
       switch (filter) {
-        case "document":
-          // Clean B&W document: grayscale + gentle contrast + sharpen
-          // No hard threshold — use linear contrast to make paper white and text dark
-          pipeline = pipeline
-            .greyscale()
+        case "document": {
+          // CamScanner-style B&W: shadow removal + clean contrast
+          const shadowFree = await removeShadows(sharp, documentBuffer);
+          finalBuffer = await sharp(shadowFree)
             .normalize()
-            .linear(1.3, 15) // boost contrast, brighten paper
-            .sharpen(1.5);
+            .linear(1.2, 10)
+            .sharpen(1.5)
+            .jpeg({ quality: 88 })
+            .toBuffer();
           break;
+        }
 
-        case "grayscale":
-          // Clean grayscale with readable contrast
-          pipeline = pipeline
-            .greyscale()
+        case "grayscale": {
+          // Clean grayscale with shadow removal
+          const shadowFree = await removeShadows(sharp, documentBuffer);
+          finalBuffer = await sharp(shadowFree)
             .normalize()
-            .gamma(0.9) // slightly brighten
-            .sharpen(1);
+            .sharpen(1)
+            .jpeg({ quality: 88 })
+            .toBuffer();
           break;
+        }
 
-        case "enhanced":
-          // Color-enhanced scan
-          pipeline = pipeline
+        case "enhanced": {
+          // Color-preserved shadow removal + vivid enhancement
+          const shadowFree = await removeShadowsColor(sharp, documentBuffer);
+          finalBuffer = await sharp(shadowFree)
             .normalize()
             .sharpen(1.5)
-            .modulate({ brightness: 1.05, saturation: 1.1 });
+            .modulate({ brightness: 1.03, saturation: 1.1 })
+            .jpeg({ quality: 88 })
+            .toBuffer();
           break;
+        }
 
-        case "auto":
-          // Smart auto: clean, bright, readable
-          pipeline = pipeline
+        case "auto": {
+          // Color-preserved shadow removal + clean look
+          const shadowFree = await removeShadowsColor(sharp, documentBuffer);
+          finalBuffer = await sharp(shadowFree)
             .normalize()
-            .gamma(0.9)
-            .sharpen(1.2)
-            .modulate({ brightness: 1.03 });
+            .sharpen(1)
+            .modulate({ brightness: 1.02 })
+            .jpeg({ quality: 88 })
+            .toBuffer();
           break;
+        }
 
         case "original":
         default:
+          finalBuffer = await sharp(documentBuffer)
+            .jpeg({ quality: 88 })
+            .toBuffer();
           break;
       }
 
-      const processed = await pipeline
-        .jpeg({ quality: 88 })
-        .toBuffer({ resolveWithObject: true });
-
-      const base64 = `data:image/jpeg;base64,${processed.data.toString("base64")}`;
+      const info = await sharp(finalBuffer).metadata();
+      const base64 = `data:image/jpeg;base64,${finalBuffer.toString("base64")}`;
       processedImages.push({
         base64,
-        width: processed.info.width,
-        height: processed.info.height,
+        width: info.width!,
+        height: info.height!,
       });
     }
 
