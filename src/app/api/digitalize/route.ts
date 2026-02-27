@@ -45,10 +45,9 @@ async function detectCorners(
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    const prompt = CORNER_DETECTION_PROMPT.replace("{width}", String(width)).replace(
-      "{height}",
-      String(height)
-    );
+    const prompt = CORNER_DETECTION_PROMPT
+      .replace("{width}", String(width))
+      .replace("{height}", String(height));
 
     const result = await model.generateContent([
       { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
@@ -61,17 +60,14 @@ async function detectCorners(
     if (!parsed.found || !parsed.corners) return null;
 
     const { topLeft, topRight, bottomRight, bottomLeft } = parsed.corners;
-
-    // Validate corners are within bounds
     const corners = [topLeft, topRight, bottomRight, bottomLeft];
+
     for (const c of corners) {
       if (
         typeof c.x !== "number" ||
         typeof c.y !== "number" ||
-        c.x < 0 ||
-        c.y < 0 ||
-        c.x > width ||
-        c.y > height
+        c.x < 0 || c.y < 0 ||
+        c.x > width || c.y > height
       ) {
         console.error("Invalid corner coordinates:", corners);
         return null;
@@ -83,6 +79,52 @@ async function detectCorners(
     console.error("Corner detection failed:", err);
     return null;
   }
+}
+
+/**
+ * Remove shadows using divide-by-background technique.
+ * Creates a heavily blurred version (background estimate), then divides
+ * the original by it to normalize lighting.
+ */
+async function removeShadows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sharp: any,
+  imageBuffer: Buffer,
+  strength: number = 220
+): Promise<Buffer> {
+  // Get image info
+  const meta = await sharp(imageBuffer).metadata();
+  const w = meta.width!;
+  const h = meta.height!;
+
+  // Get raw pixels of original
+  const origRaw = await sharp(imageBuffer)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  // Get raw pixels of heavily blurred version (background light estimate)
+  const blurRadius = Math.max(31, Math.round(Math.min(w, h) / 15));
+  // blur sigma must be 0.3-1000, radius is derived; use sigma for flexibility
+  const blurSigma = blurRadius / 2;
+  const blurRaw = await sharp(imageBuffer)
+    .blur(blurSigma)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const channels = origRaw.info.channels;
+  const pixels = Buffer.alloc(origRaw.data.length);
+
+  // Divide original by background: output = clamp(orig / blur * strength, 0, 255)
+  for (let i = 0; i < origRaw.data.length; i++) {
+    const bg = Math.max(blurRaw.data[i], 1); // avoid division by zero
+    const val = Math.round((origRaw.data[i] / bg) * strength);
+    pixels[i] = Math.min(255, Math.max(0, val));
+  }
+
+  // Convert back to image
+  return sharp(pixels, { raw: { width: w, height: h, channels } })
+    .jpeg({ quality: 95 })
+    .toBuffer();
 }
 
 export async function POST(req: NextRequest) {
@@ -98,16 +140,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 });
     }
 
-    const MAX_PROCESS_DIM = 2400;
+    const MAX_PROCESS_DIM = 2000;
     const processedImages: { base64: string; width: number; height: number }[] = [];
 
     for (const file of files) {
       const arrayBuf = await file.arrayBuffer();
       const inputBuffer = Buffer.from(arrayBuf);
 
-      // Step 1: Resize large camera photos and auto-rotate via EXIF
+      // Step 1: Resize + auto-rotate via EXIF
       let prepBuffer = await sharp(inputBuffer)
-        .rotate() // auto-rotate based on EXIF
+        .rotate()
         .resize(MAX_PROCESS_DIM, MAX_PROCESS_DIM, {
           fit: "inside",
           withoutEnlargement: true,
@@ -115,7 +157,6 @@ export async function POST(req: NextRequest) {
         .jpeg({ quality: 95 })
         .toBuffer();
 
-      // Get dimensions after resize/rotate
       const meta = await sharp(prepBuffer).metadata();
       const imgW = meta.width!;
       const imgH = meta.height!;
@@ -124,89 +165,82 @@ export async function POST(req: NextRequest) {
       const b64ForGemini = prepBuffer.toString("base64");
       const corners = await detectCorners(b64ForGemini, imgW, imgH);
 
-      let warpedBuffer: Buffer;
+      let documentBuffer: Buffer;
 
       if (corners) {
         // Step 3: Perspective correction
         const outDims = calculateOutputDimensions(corners);
-        // Ensure minimum reasonable dimensions
         const outW = Math.max(outDims.width, 200);
         const outH = Math.max(outDims.height, 200);
 
-        // Get raw RGB pixels from the prepared image
         const rawData = await sharp(prepBuffer)
           .raw()
           .toBuffer({ resolveWithObject: true });
 
         const channels = rawData.info.channels;
-
-        // Apply perspective warp
         const warpedPixels = perspectiveWarp(
-          rawData.data,
-          imgW,
-          imgH,
-          corners,
-          outW,
-          outH,
-          channels
+          rawData.data, imgW, imgH, corners, outW, outH, channels
         );
 
-        // Convert raw pixels back to image buffer
-        warpedBuffer = await sharp(warpedPixels, {
+        documentBuffer = await sharp(warpedPixels, {
           raw: { width: outW, height: outH, channels },
         })
           .jpeg({ quality: 95 })
           .toBuffer();
       } else {
-        // No corners detected — use the prepared image as-is
-        warpedBuffer = prepBuffer;
+        documentBuffer = prepBuffer;
       }
 
-      // Step 4: Apply enhancement filter
-      let pipeline = sharp(warpedBuffer);
+      // Step 4: Shadow removal (for all modes except "original")
+      let cleanBuffer: Buffer;
+      if (filter !== "original") {
+        cleanBuffer = await removeShadows(sharp, documentBuffer, 210);
+      } else {
+        cleanBuffer = documentBuffer;
+      }
+
+      // Step 5: Apply filter-specific enhancement
+      let pipeline = sharp(cleanBuffer);
 
       switch (filter) {
         case "document":
-          // Strong B&W document scan: CLAHE for adaptive contrast + threshold
+          // Clean B&W document: grayscale + gentle contrast + sharpen
+          // No hard threshold — use linear contrast to make paper white and text dark
           pipeline = pipeline
             .greyscale()
-            .clahe({ width: 3, height: 3 })
             .normalize()
-            .sharpen(2)
-            .threshold(135);
+            .linear(1.3, 15) // boost contrast, brighten paper
+            .sharpen(1.5);
           break;
 
         case "grayscale":
-          // Clean grayscale with adaptive contrast
+          // Clean grayscale with readable contrast
           pipeline = pipeline
             .greyscale()
-            .clahe({ width: 3, height: 3 })
             .normalize()
-            .sharpen(1.5)
-            .gamma(1.3);
+            .gamma(0.9) // slightly brighten
+            .sharpen(1);
           break;
 
         case "enhanced":
-          // Vivid color enhancement
+          // Color-enhanced scan
           pipeline = pipeline
-            .clahe({ width: 3, height: 3 })
             .normalize()
-            .sharpen(2)
-            .modulate({ brightness: 1.08, saturation: 1.15 });
+            .sharpen(1.5)
+            .modulate({ brightness: 1.05, saturation: 1.1 });
           break;
 
         case "auto":
-          // Smart auto: adaptive contrast + clean look
+          // Smart auto: clean, bright, readable
           pipeline = pipeline
-            .clahe({ width: 3, height: 3 })
             .normalize()
-            .sharpen(1.5)
-            .modulate({ brightness: 1.05 });
+            .gamma(0.9)
+            .sharpen(1.2)
+            .modulate({ brightness: 1.03 });
           break;
 
         case "original":
         default:
-          // No enhancement — just the perspective-corrected image
           break;
       }
 

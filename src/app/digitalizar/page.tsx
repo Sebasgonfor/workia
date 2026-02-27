@@ -34,6 +34,45 @@ interface ProcessedImage {
   height: number;
 }
 
+/** Compress an image file to a JPEG Blob (max 2000px, 80% quality) for mobile-friendly uploads */
+function compressImage(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 2000;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) {
+          height = Math.round((height * MAX) / width);
+          width = MAX;
+        } else {
+          width = Math.round((width * MAX) / height);
+          height = MAX;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas not supported")); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(img.src);
+          blob ? resolve(blob) : reject(new Error("Compression failed"));
+        },
+        "image/jpeg",
+        0.82
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function DigitalizarPage() {
   const { digitalizations, loading, addDigitalization, deleteDigitalization } =
     useDigitalizations();
@@ -112,8 +151,12 @@ export default function DigitalizarPage() {
     setStep("processing");
 
     try {
+      // Compress images client-side before sending (critical for mobile cameras)
       const fd = new FormData();
-      images.forEach((img) => fd.append("images", img));
+      for (const img of images) {
+        const compressed = await compressImage(img);
+        fd.append("images", compressed, "photo.jpg");
+      }
       fd.append("filter", filter);
 
       const res = await fetch("/api/digitalize", {
@@ -138,11 +181,10 @@ export default function DigitalizarPage() {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      // 1. Dynamic import jsPDF (client-only)
+      // 1. Generate PDF client-side (dynamic import for SSR safety)
       const { jsPDF } = await import("jspdf");
-
-      // 2. Create PDF with each processed image as a page
       const pdf = new jsPDF({ unit: "px" });
+
       for (let i = 0; i < processedImages.length; i++) {
         const img = processedImages[i];
         if (i > 0) pdf.addPage();
@@ -156,24 +198,12 @@ export default function DigitalizarPage() {
         pdf.addImage(img.base64, "JPEG", x, y, w, h);
       }
 
-      // 3. Convert to blob and create File
       const pdfBlob = pdf.output("blob");
       const pdfFile = new File([pdfBlob], `${title.trim()}.pdf`, {
         type: "application/pdf",
       });
 
-      // 4. Upload original source images to Cloudinary
-      const sourceUrls: string[] = [];
-      for (const img of images) {
-        const fd = new FormData();
-        fd.append("file", img);
-        fd.append("folder", "workia/digitalizations");
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const data = await res.json();
-        if (res.ok) sourceUrls.push(data.url);
-      }
-
-      // 5. Upload PDF to Cloudinary
+      // 2. Upload PDF to Cloudinary (single upload — the only one needed)
       const pdfFd = new FormData();
       pdfFd.append("file", pdfFile);
       pdfFd.append("folder", "workia/digitalizations");
@@ -184,19 +214,19 @@ export default function DigitalizarPage() {
       const pdfData = await pdfRes.json();
       if (!pdfRes.ok) throw new Error(pdfData.error);
 
-      // 6. Save to digitalizations collection
+      // 3. Save to digitalizations collection
       await addDigitalization({
         title: title.trim(),
         subjectId: selectedSubjectId,
         classSessionId: selectedClassId,
-        sourceImages: sourceUrls,
+        sourceImages: [],
         pdfUrl: pdfData.url,
         pdfPublicId: pdfData.publicId,
         pageCount: processedImages.length,
         filter,
       });
 
-      // 7. Also save as document in subject/class if selected
+      // 4. Also save as document in subject/class if selected
       if (selectedSubjectId) {
         const docData = {
           name: `${title.trim()}.pdf`,
@@ -223,7 +253,6 @@ export default function DigitalizarPage() {
     }
   }, [
     processedImages,
-    images,
     title,
     filter,
     selectedSubjectId,
