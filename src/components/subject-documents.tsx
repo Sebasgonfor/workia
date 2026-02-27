@@ -61,7 +61,8 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
     if (downloadingId === doc.id || !doc.url) return;
     setDownloadingId(doc.id);
     try {
-      const response = await fetch(doc.url);
+      const proxyUrl = `/api/download?url=${encodeURIComponent(doc.url)}&filename=${encodeURIComponent(doc.name)}`;
+      const response = await fetch(proxyUrl);
       if (!response.ok) throw new Error("Download failed");
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
