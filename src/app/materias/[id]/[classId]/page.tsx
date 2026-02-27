@@ -31,6 +31,7 @@ import {
   ChevronRight,
   Bot,
   FolderOpen,
+  MessageCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
@@ -38,6 +39,7 @@ import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { DynamicBoardTab } from "@/components/dynamic-board-tab";
 import { ClassDocuments } from "@/components/class-documents";
+import { NotesChatPanel } from "@/components/notes-chat-panel";
 import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
 import { uploadScanImage, uploadAudio, uploadNoteImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
@@ -159,7 +161,7 @@ export default function BoardPage() {
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"apuntes" | "tablero" | "documentos">("apuntes");
+  const [activeTab, setActiveTab] = useState<"apuntes" | "tablero" | "documentos" | "ia">("apuntes");
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
@@ -973,6 +975,18 @@ export default function BoardPage() {
               <FolderOpen className="w-3 h-3" />
               Docs
             </button>
+            <button
+              onClick={() => setActiveTab("ia")}
+              aria-label="Chat con IA"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "ia"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
+            >
+              <MessageCircle className="w-3 h-3" />
+              IA
+            </button>
           </div>
         </div>
 
@@ -1236,6 +1250,65 @@ export default function BoardPage() {
               subjectId={subjectId}
               classId={classId}
               color={color}
+            />
+          </div>
+        )}
+
+        {activeTab === "ia" && (
+          <div className="px-4 pt-1">
+            <NotesChatPanel
+              subjectId={subjectId}
+              classId={classId}
+              subjectName={subject?.name || ""}
+              classTitle={classSession?.title || ""}
+              color={color}
+              boardEntries={entries}
+              tasks={classTasks}
+              subjectDocuments={subjectDocuments}
+              onTaskAction={async (action) => {
+                switch (action.action) {
+                  case "create_task": {
+                    const dueDate = action.dueDate
+                      ? new Date(action.dueDate + "T23:59:59")
+                      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                    await addTask({
+                      title: action.title || "Nueva tarea",
+                      subjectId,
+                      subjectName: subject?.name || "",
+                      description: action.description || "",
+                      assignedDate: new Date(),
+                      dueDate,
+                      status: "pending",
+                      priority: (action.priority as Task["priority"]) || "medium",
+                      type: (action.type as Task["type"]) || "otro",
+                      sourceImageUrl: null,
+                      classSessionId: classId,
+                    });
+                    break;
+                  }
+                  case "edit_task": {
+                    if (!action.taskId) break;
+                    const updates: Record<string, unknown> = {};
+                    if (action.updates?.title) updates.title = action.updates.title;
+                    if (action.updates?.description) updates.description = action.updates.description;
+                    if (action.updates?.priority) updates.priority = action.updates.priority;
+                    if (action.updates?.status) updates.status = action.updates.status;
+                    if (action.updates?.dueDate) updates.dueDate = new Date(action.updates.dueDate + "T23:59:59");
+                    await updateTaskStatus(action.taskId, updates);
+                    break;
+                  }
+                  case "delete_task": {
+                    if (!action.taskId) break;
+                    await deleteTask(action.taskId);
+                    break;
+                  }
+                  case "complete_task": {
+                    if (!action.taskId) break;
+                    await updateTaskStatus(action.taskId, { status: "completed" });
+                    break;
+                  }
+                }
+              }}
             />
           </div>
         )}

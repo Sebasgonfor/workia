@@ -247,6 +247,18 @@ export interface TaskSolverMessage {
   createdAt: Date;
 }
 
+// ── Notes AI Chat ──
+
+export interface NotesChatMessage {
+  id: string;
+  subjectId: string;
+  classSessionId: string;
+  role: "user" | "assistant";
+  content: string;
+  imageUrls: string[];
+  createdAt: Date;
+}
+
 /** Returns the next occurrence date+slot for a given subject, or null if no slots exist. */
 export const nextClassDate = (
   slots: ScheduleSlot[],
