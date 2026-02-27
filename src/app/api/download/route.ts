@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { signCloudinaryUrl } from "@/app/api/_utils/cloudinary";
 
 const MIME_TYPES: Record<string, string> = {
   pdf: "application/pdf",
@@ -20,47 +21,6 @@ const MIME_TYPES: Record<string, string> = {
 function getMimeFromFilename(filename: string): string | null {
   const ext = filename.split(".").pop()?.toLowerCase();
   return ext ? MIME_TYPES[ext] ?? null : null;
-}
-
-/**
- * Signs a Cloudinary URL for strict-mode accounts that require signed delivery URLs.
- * Inserts s--{signature}-- after the delivery type in the path.
- * Signature = first 8 chars of SHA-1("/{versionAndPublicId}" + apiSecret).
- */
-async function signCloudinaryUrl(originalUrl: string, apiSecret: string): Promise<string> {
-  try {
-    const urlObj = new URL(originalUrl);
-    // Pathname: /{cloudName}/{resourceType}/{deliveryType}/{...versionAndPublicId}
-    const pathParts = urlObj.pathname.split("/");
-    // pathParts[0] = ''
-    // pathParts[1] = cloudName
-    // pathParts[2] = resourceType (raw, image, video)
-    // pathParts[3] = deliveryType (upload, authenticated)
-    // pathParts[4..] = optional version + public_id
-    if (pathParts.length < 5) return originalUrl;
-
-    const restParts = pathParts.slice(4); // everything after deliveryType
-    const toSignPath = "/" + restParts.join("/");
-    const toSign = toSignPath + apiSecret;
-
-    const encoder = new TextEncoder();
-    const msgBuffer = encoder.encode(toSign);
-    const hashBuffer = await crypto.subtle.digest("SHA-1", msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hexHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-    const signature = hexHash.substring(0, 8);
-
-    // Insert s--{signature}-- after the deliveryType segment
-    const signedParts = [
-      ...pathParts.slice(0, 4),
-      `s--${signature}--`,
-      ...restParts,
-    ];
-    urlObj.pathname = signedParts.join("/");
-    return urlObj.toString();
-  } catch {
-    return originalUrl;
-  }
 }
 
 export async function GET(req: NextRequest) {

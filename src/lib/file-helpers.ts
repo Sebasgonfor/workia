@@ -38,10 +38,9 @@ export async function getSignedUrl(url: string): Promise<string> {
 }
 
 /**
- * Fetch a file as a Blob with cascading strategies:
- *   1. Get signed URL → direct fetch from Cloudinary (CORS)
- *   2. Server-side proxy (/api/download, signs internally)
- * Returns a Blob with the correct MIME type.
+ * Fetch a file as a Blob via the server-side proxy.
+ * The proxy signs the Cloudinary URL server-side, avoiding CORS issues
+ * and 401s from unauthenticated client-side fetches.
  */
 export async function fetchFileBlob(
   url: string,
@@ -50,22 +49,10 @@ export async function fetchFileBlob(
 ): Promise<Blob> {
   const mime = mimeOverride || resolveMime(filename);
 
-  // Strategy 1: Get signed URL and fetch directly from Cloudinary
-  try {
-    const signedUrl = await getSignedUrl(url);
-    const res = await fetch(signedUrl, { cache: "no-store" });
-    if (res.ok) {
-      const buf = await res.arrayBuffer();
-      return new Blob([buf], { type: mime });
-    }
-  } catch {
-    // Direct fetch failed — fall through to proxy
-  }
-
-  // Strategy 2: Server-side proxy (signs the URL internally)
+  // Server-side proxy: signs the Cloudinary URL internally, no CORS issues
   const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
   const res = await fetch(proxyUrl, { cache: "no-store" });
-  if (!res.ok) throw new Error(`All fetch strategies failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Proxy download failed: ${res.status}`);
   const buf = await res.arrayBuffer();
   return new Blob([buf], { type: mime });
 }
