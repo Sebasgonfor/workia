@@ -72,7 +72,6 @@
   /* Prevent pull-to-refresh on PWA + no horizontal scroll */
   html {
     overscroll-behavior-y: none;
-    overflow-x: clip;
   }
   body {
     overscroll-behavior-y: none;
