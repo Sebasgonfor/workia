@@ -9,6 +9,9 @@ import { uploadScanImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import type { BoardEntry } from "@/types";
 import { toast } from "sonner";
+import { compressImageToBase64 } from "@/lib/utils";
+
+class ApiError extends Error {}
 
 interface DynamicBoardTabProps {
   subjectId: string;
@@ -18,14 +21,6 @@ interface DynamicBoardTabProps {
   boardEntries: BoardEntry[];
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -109,7 +104,7 @@ export function DynamicBoardTab({
         }
 
         const base64Images = await Promise.all(
-          pendingImages.map((img) => fileToBase64(img.file))
+          pendingImages.map((img) => compressImageToBase64(img.file))
         );
 
         const importNotes = importEntryIds
@@ -128,7 +123,7 @@ export function DynamicBoardTab({
         });
 
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || "Error al enriquecer");
+        if (!response.ok || !data.success) throw new ApiError(data.error || "Error al enriquecer");
 
         await saveBoard(data.data.content, uploadedUrls);
 
@@ -141,7 +136,7 @@ export function DynamicBoardTab({
         toast.success("¡Tablero actualizado!");
       } catch (err) {
         toast.dismiss(toastId);
-        toast.error(err instanceof Error ? err.message : "Error desconocido");
+        toast.error(err instanceof ApiError ? err.message : "Error al enriquecer el tablero");
       } finally {
         setProcessing(false);
       }
@@ -261,7 +256,7 @@ export function DynamicBoardTab({
       )}
 
       {/* Sticky action bar */}
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+4rem)] left-0 right-0 px-4 z-30">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+4rem)] left-0 right-0 px-4 z-30 md:relative md:bottom-auto md:left-auto md:right-auto md:px-0 md:mt-4">
         <div className="bg-card/95 backdrop-blur-sm border border-border rounded-2xl p-3 shadow-lg">
           {pendingImages.length > 0 && (
             <button
@@ -278,7 +273,7 @@ export function DynamicBoardTab({
               )}
             </button>
           )}
-          <div className={`grid gap-2 ${notesEntries.length > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`grid gap-2 ${notesEntries.length > 0 ? "grid-cols-3" : "grid-cols-2"} md:flex md:gap-2`}>
             <button
               onClick={() => cameraInputRef.current?.click()}
               disabled={processing}

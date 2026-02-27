@@ -116,6 +116,20 @@ export const BOARD_ENTRY_TYPES = [
   { value: "resource", icon: "Paperclip", label: "Recurso" },
 ] as const;
 
+// ── Class Documents ──
+
+export interface ClassDocument {
+  id: string;
+  subjectId: string;
+  classSessionId: string;
+  name: string;
+  url: string;
+  publicId: string;
+  fileType: string; // mime type
+  fileSize: number; // bytes
+  createdAt: Date;
+}
+
 // ── Subject Documents ──
 
 export interface SubjectDocument {
@@ -230,6 +244,18 @@ export interface TaskSolverMessage {
   taskId: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: Date;
+}
+
+// ── Notes AI Chat ──
+
+export interface NotesChatMessage {
+  id: string;
+  subjectId: string;
+  classSessionId: string;
+  role: "user" | "assistant";
+  content: string;
+  imageUrls: string[];
   createdAt: Date;
 }
 

@@ -215,9 +215,9 @@ export default function TareasPage() {
 
   return (
     <AppShell>
-      <div className="page-enter">
+      <div className="page-enter md:max-w-5xl md:mx-auto">
         {/* Header */}
-        <div className="px-4 pt-safe pb-2">
+        <div className="px-4 pt-safe pb-2 md:px-8 md:pt-8">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-2xl font-bold">Tareas</h1>
@@ -284,7 +284,7 @@ export default function TareasPage() {
         </div>
 
         {/* Tasks list */}
-        <div className="px-4 pt-2 pb-4">
+        <div className="px-4 pt-2 pb-4 md:px-8">
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => <div key={i} className="h-[72px] rounded-2xl bg-card animate-pulse" />)}
@@ -310,7 +310,7 @@ export default function TareasPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-5 md:grid md:grid-cols-2 md:gap-6 md:space-y-0">
               {taskGroups.map((group) => (
                 <div key={group.key}>
                   {/* Group header */}
@@ -555,19 +555,19 @@ export default function TareasPage() {
           </div>
 
           {/* Two dates side by side */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="min-w-0">
+          <div className="grid grid-cols-2 gap-2.5 overflow-hidden">
+            <div className="min-w-0 overflow-hidden">
               <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Asignada</label>
               <input
                 type="date" value={assignedDate} onChange={(e) => setAssignedDate(e.target.value)}
-                className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
               />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-hidden">
               <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Entrega</label>
               <input
                 type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-                className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
               />
             </div>
           </div>

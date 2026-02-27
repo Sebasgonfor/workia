@@ -52,7 +52,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background">
         <ThemeProvider>
           <AuthProvider>
-            <main className="mx-auto max-w-lg min-h-screen">
+            <main className="mx-auto max-w-lg md:max-w-none md:ml-56 min-h-screen">
               {children}
             </main>
             <ThemeToaster />

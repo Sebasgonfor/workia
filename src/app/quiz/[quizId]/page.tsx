@@ -133,7 +133,7 @@ export default function QuizRunnerPage() {
     const scoreColor = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444";
     return (
       <AppShell>
-        <div className="page-enter px-4 pt-safe pb-6">
+        <div className="page-enter px-4 pt-safe pb-6 md:px-8 md:pt-8 md:max-w-5xl md:mx-auto">
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={() => router.back()}
@@ -227,7 +227,7 @@ export default function QuizRunnerPage() {
 
   return (
     <AppShell>
-      <div className="page-enter px-4 pt-safe pb-6 flex flex-col min-h-[80vh]">
+      <div className="page-enter px-4 pt-safe pb-6 flex flex-col min-h-[80vh] md:px-8 md:pt-8 md:max-w-5xl md:mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <button
@@ -266,7 +266,7 @@ export default function QuizRunnerPage() {
             </p>
 
             {/* Options */}
-            <div className="space-y-2.5 flex-1">
+            <div className="space-y-2.5 flex-1 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
               {currentQuestion.options.map((option, idx) => {
                 const isSelected = selectedIndex === idx;
                 const isCorrectOption = idx === currentQuestion.correctIndex;

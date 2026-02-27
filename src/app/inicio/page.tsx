@@ -72,9 +72,9 @@ export default function InicioPage() {
 
   return (
     <AppShell>
-      <div className="px-4 pt-safe pb-24 page-enter space-y-8">
+      <div className="px-4 pt-safe pb-24 page-enter space-y-8 md:px-8 md:pt-8 md:max-w-5xl">
         {/* Header */}
-        <div className="mt-4">
+        <div className="mt-4 md:mt-0">
           <h1 className="text-3xl font-bold tracking-tight">Hola, {firstName} 👋</h1>
           <p className="text-muted-foreground mt-1">
             Aquí tienes un resumen de tu día.
@@ -82,7 +82,7 @@ export default function InicioPage() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="bg-card border border-border rounded-2xl p-4 flex flex-col">
             <div className="flex items-center gap-2 text-amber-500 mb-2">
               <Clock className="w-5 h-5" />
@@ -100,6 +100,9 @@ export default function InicioPage() {
             <span className="text-xs text-muted-foreground mt-1">Requieren atención</span>
           </div>
         </div>
+
+        {/* Main content — 2 cols on desktop */}
+        <div className="space-y-8 md:grid md:grid-cols-2 md:gap-8 md:space-y-0">
 
         {/* Pending Tasks */}
         <section>
@@ -172,6 +175,9 @@ export default function InicioPage() {
           )}
         </section>
 
+        {/* Right column on desktop */}
+        <div className="space-y-8">
+
         {/* Subjects */}
         <section>
           <div className="flex items-center justify-between mb-4">
@@ -185,13 +191,13 @@ export default function InicioPage() {
           </div>
 
           {subjectsLoading ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-24 bg-muted animate-pulse rounded-xl" />
               ))}
             </div>
           ) : subjects.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 stagger-children">
+            <div className="grid grid-cols-2 gap-3 stagger-children md:grid-cols-3 lg:grid-cols-4">
               {subjects.slice(0, 4).map((subject) => (
                 <Link
                   key={subject.id}
@@ -286,6 +292,9 @@ export default function InicioPage() {
             </div>
           )}
         </section>
+
+        </div>{/* end right column */}
+        </div>{/* end 2-col grid */}
       </div>
     </AppShell>
   );

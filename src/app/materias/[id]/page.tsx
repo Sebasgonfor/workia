@@ -114,7 +114,7 @@ export default function SubjectDetailPage() {
       <div className="page-enter">
         {/* Header — compact */}
         <div
-          className="px-4 pt-safe pb-4"
+          className="px-4 pt-safe pb-4 md:px-8 md:pt-8 md:max-w-5xl"
           style={{
             background: subject ? `linear-gradient(135deg, ${subject.color}15 0%, transparent 60%)` : undefined,
           }}
@@ -153,7 +153,7 @@ export default function SubjectDetailPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mt-4 p-1 bg-secondary/50 rounded-xl">
+          <div className="flex gap-1 mt-4 md:mt-0 p-1 bg-secondary/50 rounded-xl">
             <button
               onClick={() => setActiveTab("clases")}
               aria-label="Ver clases"
@@ -209,7 +209,7 @@ export default function SubjectDetailPage() {
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                         {month}
                       </p>
-                      <div className="space-y-2 stagger-children">
+                      <div className="space-y-2 stagger-children md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:space-y-0">
                         {monthClasses.map((cls) => (
                           <div key={cls.id} className="relative">
                             <button
@@ -281,13 +281,13 @@ export default function SubjectDetailPage() {
               className="w-full px-3.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 overflow-hidden">
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block truncate">Fecha</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark]"
+              className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
             />
           </div>
           <button

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
+import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -38,14 +39,26 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 }`;
 
 const NOTES_PROMPT = `Eres un profesor universitario experto en INGENIERÍA procesando apuntes de clase.
-Misión: convertir apuntes crudos en material de estudio COMPLETO, RICO y EXPANDIDO.
-El resultado SIEMPRE debe ser 3x más largo y útil que los apuntes originales.
-Si los apuntes son escuetos, la IA rellena con conocimiento académico riguroso del tema.
+
+MISIÓN PRINCIPAL: NO eres un transcriptor. Tu trabajo es ENTENDER QUÉ SE ESTABA EXPLICANDO en la clase
+y generar los apuntes completos que un estudiante debería tener para dominar el tema.
+
+Los apuntes de un tablero o cuaderno son FRAGMENTOS incompletos de una explicación más grande.
+Tu trabajo es RECONSTRUIR la explicación completa del profesor, no simplemente transcribir lo visible.
 
 CONTEXTO:
 - Materia: {subjectName}
 - Fecha: {currentDate}
 - Materias del usuario: {existingSubjects}
+
+PASO 0 — ANÁLISIS PEDAGÓGICO (haz esto mentalmente antes de generar contenido):
+   a) ¿Qué TEMA se estaba enseñando? Identifica el tema central y los subtemas.
+   b) ¿Cuál era el HILO LÓGICO de la explicación? (ej: definición → propiedad → ejemplo → aplicación)
+   c) ¿Qué PASOS INTERMEDIOS faltan? Los tableros/cuadernos suelen omitir explicaciones verbales del profesor.
+      Identifica los huecos en el razonamiento y COMPLÉTALOS.
+   d) ¿Por qué el profesor eligió enseñar ESTO? ¿Qué conocimiento previo asume? ¿A qué tema lleva después?
+   e) Si hay fórmulas aisladas: ¿de dónde vienen? ¿cómo se deducen? ¿qué significan intuitivamente?
+   f) Si hay diagramas o figuras: ¿qué concepto ilustran? ¿qué relación visual están mostrando?
 
 INSTRUCCIONES OBLIGATORIAS:
 
@@ -64,9 +77,11 @@ INSTRUCCIONES OBLIGATORIAS:
 
    <nc-formula>contenido</nc-formula>
    → Cada ecuación + nombre completo + explicación de CADA símbolo/variable/unidad
+   → IMPORTANTE: Explica DE DÓNDE viene la fórmula (deducción breve o intuición) y CUÁNDO se usa
 
    <nc-ex>contenido</nc-ex>
    → Cada ejemplo de la imagen + crea 1-2 ejemplos adicionales resueltos paso a paso
+   → Si el ejemplo en la imagen está incompleto, COMPLÉTALO con todos los pasos
 
    <nc-warn>contenido</nc-warn>
    → Condiciones de validez, restricciones, errores comunes, casos especiales
@@ -79,12 +94,18 @@ INSTRUCCIONES OBLIGATORIAS:
       · Aplicaciones reales en ingeniería
       · Conexión con otros temas de la misma materia
 
-3. EXPANSIÓN OBLIGATORIA:
-   - El "content" debe ser 3x más largo y rico que lo visible en la imagen
-   - Si los apuntes son escuetos: la IA rellena con conocimiento académico riguroso
-   - NUNCA dejes un concepto sin al menos un bloque <nc-ai> de profundización
-   - Si hay una lista de conceptos → crea tabla comparativa entre ellos en un <nc-ai>
-   - Si hay una fórmula sin contexto → explica deducción breve, casos especiales, forma matricial
+3. RECONSTRUCCIÓN DE LA EXPLICACIÓN (esto es lo más importante):
+   - NO te limites a transcribir. EXPLICA como lo haría un profesor.
+   - Si en el tablero dice "Teorema de Green" con una fórmula: explica qué dice el teorema,
+     por qué es importante, cómo se interpreta geométricamente, y cuándo se aplica.
+   - Si hay una demostración parcial: complétala o explica la idea central de la prueba.
+   - Si hay una lista de pasos sin explicación: explica el POR QUÉ de cada paso.
+   - Si hay flechas o conexiones entre conceptos: explica la RELACIÓN que representan.
+   - El contenido debe ser 3x más largo y rico que lo visible en la imagen.
+   - Si los apuntes son escuetos: la IA reconstruye la clase completa con conocimiento académico riguroso.
+   - NUNCA dejes un concepto sin al menos un bloque <nc-ai> de profundización.
+   - Si hay una lista de conceptos → crea tabla comparativa entre ellos en un <nc-ai>.
+   - Si hay una fórmula sin contexto → explica deducción breve, casos especiales, forma matricial.
 
 4. DIAGRAMAS: Si detectas cualquier diagrama/figura/flujo, conviértelo a Mermaid:
    \`\`\`mermaid
@@ -106,7 +127,11 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 }`;
 
 const AUTO_PROMPT = `Eres un profesor universitario experto en INGENIERÍA analizando contenido académico.
-Extrae TODO el contenido visible: apuntes Y tareas. Para los apuntes genera material COMPLETO y EXPANDIDO.
+Extrae TODO el contenido visible: apuntes Y tareas.
+
+MISIÓN PRINCIPAL PARA APUNTES: NO eres un transcriptor. Tu trabajo es ENTENDER QUÉ SE ESTABA
+EXPLICANDO en la clase y generar los apuntes completos que un estudiante necesita para dominar el tema.
+Los apuntes de un tablero o cuaderno son FRAGMENTOS incompletos — RECONSTRUYE la explicación completa.
 
 CONTEXTO:
 - Fecha actual: {currentDate}
@@ -121,12 +146,20 @@ INSTRUCCIONES PARA TAREAS:
 3. Prioridad: < 2 días = high, < 5 días = medium, > 5 días = low.
 4. Si no hay tareas, deja el array vacío. Si no hay apuntes, deja notes como null.
 
+ANÁLISIS PEDAGÓGICO (haz esto mentalmente ANTES de generar apuntes):
+   a) ¿Qué TEMA se estaba enseñando? Identifica el tema central y los subtemas.
+   b) ¿Cuál era el HILO LÓGICO? (ej: definición → propiedad → ejemplo → aplicación)
+   c) ¿Qué PASOS INTERMEDIOS faltan? Los tableros omiten las explicaciones verbales del profesor. COMPLÉTALOS.
+   d) Si hay fórmulas aisladas: ¿de dónde vienen? ¿cómo se deducen? ¿qué significan intuitivamente?
+   e) Si hay diagramas: ¿qué concepto ilustran? ¿qué relación visual muestran?
+
 INSTRUCCIONES PARA APUNTES — OBLIGATORIO SEGUIR AL PIE DE LA LETRA:
 A. ESTRUCTURA: ## temas, ### subtemas, **negritas** en cada concepto clave.
 B. SISTEMA DE COLORES en TODO el contenido académico:
    - <nc-def> → definición formal y COMPLETA de CADA concepto (amplía aunque ya esté en la imagen)
    - <nc-formula> → CADA ecuación + nombre + explicación de cada símbolo/variable + unidades
-   - <nc-ex> → CADA ejemplo visible + agrega 1-2 ejemplos resueltos adicionales paso a paso
+     → IMPORTANTE: Explica DE DÓNDE viene la fórmula y CUÁNDO se usa
+   - <nc-ex> → CADA ejemplo visible (COMPLÉTALO si está incompleto) + 1-2 ejemplos resueltos adicionales
    - <nc-warn> → restricciones, condiciones de validez, errores comunes
    - <nc-ai> → MÍNIMO 3 bloques con aportes que NO estén en la imagen:
        · Propiedades y teoremas del tema
@@ -134,9 +167,14 @@ B. SISTEMA DE COLORES en TODO el contenido académico:
        · Tabla comparativa si hay múltiples conceptos
        · Aplicaciones en ingeniería
        · Conexión con otros temas de la materia
-C. EXPANSIÓN: el "content" debe ser 3x más rico que lo visible en la imagen.
-   Si hay poco texto visible, la IA rellena con conocimiento académico riguroso.
-   NUNCA dejes un concepto sin al menos un <nc-ai> de profundización.
+C. RECONSTRUCCIÓN DE LA EXPLICACIÓN:
+   - NO te limites a transcribir. EXPLICA como lo haría un profesor.
+   - Si en el tablero dice "Teorema X" con una fórmula: explica qué dice, por qué importa, cómo se interpreta.
+   - Si hay una demostración parcial: complétala o explica la idea central.
+   - Si hay pasos sin explicación: explica el POR QUÉ de cada paso.
+   - El "content" debe ser 3x más rico que lo visible en la imagen.
+   - Si hay poco texto visible, la IA reconstruye la clase completa con conocimiento académico riguroso.
+   - NUNCA dejes un concepto sin al menos un <nc-ai> de profundización.
 D. DIAGRAMAS: si detectas cualquier diagrama/figura en la imagen, conviértelo a Mermaid:
    \`\`\`mermaid
    flowchart TD / sequenceDiagram / classDiagram / graph TB / stateDiagram-v2
@@ -151,6 +189,8 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
   "notes": {"topic":"","content":"Markdown EXTENSO con LaTeX, etiquetas <nc-*> y mermaid si aplica","tags":[],"detectedSubject":"","subjectConfidence":"high|medium|low"} | null,
   "rawText": "transcripción completa"
 }`;
+
+export const maxDuration = 60; // Allow up to 60s for Gemini processing
 
 export async function POST(req: NextRequest) {
   try {
@@ -206,16 +246,22 @@ export async function POST(req: NextRequest) {
       prompt = `${prompt}\n\n${documentContext.contextText}`;
     }
 
-    const imageParts = images.map((dataUrl: string) => {
-      const [meta, base64] = dataUrl.split(",");
-      const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
-      return {
-        inlineData: { data: base64, mimeType },
-      };
-    });
+    const imageParts = images
+      .filter((dataUrl: string) => typeof dataUrl === "string" && dataUrl.includes(","))
+      .map((dataUrl: string) => {
+        const [meta, base64] = dataUrl.split(",");
+        const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
+        return {
+          inlineData: { data: base64, mimeType },
+        };
+      });
+
+    if (imageParts.length === 0) {
+      return NextResponse.json({ error: "No se pudieron procesar las imágenes" }, { status: 400 });
+    }
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-2.0-flash",
       generationConfig: {
         responseMimeType: "application/json",
       },
@@ -226,29 +272,12 @@ export async function POST(req: NextRequest) {
 
     let parsed;
     try {
-      // First try direct parse (responseMimeType should give clean JSON)
-      parsed = JSON.parse(text);
+      parsed = parseGeminiResponse(text);
     } catch {
-      try {
-        // Fallback: strip markdown code block wrapping
-        const cleaned = text
-          .replace(/^```(?:json)?\s*\n?/i, "")
-          .replace(/\n?```\s*$/i, "")
-          .trim();
-        parsed = JSON.parse(cleaned);
-      } catch {
-        try {
-          // Last resort: extract first complete JSON object
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) throw new Error("No JSON found");
-          parsed = JSON.parse(jsonMatch[0]);
-        } catch {
-          return NextResponse.json(
-            { error: "Error al interpretar respuesta de IA", raw: text },
-            { status: 500 }
-          );
-        }
-      }
+      return NextResponse.json(
+        { error: "Error al interpretar respuesta de IA", raw: text.slice(0, 500) },
+        { status: 500 }
+      );
     }
 
     // Normalize response structure based on scan type
@@ -269,6 +298,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: parsed });
   } catch (err: unknown) {
+    console.error("Scan route error:", err);
     const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json({ error: message }, { status: 500 });
   }

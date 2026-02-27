@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useSubjectDocuments } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth-context";
 import { Confirm } from "@/components/ui/confirm";
+import { downloadFile, fetchFileBlob } from "@/lib/file-helpers";
 import {
   FileText,
   ImageIcon,
@@ -39,9 +40,6 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const isPreviewable = (fileType: string): boolean =>
-  fileType === "application/pdf" || fileType.startsWith("image/");
-
 interface SubjectDocumentsProps {
   subjectId: string;
   subject: Subject | undefined;
@@ -55,29 +53,60 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<SubjectDocument | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfPreviewFallback, setPdfPreviewFallback] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDownload = async (doc: SubjectDocument) => {
-    if (downloadingId === doc.id) return;
+  const handleDownload = useCallback(async (doc: SubjectDocument) => {
+    if (downloadingId === doc.id || !doc.url) return;
     setDownloadingId(doc.id);
     try {
-      const response = await fetch(doc.url);
-      if (!response.ok) throw new Error("Download failed");
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = doc.name;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(objectUrl);
+      await downloadFile(doc.url, doc.name, doc.fileType);
     } catch {
       toast.error(MSG_DOWNLOAD_ERROR);
     } finally {
       setDownloadingId(null);
     }
-  };
+  }, [downloadingId]);
+
+  const handlePreview = useCallback(async (doc: SubjectDocument) => {
+    if (doc.fileType.startsWith("image/")) {
+      setPdfPreviewUrl(null);
+      setPdfPreviewFallback(false);
+      setPdfLoading(false);
+      setPreview(doc);
+      return;
+    }
+    if (doc.fileType === "application/pdf") {
+      setPreview(doc);
+      setPdfPreviewUrl(null);
+      setPdfPreviewFallback(false);
+      setPdfLoading(true);
+      try {
+        const blob = await fetchFileBlob(doc.url, doc.name, "application/pdf");
+        const objectUrl = URL.createObjectURL(blob);
+        setPdfPreviewUrl(objectUrl);
+      } catch {
+        // Fallback: Google Docs Viewer
+        setPdfPreviewFallback(true);
+      } finally {
+        setPdfLoading(false);
+      }
+      return;
+    }
+    window.open(doc.url, "_blank");
+  }, []);
+
+  const closePreview = useCallback(() => {
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl);
+      setPdfPreviewUrl(null);
+    }
+    setPdfPreviewFallback(false);
+    setPdfLoading(false);
+    setPreview(null);
+  }, [pdfPreviewUrl]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -196,11 +225,7 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
                 <button
                   tabIndex={0}
                   aria-label={`Ver ${document.name}`}
-                  onClick={() =>
-                    isPreviewable(document.fileType)
-                      ? setPreview(document)
-                      : window.open(document.url, "_blank")
-                  }
+                  onClick={() => handlePreview(document)}
                   className="flex-1 min-w-0 text-left active:opacity-70"
                 >
                   <p className="font-medium text-[14px] truncate">{document.name}</p>
@@ -253,15 +278,15 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
             <p className="font-semibold text-sm truncate flex-1 mr-2">{preview.name}</p>
             <div className="flex items-center gap-2">
               <button
-                aria-label="Abrir en nueva pestana"
-                onClick={() => window.open(preview.url, "_blank")}
+                aria-label="Descargar documento"
+                onClick={() => handleDownload(preview)}
                 className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-70"
               >
-                <ExternalLink className="w-4 h-4" />
+                <Download className="w-4 h-4" />
               </button>
               <button
                 aria-label="Cerrar preview"
-                onClick={() => setPreview(null)}
+                onClick={closePreview}
                 className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-70"
               >
                 <X className="w-4 h-4" />
@@ -279,12 +304,38 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
                   className="max-w-full max-h-full object-contain rounded-xl"
                 />
               </div>
+            ) : preview.fileType === "application/pdf" ? (
+              pdfLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : pdfPreviewUrl ? (
+                <iframe
+                  src={pdfPreviewUrl}
+                  title={preview.name}
+                  className="w-full h-full border-0"
+                />
+              ) : pdfPreviewFallback ? (
+                <iframe
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.url)}&embedded=true`}
+                  title={preview.name}
+                  className="w-full h-full border-0"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground text-sm">
+                  <p>No se pudo previsualizar el PDF</p>
+                  <button
+                    onClick={() => handleDownload(preview)}
+                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-95 transition-transform"
+                  >
+                    Descargar archivo
+                  </button>
+                </div>
+              )
             ) : (
-              <iframe
-                src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.url)}&embedded=true`}
-                title={preview.name}
-                className="w-full h-full border-0"
-              />
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                No se puede previsualizar este archivo
+              </div>
             )}
           </div>
         </div>

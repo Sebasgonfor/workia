@@ -87,7 +87,7 @@ export default function MateriasPage() {
 
   return (
     <AppShell>
-      <div className="px-4 pt-safe page-enter">
+      <div className="px-4 pt-safe page-enter md:px-8 md:pt-8 md:max-w-5xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
@@ -122,7 +122,7 @@ export default function MateriasPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2.5 stagger-children">
+          <div className="space-y-2.5 stagger-children md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:space-y-0">
             {subjects.map((subject) => (
               <div key={subject.id} className="relative">
                 <button

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
+import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -140,26 +141,12 @@ export async function POST(req: NextRequest) {
 
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      parsed = parseGeminiResponse(text);
     } catch {
-      try {
-        const cleaned = text
-          .replace(/^```(?:json)?\s*\n?/i, "")
-          .replace(/\n?```\s*$/i, "")
-          .trim();
-        parsed = JSON.parse(cleaned);
-      } catch {
-        try {
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) throw new Error("No JSON found");
-          parsed = JSON.parse(jsonMatch[0]);
-        } catch {
-          return NextResponse.json(
-            { error: "Error al interpretar respuesta de IA", raw: text },
-            { status: 500 }
-          );
-        }
-      }
+      return NextResponse.json(
+        { error: "Error al interpretar respuesta de IA", raw: text.slice(0, 500) },
+        { status: 500 }
+      );
     }
 
     // Normalize structure — same logic as /api/scan
@@ -167,12 +154,13 @@ export async function POST(req: NextRequest) {
       parsed.tasks = parsed.tasks ? [parsed.tasks] : [];
     }
 
-    if (parsed.notes && !parsed.notes.content) {
+    const notes = parsed.notes as Record<string, unknown> | null | undefined;
+    if (notes && !notes.content) {
       parsed.notes = null;
     }
 
     // If no tasks and no notes, wrap raw content
-    if (parsed.tasks.length === 0 && !parsed.notes) {
+    if ((parsed.tasks as unknown[]).length === 0 && !parsed.notes) {
       parsed.type = "notes";
       parsed.notes = {
         topic: "Clase transcrita",

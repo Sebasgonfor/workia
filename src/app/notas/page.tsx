@@ -191,7 +191,7 @@ export default function NotasPage() {
     <AppShell>
       <div className="min-h-screen bg-background page-enter">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border px-4 pt-safe pb-3">
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border px-4 pt-safe pb-3 md:px-8 md:pt-8">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-primary" />
             <h1 className="text-lg font-semibold">Notas</h1>
@@ -202,7 +202,7 @@ export default function NotasPage() {
         </div>
 
         {/* Subject list */}
-        <div className="px-4 py-4 space-y-3 stagger-children max-w-lg mx-auto">
+        <div className="px-4 py-4 space-y-3 stagger-children max-w-lg mx-auto md:px-8 md:max-w-5xl md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:space-y-0">
           {subjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
               <BookOpen className="w-12 h-12 text-muted-foreground/40" />

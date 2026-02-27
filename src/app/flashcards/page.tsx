@@ -214,7 +214,7 @@ export default function FlashcardsPage() {
 
       const generated = data.data.flashcards as { question: string; answer: string; type: string }[];
       if (!generated || generated.length === 0) {
-        throw new Error("No se generaron flashcards");
+        throw new Error("No se generaron flashcards. Intenta con un contenido más largo.");
       }
 
       await addFlashcards(
@@ -233,8 +233,7 @@ export default function FlashcardsPage() {
       setGenContent("");
       setGenSubjectId("");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error desconocido";
-      toast.error(msg);
+      toast.error(err instanceof Error && err.message ? err.message : "Error al generar flashcards");
     } finally {
       setGenerating(false);
     }
@@ -258,7 +257,7 @@ export default function FlashcardsPage() {
   if (view === "study") {
     return (
       <AppShell>
-        <div className="px-4 pt-safe page-enter min-h-[80vh] flex flex-col">
+        <div className="px-4 pt-safe page-enter min-h-[80vh] flex flex-col md:px-8 md:pt-8 md:max-w-5xl md:mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -293,7 +292,7 @@ export default function FlashcardsPage() {
 
               {/* Card */}
               <div className="flex-1 flex flex-col items-center justify-center">
-                <div style={{ perspective: "1200px" }} className="w-full max-w-sm">
+                <div style={{ perspective: "1200px" }} className="w-full max-w-sm md:max-w-md md:mx-auto">
                   <button
                     onClick={() => setFlipped(!flipped)}
                     aria-label={flipped ? "Ver pregunta" : "Ver respuesta"}
@@ -351,8 +350,8 @@ export default function FlashcardsPage() {
   // ── List View ──
   return (
     <AppShell>
-      <div className="page-enter">
-        <div className="px-4 pt-safe pb-3">
+      <div className="page-enter md:max-w-5xl md:mx-auto">
+        <div className="px-4 pt-safe pb-3 md:px-8 md:pt-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Flashcards</h1>
@@ -423,7 +422,7 @@ export default function FlashcardsPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2 stagger-children">
+            <div className="space-y-2 stagger-children md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:space-y-0">
               {decks.map((deck) => (
                 <button
                   key={deck.subjectId}

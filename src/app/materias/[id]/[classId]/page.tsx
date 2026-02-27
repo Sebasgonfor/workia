@@ -30,18 +30,30 @@ import {
   Clock,
   ChevronRight,
   Bot,
+  FolderOpen,
+  MessageCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { DynamicBoardTab } from "@/components/dynamic-board-tab";
+import { ClassDocuments } from "@/components/class-documents";
+import { NotesChatPanel } from "@/components/notes-chat-panel";
 import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
 import { uploadScanImage, uploadAudio, uploadNoteImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
 import type { BoardEntry, Task, Flashcard, Quiz } from "@/types";
 import { toast } from "sonner";
+import { compressImageToBase64 } from "@/lib/utils";
+
+/** Error thrown when our API returns a known error message (safe to show to user) */
+class ApiError extends Error {}
+
+function throwIfApiError(res: Response, data: { success?: boolean; error?: string }, fallback: string) {
+  if (!res.ok || !data.success) throw new ApiError(data.error || fallback);
+}
 
 const ENTRY_ICONS = {
   notes: FileText,
@@ -76,15 +88,6 @@ interface ScanResult {
   topic?: string;
   content?: string;
   tags?: string[];
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 function timeAgo(date: Date): string {
@@ -158,7 +161,7 @@ export default function BoardPage() {
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"apuntes" | "tablero">("apuntes");
+  const [activeTab, setActiveTab] = useState<"apuntes" | "tablero" | "documentos" | "ia">("apuntes");
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
@@ -205,12 +208,20 @@ export default function BoardPage() {
   const [diagramPrompt, setDiagramPrompt] = useState("");
   const [generatingDiagram, setGeneratingDiagram] = useState(false);
 
+  // Reader image upload + enrichment state
+  const [readerPendingImages, setReaderPendingImages] = useState<{ url: string; file: File }[]>([]);
+  const [readerEnriching, setReaderEnriching] = useState(false);
+  const readerFileInputRef = useRef<HTMLInputElement>(null);
+  const readerCameraInputRef = useRef<HTMLInputElement>(null);
+
   // Scan state
   const [showScan, setShowScan] = useState(false);
   const [scanType, setScanType] = useState<ScanType>("auto");
   const [scanImages, setScanImages] = useState<{ url: string; file: File }[]>([]);
   const [processing, setProcessing] = useState(false);
   const [processStep, setProcessStep] = useState("");
+  const [scanProgress, setScanProgress] = useState(0);
+  const scanProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -327,9 +338,9 @@ export default function BoardPage() {
         }),
       });
       const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || "Error al generar");
+      throwIfApiError(response, data, "Error al generar");
       const generated = data.data.flashcards as { question: string; answer: string; type: string }[];
-      if (!generated || generated.length === 0) throw new Error("No se generaron flashcards");
+      if (!generated || generated.length === 0) throw new ApiError("No se generaron flashcards");
       await addFlashcards(
         generated.map((fc) => ({
           subjectId,
@@ -342,7 +353,7 @@ export default function BoardPage() {
       );
       toast.success(`${generated.length} flashcards generadas`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+      toast.error(err instanceof ApiError ? err.message : "Error al generar flashcards");
     } finally {
       setGeneratingId(null);
     }
@@ -362,9 +373,9 @@ export default function BoardPage() {
         }),
       });
       const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || "Error al generar quiz");
+      throwIfApiError(response, data, "Error al generar quiz");
       const { title, questions } = data.data as { title: string; questions: unknown[] };
-      if (!questions || questions.length === 0) throw new Error("No se generaron preguntas");
+      if (!questions || questions.length === 0) throw new ApiError("No se generaron preguntas");
       const quizId = await addQuiz({
         subjectId,
         subjectName: subject?.name || "",
@@ -372,11 +383,11 @@ export default function BoardPage() {
         title: title || `Quiz — ${classSession?.title || "Clase"}`,
         questions: questions as Quiz["questions"],
       });
-      if (!quizId) throw new Error("Error al guardar el quiz");
+      if (!quizId) throw new ApiError("Error al guardar el quiz");
       toast.success("Quiz generado");
       router.push(`/quiz/${quizId}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+      toast.error(err instanceof ApiError ? err.message : "Error al generar quiz");
     } finally {
       setGeneratingQuizId(null);
     }
@@ -400,23 +411,54 @@ export default function BoardPage() {
     });
   };
 
+  const startScanProgress = () => {
+    setScanProgress(0);
+    setProcessStep("Preparando imágenes...");
+    let progress = 0;
+    const steps = [
+      { at: 10, label: "Enviando a Gemini 2.5 Pro..." },
+      { at: 25, label: "Analizando contenido visual..." },
+      { at: 45, label: "Extrayendo texto y ecuaciones..." },
+      { at: 65, label: "Detectando tareas y apuntes..." },
+      { at: 80, label: "Procesando resultados..." },
+    ];
+    scanProgressRef.current = setInterval(() => {
+      progress += Math.random() * 2.5 + 0.5;
+      if (progress > 92) progress = 92;
+      const step = [...steps].reverse().find((s) => progress >= s.at);
+      if (step) setProcessStep(step.label);
+      setScanProgress(Math.round(progress));
+    }, 600);
+  };
+
+  const stopScanProgress = (success: boolean) => {
+    if (scanProgressRef.current) {
+      clearInterval(scanProgressRef.current);
+      scanProgressRef.current = null;
+    }
+    if (success) {
+      setProcessStep("¡Análisis completado!");
+      setScanProgress(100);
+      setTimeout(() => setScanProgress(0), 1500);
+    } else {
+      setScanProgress(0);
+    }
+  };
+
   const handleProcess = async () => {
     if (scanImages.length === 0) { toast.error("Agrega al menos una imagen"); return; }
 
     // Close the sheet immediately so the user can navigate freely
     setShowScan(false);
     setProcessing(true);
-
-    const toastId = toast.loading("Analizando imagen con IA...", {
-      description: "Puedes seguir usando la app mientras termina",
-    });
+    startScanProgress();
 
     // Snapshot images before they may be cleared
     const imageSnapshot = [...scanImages];
     const scanTypeSnapshot = scanType;
 
     try {
-      const base64Images = await Promise.all(imageSnapshot.map((img) => fileToBase64(img.file)));
+      const base64Images = await Promise.all(imageSnapshot.map((img) => compressImageToBase64(img.file)));
 
       const response = await fetch("/api/scan", {
         method: "POST",
@@ -435,8 +477,19 @@ export default function BoardPage() {
         }),
       });
 
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || "Error al procesar");
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new ApiError(
+          response.status === 413
+            ? "Las imágenes son muy grandes. Intenta con menos fotos o fotos más pequeñas."
+            : response.status === 504
+              ? "El análisis tardó demasiado. Intenta con menos imágenes."
+              : `Error del servidor (${response.status}). Intenta de nuevo.`
+        );
+      }
+      throwIfApiError(response, data, "Error al procesar");
 
       const result = data.data as ScanResult;
 
@@ -472,7 +525,7 @@ export default function BoardPage() {
       if (notesData?.content) parts.push("apuntes");
       const summary = parts.join(" + ") || "contenido procesado";
 
-      toast.dismiss(toastId);
+      stopScanProgress(true);
 
       if (isMountedRef.current) {
         // User is still on this page — open result sheet directly
@@ -526,8 +579,9 @@ export default function BoardPage() {
         }
       }
     } catch (err) {
-      toast.dismiss(toastId);
-      toast.error(err instanceof Error ? err.message : "Error al procesar imagen");
+      console.error("Scan error:", err);
+      stopScanProgress(false);
+      toast.error(err instanceof ApiError ? err.message : "Error al procesar imagen. Intenta de nuevo.");
     } finally {
       if (isMountedRef.current) {
         setProcessing(false);
@@ -699,6 +753,93 @@ export default function BoardPage() {
     }
   };
 
+  // ── Reader image upload + enrichment ──
+
+  const handleReaderFiles = (files: FileList | null) => {
+    if (!files) return;
+    const next = Array.from(files).map((file) => ({ url: URL.createObjectURL(file), file }));
+    setReaderPendingImages((prev) => [...prev, ...next]);
+  };
+
+  const removeReaderPending = (idx: number) => {
+    setReaderPendingImages((prev) => {
+      URL.revokeObjectURL(prev[idx].url);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  const handleReaderEnrich = async () => {
+    if (!readerEntry || readerPendingImages.length === 0) return;
+
+    setReaderEnriching(true);
+    const toastId = toast.loading("La IA está enriqueciendo tus apuntes...");
+
+    try {
+      // Upload source images to Cloudinary
+      const uploadedUrls: string[] = [];
+      if (user) {
+        for (let i = 0; i < readerPendingImages.length; i++) {
+          try {
+            const url = await uploadScanImage(user.uid, readerPendingImages[i].file, i);
+            uploadedUrls.push(url);
+          } catch { /* skip failed */ }
+        }
+      }
+
+      // Compress images for AI
+      const base64Images = await Promise.all(
+        readerPendingImages.map((img) => compressImageToBase64(img.file))
+      );
+
+      // Call the enrichment API (reuse dynamic-board enrich)
+      const response = await fetch("/api/dynamic-board/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          existingContent: readerEntry.content,
+          newImages: base64Images,
+          existingNotes: [],
+          subjectName: subject?.name || "General",
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new ApiError(data.error || "Error al enriquecer");
+
+      // Merge source images (existing + new)
+      const allSourceImages = Array.from(new Set([
+        ...(readerEntry.sourceImages || []),
+        ...uploadedUrls,
+      ]));
+
+      // Update the entry
+      await updateEntry(readerEntry.id, {
+        content: data.data.content,
+        sourceImages: allSourceImages,
+      });
+
+      // Update the reader entry in-place so user sees changes immediately
+      setReaderEntry({
+        ...readerEntry,
+        content: data.data.content,
+        sourceImages: allSourceImages,
+        updatedAt: new Date(),
+      });
+
+      // Cleanup
+      readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url));
+      setReaderPendingImages([]);
+
+      toast.dismiss(toastId);
+      toast.success("¡Apuntes actualizados con las nuevas imágenes!");
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error(err instanceof ApiError ? err.message : "Error al enriquecer los apuntes");
+    } finally {
+      setReaderEnriching(false);
+    }
+  };
+
   // ── Voice recording functions ──
 
   const handleStartRecording = async () => {
@@ -778,9 +919,7 @@ export default function BoardPage() {
       });
 
       const transcribeData = await transcribeRes.json();
-      if (!transcribeRes.ok || !transcribeData.success) {
-        throw new Error(transcribeData.error || "Error al transcribir");
-      }
+      throwIfApiError(transcribeRes, transcribeData, "Error al transcribir");
 
       const result = transcribeData.data as ScanResult;
       setScanResult(result);
@@ -811,7 +950,7 @@ export default function BoardPage() {
       if (notesData?.content) parts.push("apuntes");
       toast.success(`Detectado: ${parts.join(" + ") || "contenido procesado"}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+      toast.error(err instanceof ApiError ? err.message : "Error al procesar audio");
     } finally {
       setProcessingVoice(false);
       setProcessStep("");
@@ -836,9 +975,9 @@ export default function BoardPage() {
 
   return (
     <AppShell hideBottomNav={true}>
-      <div className="page-enter">
+      <div className="page-enter md:max-w-5xl md:mx-auto">
         <div
-          className="px-4 pt-safe pb-4"
+          className="px-4 pt-safe pb-4 md:px-8"
           style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)` }}
         >
           <button onClick={() => router.back()} className="flex items-center gap-1.5 text-muted-foreground mb-3 active:opacity-70 touch-target">
@@ -863,8 +1002,36 @@ export default function BoardPage() {
           </div>
         </div>
 
+        {/* Scan progress bar */}
+        {(processing || scanProgress > 0) && (
+          <div className="mx-4 mt-3 p-3 rounded-2xl bg-card border border-border shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="relative w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                {scanProgress < 100 ? (
+                  <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4 text-primary" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {scanProgress < 100 ? "Analizando imagen" : "¡Análisis completado!"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{processStep}</p>
+              </div>
+              <span className="text-xs font-semibold text-primary tabular-nums">{scanProgress}%</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                style={{ width: `${scanProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Tab bar */}
-        <div className="px-4 pt-3 pb-1">
+        <div className="px-4 pt-3 pb-1 md:px-8">
           <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl">
             <button
               onClick={() => setActiveTab("apuntes")}
@@ -889,6 +1056,30 @@ export default function BoardPage() {
               <Sparkles className="w-3 h-3" />
               Tablero
             </button>
+            <button
+              onClick={() => setActiveTab("documentos")}
+              aria-label="Ver documentos de clase"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "documentos"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
+            >
+              <FolderOpen className="w-3 h-3" />
+              Docs
+            </button>
+            <button
+              onClick={() => setActiveTab("ia")}
+              aria-label="Chat con IA"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === "ia"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground active:opacity-70"
+              }`}
+            >
+              <MessageCircle className="w-3 h-3" />
+              IA
+            </button>
           </div>
         </div>
 
@@ -896,7 +1087,7 @@ export default function BoardPage() {
           <>
         {/* Filters */}
         {entries.length > 0 && (
-          <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5">
+          <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5 md:px-8">
             {[
               { key: "all" as const, label: "Todo" },
               { key: "notes" as const, label: "Apuntes" },
@@ -918,7 +1109,7 @@ export default function BoardPage() {
           </div>
         )}
 
-        <div className="px-4">
+        <div className="px-4 md:px-8">
           {loading ? (
             <div className="space-y-2.5 mt-3">
               {[1, 2, 3].map((i) => (
@@ -948,7 +1139,7 @@ export default function BoardPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2.5 mt-3">
+            <div className="space-y-2.5 mt-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
               {filteredEntries.map((entry) => {
                 const Icon = ENTRY_ICONS[entry.type];
                 const typeLabel = BOARD_ENTRY_TYPES.find((t) => t.value === entry.type)?.label || entry.type;
@@ -968,7 +1159,7 @@ export default function BoardPage() {
                             <span className="text-[11px] font-semibold" style={{ color }}>{typeLabel}</span>
                             <span className="text-[11px] text-muted-foreground">{timeAgo(entry.createdAt)}</span>
                           </div>
-                          <div className="text-sm leading-relaxed line-clamp-4">
+                          <div className="text-sm leading-relaxed line-clamp-4 md:line-clamp-6">
                             <MarkdownMath content={entry.content} />
                           </div>
                           {entry.tags.length > 0 && (
@@ -976,6 +1167,14 @@ export default function BoardPage() {
                               {entry.tags.map((tag) => (
                                 <span key={tag} className="px-1.5 py-0.5 rounded-full text-[10px] bg-secondary text-muted-foreground">{tag}</span>
                               ))}
+                            </div>
+                          )}
+                          {entry.sourceImages && entry.sourceImages.length > 0 && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <ImagePlus className="w-3 h-3 text-muted-foreground/60" />
+                              <span className="text-[10px] text-muted-foreground/60">
+                                {entry.sourceImages.length} foto{entry.sourceImages.length !== 1 ? "s" : ""} fuente
+                              </span>
                             </div>
                           )}
                           {entry.type === "notes" && entry.content.length > 30 && (
@@ -1056,7 +1255,7 @@ export default function BoardPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Tareas de esta clase ({classTasks.length})
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                 {classTasks.map((task) => {
                   const isComplete = task.status === "completed";
                   const priorityData = TASK_PRIORITIES.find((p) => p.value === task.priority);
@@ -1135,13 +1334,82 @@ export default function BoardPage() {
         )}
 
         {activeTab === "tablero" && (
-          <div className="px-4">
+          <div className="px-4 md:px-8">
             <DynamicBoardTab
               subjectId={subjectId}
               classId={classId}
               subjectName={subject?.name || ""}
               color={color}
               boardEntries={entries}
+            />
+          </div>
+        )}
+
+        {activeTab === "documentos" && (
+          <div className="px-4 pt-2 md:px-8">
+            <ClassDocuments
+              subjectId={subjectId}
+              classId={classId}
+              color={color}
+            />
+          </div>
+        )}
+
+        {activeTab === "ia" && (
+          <div className="px-4 pt-1">
+            <NotesChatPanel
+              subjectId={subjectId}
+              classId={classId}
+              subjectName={subject?.name || ""}
+              classTitle={classSession?.title || ""}
+              color={color}
+              boardEntries={entries}
+              tasks={classTasks}
+              subjectDocuments={subjectDocuments}
+              onTaskAction={async (action) => {
+                switch (action.action) {
+                  case "create_task": {
+                    const dueDate = action.dueDate
+                      ? new Date(action.dueDate + "T23:59:59")
+                      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                    await addTask({
+                      title: action.title || "Nueva tarea",
+                      subjectId,
+                      subjectName: subject?.name || "",
+                      description: action.description || "",
+                      assignedDate: new Date(),
+                      dueDate,
+                      status: "pending",
+                      priority: (action.priority as Task["priority"]) || "medium",
+                      type: (action.type as Task["type"]) || "otro",
+                      sourceImageUrl: null,
+                      classSessionId: classId,
+                    });
+                    break;
+                  }
+                  case "edit_task": {
+                    if (!action.taskId) break;
+                    const updates: Record<string, unknown> = {};
+                    if (action.updates?.title) updates.title = action.updates.title;
+                    if (action.updates?.description) updates.description = action.updates.description;
+                    if (action.updates?.priority) updates.priority = action.updates.priority;
+                    if (action.updates?.status) updates.status = action.updates.status;
+                    if (action.updates?.dueDate) updates.dueDate = new Date(action.updates.dueDate + "T23:59:59");
+                    await updateTaskStatus(action.taskId, updates);
+                    break;
+                  }
+                  case "delete_task": {
+                    if (!action.taskId) break;
+                    await deleteTask(action.taskId);
+                    break;
+                  }
+                  case "complete_task": {
+                    if (!action.taskId) break;
+                    await updateTaskStatus(action.taskId, { status: "completed" });
+                    break;
+                  }
+                }
+              }}
             />
           </div>
         )}
@@ -1436,23 +1704,23 @@ export default function BoardPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
+              <div className="grid grid-cols-2 gap-2.5 overflow-hidden">
+                <div className="min-w-0 overflow-hidden">
                   <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Asignada</label>
                   <input
                     type="date"
                     value={taskAssignedDate}
                     onChange={(e) => setTaskAssignedDate(e.target.value)}
-                    className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                    className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                   />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 overflow-hidden">
                   <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Entrega</label>
                   <input
                     type="date"
                     value={taskDueDate}
                     onChange={(e) => setTaskDueDate(e.target.value)}
-                    className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                    className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                   />
                 </div>
               </div>
@@ -1768,23 +2036,23 @@ export default function BoardPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="min-w-0">
+                <div className="grid grid-cols-2 gap-2 overflow-hidden">
+                  <div className="min-w-0 overflow-hidden">
                     <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Asignada</label>
                     <input
                       type="date"
                       value={currentTask.assignedDate}
                       onChange={(e) => updateTaskField(editingTaskIdx, "assignedDate", e.target.value)}
-                      className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                      className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                     />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 overflow-hidden">
                     <label className="text-xs font-medium text-muted-foreground mb-1 block truncate">Entrega</label>
                     <input
                       type="date"
                       value={currentTask.dueDate}
                       onChange={(e) => updateTaskField(editingTaskIdx, "dueDate", e.target.value)}
-                      className="w-full min-w-0 px-2 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-sm"
+                      className="w-full min-w-0 max-w-full px-1.5 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:dark] text-xs"
                     />
                   </div>
                 </div>
@@ -1915,13 +2183,31 @@ export default function BoardPage() {
       {/* Notes Reader Fullscreen */}
       {readerEntry && (
         <div className="fixed inset-0 z-50 bg-background flex flex-col">
+          {/* Hidden file inputs for reader image upload */}
+          <input
+            ref={readerFileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => { handleReaderFiles(e.target.files); e.target.value = ""; }}
+          />
+          <input
+            ref={readerCameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => { handleReaderFiles(e.target.files); e.target.value = ""; }}
+          />
+
           {/* Header */}
           <div
             className="shrink-0 px-4 pt-safe pb-3 border-b border-border"
             style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)` }}
           >
             <button
-              onClick={() => setReaderEntry(null)}
+              onClick={() => { setReaderEntry(null); readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url)); setReaderPendingImages([]); }}
               className="flex items-center gap-1.5 text-muted-foreground mb-2 active:opacity-70 touch-target"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -1936,6 +2222,11 @@ export default function BoardPage() {
               </span>
               {classSession && (
                 <span className="text-xs text-muted-foreground">&middot; {classSession.title}</span>
+              )}
+              {readerEntry.sourceImages && readerEntry.sourceImages.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  &middot; {readerEntry.sourceImages.length} foto{readerEntry.sourceImages.length !== 1 ? "s" : ""} fuente
+                </span>
               )}
             </div>
             {readerEntry.tags.length > 0 && (
@@ -1958,11 +2249,77 @@ export default function BoardPage() {
             <MarkdownMath content={readerEntry.content} />
           </div>
 
+          {/* Pending images strip */}
+          {readerPendingImages.length > 0 && (
+            <div className="shrink-0 px-4 pt-2 pb-1 border-t border-border bg-background">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                {readerPendingImages.length} foto{readerPendingImages.length !== 1 ? "s" : ""} pendiente{readerPendingImages.length !== 1 ? "s" : ""}
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {readerPendingImages.map((img, idx) => (
+                  <div key={idx} className="relative shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.url}
+                      alt="foto pendiente"
+                      className="w-14 h-14 rounded-xl object-cover border border-border"
+                    />
+                    <button
+                      onClick={() => removeReaderPending(idx)}
+                      aria-label="Quitar foto"
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Floating actions */}
           <div className="shrink-0 px-4 pb-safe pt-2 border-t border-border bg-background/80 backdrop-blur-lg">
+            {/* Enrich button (when there are pending images) */}
+            {readerPendingImages.length > 0 && (
+              <button
+                onClick={handleReaderEnrich}
+                disabled={readerEnriching}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-primary-foreground font-semibold text-sm mb-2 active:scale-[0.98] transition-transform disabled:opacity-60"
+                style={{ backgroundColor: color }}
+                aria-label="Enriquecer apuntes con IA"
+              >
+                {readerEnriching ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Enriqueciendo apuntes...</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> Enriquecer con IA ({readerPendingImages.length} foto{readerPendingImages.length !== 1 ? "s" : ""})</>
+                )}
+              </button>
+            )}
+
+            {/* Image add buttons */}
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <button
+                onClick={() => readerCameraInputRef.current?.click()}
+                disabled={readerEnriching}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-secondary text-foreground text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-50"
+                aria-label="Tomar foto para agregar"
+              >
+                <Camera className="w-3.5 h-3.5" /> Agregar foto
+              </button>
+              <button
+                onClick={() => readerFileInputRef.current?.click()}
+                disabled={readerEnriching}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-secondary text-foreground text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-50"
+                aria-label="Subir imagen para agregar"
+              >
+                <ImagePlus className="w-3.5 h-3.5" /> Galería
+              </button>
+            </div>
+
+            {/* Main actions */}
             <div className="flex items-center justify-center gap-2">
               <button
-                onClick={() => { const entry = readerEntry; setReaderEntry(null); openEdit(entry); }}
+                onClick={() => { const entry = readerEntry; setReaderEntry(null); readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url)); setReaderPendingImages([]); openEdit(entry); }}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-foreground text-sm font-medium active:scale-[0.97] transition-transform"
               >
                 <Pencil className="w-4 h-4" /> Editar
@@ -1980,7 +2337,7 @@ export default function BoardPage() {
                 )}
               </button>
               <button
-                onClick={() => { const id = readerEntry.id; setReaderEntry(null); setDeleteId(id); }}
+                onClick={() => { const id = readerEntry.id; setReaderEntry(null); readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url)); setReaderPendingImages([]); setDeleteId(id); }}
                 className="px-3 py-2.5 rounded-xl bg-destructive/10 text-destructive active:scale-[0.97] transition-transform"
               >
                 <Trash2 className="w-4 h-4" />
