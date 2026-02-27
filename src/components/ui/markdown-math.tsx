@@ -208,33 +208,66 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
     return <MdBlock content={content} className={className} subjectColor={subjectColor} />;
   }
 
+  // Group consecutive colored-card segments so they can be placed in a 2-col grid,
+  // while plain `md` segments always span full width.
+  type SegmentGroup =
+    | { kind: "md"; segment: NoteSegment; index: number }
+    | { kind: "cards"; items: { segment: NoteSegment; index: number }[] };
+
+  const groups: SegmentGroup[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (seg.type === "md") {
+      groups.push({ kind: "md", segment: seg, index: i });
+    } else {
+      const last = groups[groups.length - 1];
+      if (last && last.kind === "cards") {
+        last.items.push({ segment: seg, index: i });
+      } else {
+        groups.push({ kind: "cards", items: [{ segment: seg, index: i }] });
+      }
+    }
+  }
+
+  const renderCard = (seg: NoteSegment, i: number) => {
+    const cfg = COLOR_CONFIG[seg.type as NoteColorType];
+    return (
+      <div
+        key={i}
+        style={{ border: `1px solid ${cfg.border}30`, borderRadius: "0.75rem", overflow: "hidden" }}
+      >
+        {/* Card header */}
+        <div style={{ backgroundColor: cfg.headerBg, padding: "0.4rem 0.75rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: cfg.text, letterSpacing: "0.05em" }}>
+            {cfg.emoji} {cfg.label.toUpperCase()}
+          </span>
+          <span style={{ fontSize: "9px", fontWeight: 700, color: cfg.text, backgroundColor: `${cfg.border}25`, padding: "0.1rem 0.5rem", borderRadius: "9999px", letterSpacing: "0.07em", textTransform: "uppercase" }}>
+            {seg.type}
+          </span>
+        </div>
+        {/* Card body — default text color; keywords colored via nc-kw tags */}
+        <div style={{ backgroundColor: cfg.bg, padding: "0.6rem 0.75rem" }}>
+          <MdBlock content={seg.content} subjectColor={subjectColor} />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`space-y-3 ${className}`}>
-      {segments.map((seg, i) => {
-        if (seg.type === "md") {
-          return seg.content.trim()
-            ? <MdBlock key={i} content={seg.content} subjectColor={subjectColor} />
+      {groups.map((group, gi) => {
+        if (group.kind === "md") {
+          return group.segment.content.trim()
+            ? <MdBlock key={gi} content={group.segment.content} subjectColor={subjectColor} />
             : null;
         }
-        const cfg = COLOR_CONFIG[seg.type];
+        // Cards group: single card → full width; multiple → 2-col grid on md+
+        if (group.items.length === 1) {
+          return renderCard(group.items[0].segment, group.items[0].index);
+        }
         return (
-          <div
-            key={i}
-            style={{ border: `1px solid ${cfg.border}30`, borderRadius: "0.75rem", overflow: "hidden" }}
-          >
-            {/* Card header */}
-            <div style={{ backgroundColor: cfg.headerBg, padding: "0.4rem 0.75rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: cfg.text, letterSpacing: "0.05em" }}>
-                {cfg.emoji} {cfg.label.toUpperCase()}
-              </span>
-              <span style={{ fontSize: "9px", fontWeight: 700, color: cfg.text, backgroundColor: `${cfg.border}25`, padding: "0.1rem 0.5rem", borderRadius: "9999px", letterSpacing: "0.07em", textTransform: "uppercase" }}>
-                {seg.type}
-              </span>
-            </div>
-            {/* Card body — default text color; keywords colored via nc-kw tags */}
-            <div style={{ backgroundColor: cfg.bg, padding: "0.6rem 0.75rem" }}>
-              <MdBlock content={seg.content} subjectColor={subjectColor} />
-            </div>
+          <div key={gi} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {group.items.map(({ segment, index }) => renderCard(segment, index))}
           </div>
         );
       })}
