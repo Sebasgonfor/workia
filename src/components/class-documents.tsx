@@ -48,6 +48,8 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<ClassDocument | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,7 +60,9 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
       const proxyUrl = `/api/download?url=${encodeURIComponent(doc.url)}&filename=${encodeURIComponent(doc.name)}`;
       const response = await fetch(proxyUrl);
       if (!response.ok) throw new Error("Download failed");
-      const blob = await response.blob();
+      const contentType = response.headers.get("content-type") || doc.fileType || "application/octet-stream";
+      const arrayBuffer = await response.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: contentType });
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
@@ -72,6 +76,44 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
     } finally {
       setDownloadingId(null);
     }
+  };
+
+  const handlePreview = async (doc: ClassDocument) => {
+    if (doc.fileType.startsWith("image/")) {
+      setPreview(doc);
+      setPdfPreviewUrl(null);
+      setPdfLoading(false);
+      return;
+    }
+    if (doc.fileType === "application/pdf") {
+      setPreview(doc);
+      setPdfPreviewUrl(null);
+      setPdfLoading(true);
+      try {
+        const proxyUrl = `/api/download?url=${encodeURIComponent(doc.url)}&filename=${encodeURIComponent(doc.name)}&mode=inline`;
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error("Failed to load preview");
+        const arrayBuffer = await response.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+        const objectUrl = URL.createObjectURL(blob);
+        setPdfPreviewUrl(objectUrl);
+      } catch {
+        setPdfPreviewUrl(null);
+      } finally {
+        setPdfLoading(false);
+      }
+      return;
+    }
+    window.open(doc.url, "_blank");
+  };
+
+  const closePreview = () => {
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl);
+      setPdfPreviewUrl(null);
+    }
+    setPdfLoading(false);
+    setPreview(null);
   };
 
   const handleUpload = async (file: File) => {
@@ -218,7 +260,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                 {images.map((img) => (
                   <div key={img.id} className="relative group">
                     <button
-                      onClick={() => setPreview(img)}
+                      onClick={() => handlePreview(img)}
                       className="w-full aspect-square rounded-xl overflow-hidden bg-card border border-border active:opacity-80"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -264,12 +306,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                         <Icon className="w-5 h-5" style={{ color }} />
                       </div>
                       <button
-                        onClick={() =>
-                          document.fileType === "application/pdf" ||
-                          document.fileType.startsWith("image/")
-                            ? setPreview(document)
-                            : window.open(document.url, "_blank")
-                        }
+                        onClick={() => handlePreview(document)}
                         className="flex-1 min-w-0 text-left active:opacity-70"
                       >
                         <p className="font-medium text-[14px] truncate">
@@ -309,7 +346,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
         </div>
       )}
 
-      {/* Image preview modal */}
+      {/* Preview modal */}
       {preview && (
         <div className="fixed inset-0 z-50 flex flex-col bg-background">
           <div className="flex items-center justify-between px-4 pt-safe pb-3 border-b border-border shrink-0">
@@ -326,7 +363,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
               </button>
               <button
                 aria-label="Cerrar preview"
-                onClick={() => setPreview(null)}
+                onClick={closePreview}
                 className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-70"
               >
                 <X className="w-4 h-4" />
@@ -344,14 +381,28 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                   className="max-w-full max-h-full object-contain rounded-xl"
                 />
               </div>
-            ) : preview.url ? (
-              <iframe
-                src={`https://docs.google.com/viewer?url=${encodeURIComponent(
-                  preview.url
-                )}&embedded=true`}
-                title={preview.name}
-                className="w-full h-full border-0"
-              />
+            ) : preview.fileType === "application/pdf" ? (
+              pdfLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : pdfPreviewUrl ? (
+                <iframe
+                  src={pdfPreviewUrl}
+                  title={preview.name}
+                  className="w-full h-full border-0"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground text-sm">
+                  <p>No se pudo previsualizar el PDF</p>
+                  <button
+                    onClick={() => handleDownload(preview)}
+                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium active:scale-95 transition-transform"
+                  >
+                    Descargar archivo
+                  </button>
+                </div>
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                 No se puede previsualizar este archivo
