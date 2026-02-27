@@ -133,7 +133,7 @@ export default function HorarioPage() {
     <AppShell>
       <div className="page-enter">
         {/* Header */}
-        <div className="px-4 pt-safe pb-3">
+        <div className="px-4 pt-safe pb-3 md:px-8 md:pt-8 md:max-w-5xl">
           <div className="flex items-center justify-between mb-1">
             <h1 className="text-2xl font-bold">Horario</h1>
             <button
@@ -150,7 +150,7 @@ export default function HorarioPage() {
         </div>
 
         {/* Day tabs */}
-        <div className="flex gap-1 px-4 mb-4 overflow-x-auto scrollbar-none">
+        <div className="flex gap-1 px-4 mb-4 overflow-x-auto scrollbar-none md:gap-2">
           {DAY_TABS.map((day) => {
             const isActive = selectedDay.value === day.value;
             const count = slotsByDay[day.value] ?? 0;
@@ -203,7 +203,7 @@ export default function HorarioPage() {
           )}
 
           {!loading && slotsForDay.length > 0 && (
-            <div className="space-y-2 stagger-children">
+            <div className="space-y-2 stagger-children md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
               {slotsForDay.map((slot) => {
                 const subject = getSubject(slot.subjectId);
                 return (

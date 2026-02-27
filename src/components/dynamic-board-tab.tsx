@@ -256,7 +256,7 @@ export function DynamicBoardTab({
       )}
 
       {/* Sticky action bar */}
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+4rem)] left-0 right-0 px-4 z-30">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+4rem)] left-0 right-0 px-4 z-30 md:relative md:bottom-auto md:left-auto md:right-auto md:px-0 md:mt-4">
         <div className="bg-card/95 backdrop-blur-sm border border-border rounded-2xl p-3 shadow-lg">
           {pendingImages.length > 0 && (
             <button
@@ -273,7 +273,7 @@ export function DynamicBoardTab({
               )}
             </button>
           )}
-          <div className={`grid gap-2 ${notesEntries.length > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`grid gap-2 ${notesEntries.length > 0 ? "grid-cols-3" : "grid-cols-2"} md:flex md:gap-2`}>
             <button
               onClick={() => cameraInputRef.current?.click()}
               disabled={processing}

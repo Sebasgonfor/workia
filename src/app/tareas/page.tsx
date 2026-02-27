@@ -215,9 +215,9 @@ export default function TareasPage() {
 
   return (
     <AppShell>
-      <div className="page-enter">
+      <div className="page-enter md:max-w-5xl md:mx-auto">
         {/* Header */}
-        <div className="px-4 pt-safe pb-2">
+        <div className="px-4 pt-safe pb-2 md:px-8 md:pt-8">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-2xl font-bold">Tareas</h1>
@@ -284,7 +284,7 @@ export default function TareasPage() {
         </div>
 
         {/* Tasks list */}
-        <div className="px-4 pt-2 pb-4">
+        <div className="px-4 pt-2 pb-4 md:px-8">
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => <div key={i} className="h-[72px] rounded-2xl bg-card animate-pulse" />)}
@@ -310,7 +310,7 @@ export default function TareasPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-5 md:grid md:grid-cols-2 md:gap-6 md:space-y-0">
               {taskGroups.map((group) => (
                 <div key={group.key}>
                   {/* Group header */}

@@ -280,7 +280,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                   Archivos ({otherFiles.length})
                 </p>
               )}
-              <div className="space-y-2">
+              <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                 {otherFiles.map((document) => {
                   const Icon = getFileIcon(document.fileType);
                   return (

@@ -94,35 +94,37 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         )}
         onClick={onClose}
       />
-      {/* Sheet */}
+      {/* Sheet — bottom sheet on mobile, centered dialog on desktop */}
       <div
         ref={sheetRef}
         className={cn(
-          "absolute bottom-0 left-0 right-0 bg-card rounded-t-2xl border-t border-border",
-          "sheet-max-h flex flex-col",
+          "bg-card flex flex-col will-change-transform",
+          // Mobile: bottom sheet
+          "absolute bottom-0 left-0 right-0 rounded-t-2xl border-t border-border sheet-max-h",
+          // Desktop: centered dialog
+          "md:static md:fixed md:inset-0 md:m-auto md:max-w-xl md:max-h-[85vh] md:rounded-2xl md:border md:shadow-xl md:w-full",
           isClosing
-            ? "animate-out slide-out-to-bottom duration-260 fill-mode-forwards"
-            : "animate-in slide-in-from-bottom duration-300",
-          "will-change-transform"
+            ? "animate-out slide-out-to-bottom duration-260 fill-mode-forwards md:animate-out md:fade-out md:zoom-out-95 md:duration-200"
+            : "animate-in slide-in-from-bottom duration-300 md:animate-in md:fade-in md:zoom-in-95 md:duration-200"
         )}
       >
         {/* Handle + Header combined for compact height */}
         <div className="shrink-0">
-          <div className="flex items-center justify-center pt-2.5 pb-0.5">
+          <div className="flex items-center justify-center pt-2.5 pb-0.5 md:hidden">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
           </div>
-          <div className="flex items-center justify-between px-4 py-2">
-            <h2 className="text-base font-semibold">{title}</h2>
+          <div className="flex items-center justify-between px-4 py-2 md:px-6 md:py-4 md:border-b md:border-border">
+            <h2 className="text-base font-semibold md:text-lg">{title}</h2>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center active:bg-secondary/80 touch-target"
+              className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center active:bg-secondary/80 hover:bg-secondary/80 touch-target"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
         {/* Content — scrollable */}
-        <div className="flex-1 overflow-y-auto px-4 pb-6 overscroll-contain pb-safe-sheet">
+        <div className="flex-1 overflow-y-auto px-4 pb-6 overscroll-contain pb-safe-sheet md:px-6 md:pb-6">
           {children}
         </div>
       </div>

@@ -45,7 +45,7 @@ export function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-border">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-border md:hidden">
         <div className="mx-auto max-w-lg flex items-center justify-around py-2 pb-safe">
           {mainTabs.map((tab) => {
             const isActive =
