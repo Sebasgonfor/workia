@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useSubjectDocuments } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth-context";
 import { Confirm } from "@/components/ui/confirm";
+import { downloadFile, fetchFileBlob } from "@/lib/file-helpers";
 import {
   FileText,
   ImageIcon,
@@ -53,71 +54,59 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<SubjectDocument | null>(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfPreviewFallback, setPdfPreviewFallback] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDownload = async (doc: SubjectDocument) => {
+  const handleDownload = useCallback(async (doc: SubjectDocument) => {
     if (downloadingId === doc.id || !doc.url) return;
     setDownloadingId(doc.id);
     try {
-      const proxyUrl = `/api/download?url=${encodeURIComponent(doc.url)}&filename=${encodeURIComponent(doc.name)}`;
-      const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error("Download failed");
-      const contentType = response.headers.get("content-type") || doc.fileType || "application/octet-stream";
-      const arrayBuffer = await response.arrayBuffer();
-      const blob = new Blob([arrayBuffer], { type: contentType });
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = doc.name;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(objectUrl);
+      await downloadFile(doc.url, doc.name, doc.fileType);
     } catch {
       toast.error(MSG_DOWNLOAD_ERROR);
     } finally {
       setDownloadingId(null);
     }
-  };
+  }, [downloadingId]);
 
-  const handlePreview = async (doc: SubjectDocument) => {
+  const handlePreview = useCallback(async (doc: SubjectDocument) => {
     if (doc.fileType.startsWith("image/")) {
-      setPreview(doc);
       setPdfPreviewUrl(null);
+      setPdfPreviewFallback(false);
       setPdfLoading(false);
+      setPreview(doc);
       return;
     }
     if (doc.fileType === "application/pdf") {
       setPreview(doc);
       setPdfPreviewUrl(null);
+      setPdfPreviewFallback(false);
       setPdfLoading(true);
       try {
-        const proxyUrl = `/api/download?url=${encodeURIComponent(doc.url)}&filename=${encodeURIComponent(doc.name)}&mode=inline`;
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error("Failed to load preview");
-        const arrayBuffer = await response.arrayBuffer();
-        const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+        const blob = await fetchFileBlob(doc.url, doc.name, "application/pdf");
         const objectUrl = URL.createObjectURL(blob);
         setPdfPreviewUrl(objectUrl);
       } catch {
-        setPdfPreviewUrl(null);
+        // Fallback: Google Docs Viewer
+        setPdfPreviewFallback(true);
       } finally {
         setPdfLoading(false);
       }
       return;
     }
     window.open(doc.url, "_blank");
-  };
+  }, []);
 
-  const closePreview = () => {
+  const closePreview = useCallback(() => {
     if (pdfPreviewUrl) {
       URL.revokeObjectURL(pdfPreviewUrl);
       setPdfPreviewUrl(null);
     }
+    setPdfPreviewFallback(false);
     setPdfLoading(false);
     setPreview(null);
-  };
+  }, [pdfPreviewUrl]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -323,6 +312,12 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
               ) : pdfPreviewUrl ? (
                 <iframe
                   src={pdfPreviewUrl}
+                  title={preview.name}
+                  className="w-full h-full border-0"
+                />
+              ) : pdfPreviewFallback ? (
+                <iframe
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.url)}&embedded=true`}
                   title={preview.name}
                   className="w-full h-full border-0"
                 />

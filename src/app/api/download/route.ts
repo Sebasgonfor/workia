@@ -17,6 +17,11 @@ const MIME_TYPES: Record<string, string> = {
   svg: "image/svg+xml",
 };
 
+function getMimeFromFilename(filename: string): string | null {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  return ext ? MIME_TYPES[ext] ?? null : null;
+}
+
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   const filename = req.nextUrl.searchParams.get("filename") || "document";
@@ -38,36 +43,31 @@ export async function GET(req: NextRequest) {
 
   try {
     const response = await fetch(url);
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       return NextResponse.json({ error: "Download failed" }, { status: response.status });
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-
-    // Cloudinary raw uploads often return application/octet-stream.
-    // Detect proper MIME type from the filename extension.
+    // Cloudinary raw uploads return application/octet-stream - detect real type
     let contentType =
       response.headers.get("content-type") || "application/octet-stream";
-
     if (contentType === "application/octet-stream") {
-      const ext = filename.split(".").pop()?.toLowerCase();
-      if (ext && MIME_TYPES[ext]) {
-        contentType = MIME_TYPES[ext];
-      }
+      contentType = getMimeFromFilename(filename) || contentType;
     }
 
     const disposition = mode === "inline" ? "inline" : "attachment";
     const asciiName = filename.replace(/[^\x20-\x7E]/g, "_");
     const encodedName = encodeURIComponent(filename).replace(/'/g, "%27");
 
-    return new NextResponse(arrayBuffer, {
+    // Stream the response body directly instead of buffering the whole file
+    return new NextResponse(response.body, {
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodedName}`,
-        "Content-Length": arrayBuffer.byteLength.toString(),
+        "Cache-Control": "no-store",
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("Download proxy error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
