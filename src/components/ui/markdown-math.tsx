@@ -266,7 +266,7 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
           return renderCard(group.items[0].segment, group.items[0].index);
         }
         return (
-          <div key={gi} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div key={gi} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {group.items.map(({ segment, index }) => renderCard(segment, index))}
           </div>
         );
