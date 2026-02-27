@@ -20,7 +20,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import type { Subject, ClassSession, BoardEntry, Task, Flashcard, ScheduleSlot, SubjectGradeRecord, CorteGrades, Quiz, QuizAttempt, SubjectDocument, ClassDocument, TaskSolverMessage, DynamicBoard } from "@/types";
+import type { Subject, ClassSession, BoardEntry, Task, Flashcard, ScheduleSlot, SubjectGradeRecord, CorteGrades, Quiz, QuizAttempt, SubjectDocument, ClassDocument, TaskSolverMessage, DynamicBoard, NotesChatMessage } from "@/types";
 
 // ── Subjects ──
 
@@ -1053,4 +1053,91 @@ export function useDynamicBoard(subjectId: string | null, classId: string | null
   }, [user, subjectId, classId]);
 
   return { board, loading, saveBoard, clearBoard };
+}
+
+// ── Notes AI Chat ──
+
+export function useNotesChat(subjectId: string | null, classId: string | null) {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<NotesChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user || !subjectId || !classId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(
+        db,
+        "users", user.uid,
+        "subjects", subjectId,
+        "classes", classId,
+        "notesChat"
+      ),
+      orderBy("createdAt", "asc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+        })) as NotesChatMessage[];
+        setMessages(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("useNotesChat snapshot error:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user, subjectId, classId]);
+
+  const addMessage = useCallback(
+    async (role: "user" | "assistant", content: string, imageUrls: string[] = []) => {
+      if (!user || !subjectId || !classId) return;
+      await addDoc(
+        collection(
+          db,
+          "users", user.uid,
+          "subjects", subjectId,
+          "classes", classId,
+          "notesChat"
+        ),
+        {
+          subjectId,
+          classSessionId: classId,
+          role,
+          content,
+          imageUrls,
+          createdAt: serverTimestamp(),
+        }
+      );
+    },
+    [user, subjectId, classId]
+  );
+
+  const clearChat = useCallback(async () => {
+    if (!user || !subjectId || !classId) return;
+    const batch = writeBatch(db);
+    const ref = collection(
+      db,
+      "users", user.uid,
+      "subjects", subjectId,
+      "classes", classId,
+      "notesChat"
+    );
+    const snap = await getDocs(ref);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }, [user, subjectId, classId]);
+
+  return { messages, loading, addMessage, clearChat };
 }
