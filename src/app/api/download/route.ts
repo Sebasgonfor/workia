@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { signCloudinaryUrl } from "@/app/api/_utils/cloudinary";
 
 const MIME_TYPES: Record<string, string> = {
   pdf: "application/pdf",
@@ -42,12 +43,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const response = await fetch(url);
+    // Sign the URL so Cloudinary accepts the request (required for raw resources)
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    const fetchUrl = apiSecret ? await signCloudinaryUrl(url, apiSecret) : url;
+
+    const response = await fetch(fetchUrl);
     if (!response.ok || !response.body) {
-      return NextResponse.json({ error: "Download failed" }, { status: response.status });
+      return NextResponse.json(
+        { error: "Download failed" },
+        { status: response.status },
+      );
     }
 
-    // Cloudinary raw uploads return application/octet-stream - detect real type
+    // Cloudinary raw uploads return application/octet-stream — detect real type
     let contentType =
       response.headers.get("content-type") || "application/octet-stream";
     if (contentType === "application/octet-stream") {
@@ -58,7 +66,7 @@ export async function GET(req: NextRequest) {
     const asciiName = filename.replace(/[^\x20-\x7E]/g, "_");
     const encodedName = encodeURIComponent(filename).replace(/'/g, "%27");
 
-    // Stream the response body directly instead of buffering the whole file
+    // Stream the response body directly
     return new NextResponse(response.body, {
       headers: {
         "Content-Type": contentType,
@@ -68,6 +76,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("Download proxy error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
