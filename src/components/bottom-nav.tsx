@@ -14,6 +14,7 @@ import {
   Clock,
   ScanLine,
   HelpCircle,
+  FileOutput,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const moreTabs = [
   { href: "/calendario", label: "Calendario", icon: Calendar },
   { href: "/horario", label: "Horario", icon: Clock },
   { href: "/escanear", label: "Escanear", icon: ScanLine },
+  { href: "/digitalizar", label: "Digitalizar", icon: FileOutput },
   { href: "/quiz", label: "Quiz", icon: HelpCircle },
 ];
 

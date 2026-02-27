@@ -269,6 +269,32 @@ export interface ChatConversation {
   updatedAt: Date;
 }
 
+// ── Digitalizations ──
+
+export interface Digitalization {
+  id: string;
+  title: string;
+  subjectId: string | null;
+  classSessionId: string | null;
+  sourceImages: string[];
+  pdfUrl: string;
+  pdfPublicId: string;
+  pageCount: number;
+  filter: DigitalizationFilter;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type DigitalizationFilter = "auto" | "document" | "grayscale" | "enhanced" | "original";
+
+export const DIGITALIZATION_FILTERS = [
+  { value: "auto" as const, label: "Auto", description: "Deteccion automatica" },
+  { value: "document" as const, label: "Documento", description: "Blanco y negro limpio" },
+  { value: "grayscale" as const, label: "Gris", description: "Escala de grises" },
+  { value: "enhanced" as const, label: "Color+", description: "Color mejorado" },
+  { value: "original" as const, label: "Original", description: "Sin cambios" },
+] as const;
+
 /** Returns the next occurrence date+slot for a given subject, or null if no slots exist. */
 export const nextClassDate = (
   slots: ScheduleSlot[],

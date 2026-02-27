@@ -116,8 +116,8 @@ export default function InicioPage() {
 
   return (
     <AppShell>
-      <div className="px-4 pt-safe pb-24 page-enter md:px-8 md:pt-8 md:ml-64">
-        <div className="max-w-6xl mx-auto space-y-6">
+      <div className="px-4 pt-safe pb-24 page-enter md:px-8 md:pt-8">
+        <div className="max-w-5xl space-y-6">
 
           {/* ── Header ── */}
           <div className="mt-4 md:mt-0 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1">

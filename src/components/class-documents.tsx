@@ -356,7 +356,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
 
       {/* Preview modal */}
       {preview && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+        <div className="fixed inset-0 z-[60] flex flex-col bg-background">
           <div className="flex items-center justify-between px-4 pt-safe pb-3 border-b border-border shrink-0">
             <p className="font-semibold text-sm truncate flex-1 mr-2">
               {preview.name}
@@ -379,7 +379,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             {previewLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -390,7 +390,7 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                 <img
                   src={previewFileUrl || preview.url}
                   alt={preview.name}
-                  className="max-w-full max-h-full object-contain rounded-xl"
+                  className="max-w-full object-contain rounded-xl"
                 />
               </div>
             ) : preview.fileType === "application/pdf" ? (
