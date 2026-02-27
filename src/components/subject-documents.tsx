@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { useSubjectDocuments } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth-context";
 import { Confirm } from "@/components/ui/confirm";
-import { downloadFile, fetchFileBlob } from "@/lib/file-helpers";
+import { downloadFile, fetchFileBlob, getSignedUrl } from "@/lib/file-helpers";
 import {
   FileText,
   ImageIcon,
@@ -53,9 +53,9 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<SubjectDocument | null>(null);
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
   const [pdfPreviewFallback, setPdfPreviewFallback] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDownload = useCallback(async (doc: SubjectDocument) => {
@@ -72,41 +72,64 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
 
   const handlePreview = useCallback(async (doc: SubjectDocument) => {
     if (doc.fileType.startsWith("image/")) {
-      setPdfPreviewUrl(null);
-      setPdfPreviewFallback(false);
-      setPdfLoading(false);
       setPreview(doc);
+      setPreviewFileUrl(null);
+      setPdfPreviewFallback(false);
+      setPreviewLoading(true);
+      // Images uploaded as raw resources also need signed URLs
+      try {
+        const signedUrl = await getSignedUrl(doc.url);
+        setPreviewFileUrl(signedUrl);
+      } catch {
+        // Fallback to original URL (works for image/ resource type uploads)
+        setPreviewFileUrl(doc.url);
+      } finally {
+        setPreviewLoading(false);
+      }
       return;
     }
     if (doc.fileType === "application/pdf") {
       setPreview(doc);
-      setPdfPreviewUrl(null);
+      setPreviewFileUrl(null);
       setPdfPreviewFallback(false);
-      setPdfLoading(true);
+      setPreviewLoading(true);
       try {
         const blob = await fetchFileBlob(doc.url, doc.name, "application/pdf");
         const objectUrl = URL.createObjectURL(blob);
-        setPdfPreviewUrl(objectUrl);
+        setPreviewFileUrl(objectUrl);
       } catch {
-        // Fallback: Google Docs Viewer
-        setPdfPreviewFallback(true);
+        // Fallback: Google Docs Viewer with signed URL
+        try {
+          const signedUrl = await getSignedUrl(doc.url);
+          setPdfPreviewFallback(true);
+          setPreviewFileUrl(signedUrl);
+        } catch {
+          setPdfPreviewFallback(true);
+          setPreviewFileUrl(doc.url);
+        }
       } finally {
-        setPdfLoading(false);
+        setPreviewLoading(false);
       }
       return;
     }
-    window.open(doc.url, "_blank");
+    // Other file types: get signed URL and open
+    try {
+      const signedUrl = await getSignedUrl(doc.url);
+      window.open(signedUrl, "_blank");
+    } catch {
+      window.open(doc.url, "_blank");
+    }
   }, []);
 
   const closePreview = useCallback(() => {
-    if (pdfPreviewUrl) {
-      URL.revokeObjectURL(pdfPreviewUrl);
-      setPdfPreviewUrl(null);
+    if (previewFileUrl && previewFileUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(previewFileUrl);
     }
+    setPreviewFileUrl(null);
     setPdfPreviewFallback(false);
-    setPdfLoading(false);
+    setPreviewLoading(false);
     setPreview(null);
-  }, [pdfPreviewUrl]);
+  }, [previewFileUrl]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -238,7 +261,14 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
                   <button
                     tabIndex={0}
                     aria-label="Abrir en nueva pestana"
-                    onClick={() => window.open(document.url, "_blank")}
+                    onClick={async () => {
+                      try {
+                        const signedUrl = await getSignedUrl(document.url);
+                        window.open(signedUrl, "_blank");
+                      } catch {
+                        window.open(document.url, "_blank");
+                      }
+                    }}
                     className="w-8 h-8 rounded-lg flex items-center justify-center active:bg-secondary/60"
                   >
                     <ExternalLink className="w-4 h-4 text-muted-foreground" />
@@ -295,29 +325,29 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
           </div>
 
           <div className="flex-1 overflow-hidden">
-            {preview.fileType.startsWith("image/") ? (
+            {previewLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : preview.fileType.startsWith("image/") ? (
               <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={preview.url}
+                  src={previewFileUrl || preview.url}
                   alt={preview.name}
                   className="max-w-full max-h-full object-contain rounded-xl"
                 />
               </div>
             ) : preview.fileType === "application/pdf" ? (
-              pdfLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : pdfPreviewUrl ? (
+              previewFileUrl && !pdfPreviewFallback ? (
                 <iframe
-                  src={pdfPreviewUrl}
+                  src={previewFileUrl}
                   title={preview.name}
                   className="w-full h-full border-0"
                 />
-              ) : pdfPreviewFallback ? (
+              ) : pdfPreviewFallback && previewFileUrl ? (
                 <iframe
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.url)}&embedded=true`}
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewFileUrl)}&embedded=true`}
                   title={preview.name}
                   className="w-full h-full border-0"
                 />
