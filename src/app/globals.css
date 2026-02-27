@@ -70,7 +70,11 @@
     text-size-adjust: 100%;
   }
   /* Prevent pull-to-refresh on PWA + no horizontal scroll */
-  html, body {
+  html {
+    overscroll-behavior-y: none;
+    overflow-x: clip;
+  }
+  body {
     overscroll-behavior-y: none;
     overflow-x: hidden;
   }

@@ -74,10 +74,13 @@ export const extractTOC = (
 };
 
 // ── Keyword preprocessing ──
-// <nc-kw>word</nc-kw> → [word](nc-kw:) → caught by custom `a` renderer → colored span
+// <nc-kw>word</nc-kw>              → [word](nc-kw:)       → uses subjectColor
+// <nc-kw color="#hex">word</nc-kw> → [word](nc-kw:#hex)   → uses specified color
 
 const preprocessKeywords = (text: string): string =>
-  text.replace(/<nc-kw>(.*?)<\/nc-kw>/g, "[$1](nc-kw:)");
+  text
+    .replace(/<nc-kw\s+color="([^"]+)">(.*?)<\/nc-kw>/g, "[$2](nc-kw:$1)")
+    .replace(/<nc-kw>(.*?)<\/nc-kw>/g, "[$1](nc-kw:)");
 
 // ── React node text extractor (for heading IDs) ──
 
@@ -124,10 +127,12 @@ const MdBlock = ({ content, className = "", subjectColor = "#6366f1", textColor 
         components={{
           code: mdCodeRenderer as never,
           pre: mdPreRenderer as never,
-          // Keyword colored span
+          // Keyword colored span — dynamic color via nc-kw: prefix
           a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
-            if (href === "nc-kw:")
-              return <span style={{ color: subjectColor, fontWeight: 600 }}>{children}</span>;
+            if (href?.startsWith("nc-kw:")) {
+              const kwColor = href.slice("nc-kw:".length) || subjectColor;
+              return <span style={{ color: kwColor, fontWeight: 600 }}>{children}</span>;
+            }
             return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
           },
           // H1 — large title
@@ -222,9 +227,9 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
                 {seg.type}
               </span>
             </div>
-            {/* Card body — text in type color */}
+            {/* Card body — default text color; keywords colored via nc-kw tags */}
             <div style={{ backgroundColor: cfg.bg, padding: "0.6rem 0.75rem" }}>
-              <MdBlock content={seg.content} textColor={cfg.text} subjectColor={subjectColor} />
+              <MdBlock content={seg.content} subjectColor={subjectColor} />
             </div>
           </div>
         );
