@@ -257,7 +257,7 @@ export function useBoardEntries(subjectId: string | null, classId: string | null
   }, [user, subjectId, classId]);
 
   const addEntry = useCallback(
-    async (data: { type: BoardEntry["type"]; content: string; tags: string[] }) => {
+    async (data: { type: BoardEntry["type"]; content: string; tags: string[]; sourceImages?: string[] }) => {
       if (!user || !subjectId || !classId) return;
       await addDoc(
         collection(
@@ -267,7 +267,7 @@ export function useBoardEntries(subjectId: string | null, classId: string | null
           type: data.type,
           content: data.content,
           rawContent: data.content,
-          sourceImages: [],
+          sourceImages: data.sourceImages || [],
           tags: data.tags,
           order: entries.length,
           createdAt: serverTimestamp(),
@@ -279,7 +279,7 @@ export function useBoardEntries(subjectId: string | null, classId: string | null
   );
 
   const updateEntry = useCallback(
-    async (id: string, data: { type?: BoardEntry["type"]; content?: string; tags?: string[] }) => {
+    async (id: string, data: { type?: BoardEntry["type"]; content?: string; tags?: string[]; sourceImages?: string[] }) => {
       if (!user || !subjectId || !classId) return;
       const updateData: Record<string, unknown> = { updatedAt: serverTimestamp() };
       if (data.type !== undefined) updateData.type = data.type;
@@ -288,6 +288,7 @@ export function useBoardEntries(subjectId: string | null, classId: string | null
         updateData.rawContent = data.content;
       }
       if (data.tags !== undefined) updateData.tags = data.tags;
+      if (data.sourceImages !== undefined) updateData.sourceImages = data.sourceImages;
       await updateDoc(
         doc(db, "users", user.uid, "subjects", subjectId, "classes", classId, "entries", id),
         updateData

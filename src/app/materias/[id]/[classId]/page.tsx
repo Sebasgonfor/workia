@@ -206,6 +206,12 @@ export default function BoardPage() {
   const [diagramPrompt, setDiagramPrompt] = useState("");
   const [generatingDiagram, setGeneratingDiagram] = useState(false);
 
+  // Reader image upload + enrichment state
+  const [readerPendingImages, setReaderPendingImages] = useState<{ url: string; file: File }[]>([]);
+  const [readerEnriching, setReaderEnriching] = useState(false);
+  const readerFileInputRef = useRef<HTMLInputElement>(null);
+  const readerCameraInputRef = useRef<HTMLInputElement>(null);
+
   // Scan state
   const [showScan, setShowScan] = useState(false);
   const [scanType, setScanType] = useState<ScanType>("auto");
@@ -745,6 +751,93 @@ export default function BoardPage() {
     }
   };
 
+  // ── Reader image upload + enrichment ──
+
+  const handleReaderFiles = (files: FileList | null) => {
+    if (!files) return;
+    const next = Array.from(files).map((file) => ({ url: URL.createObjectURL(file), file }));
+    setReaderPendingImages((prev) => [...prev, ...next]);
+  };
+
+  const removeReaderPending = (idx: number) => {
+    setReaderPendingImages((prev) => {
+      URL.revokeObjectURL(prev[idx].url);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  const handleReaderEnrich = async () => {
+    if (!readerEntry || readerPendingImages.length === 0) return;
+
+    setReaderEnriching(true);
+    const toastId = toast.loading("La IA está enriqueciendo tus apuntes...");
+
+    try {
+      // Upload source images to Cloudinary
+      const uploadedUrls: string[] = [];
+      if (user) {
+        for (let i = 0; i < readerPendingImages.length; i++) {
+          try {
+            const url = await uploadScanImage(user.uid, readerPendingImages[i].file, i);
+            uploadedUrls.push(url);
+          } catch { /* skip failed */ }
+        }
+      }
+
+      // Compress images for AI
+      const base64Images = await Promise.all(
+        readerPendingImages.map((img) => compressImageToBase64(img.file))
+      );
+
+      // Call the enrichment API (reuse dynamic-board enrich)
+      const response = await fetch("/api/dynamic-board/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          existingContent: readerEntry.content,
+          newImages: base64Images,
+          existingNotes: [],
+          subjectName: subject?.name || "General",
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new ApiError(data.error || "Error al enriquecer");
+
+      // Merge source images (existing + new)
+      const allSourceImages = Array.from(new Set([
+        ...(readerEntry.sourceImages || []),
+        ...uploadedUrls,
+      ]));
+
+      // Update the entry
+      await updateEntry(readerEntry.id, {
+        content: data.data.content,
+        sourceImages: allSourceImages,
+      });
+
+      // Update the reader entry in-place so user sees changes immediately
+      setReaderEntry({
+        ...readerEntry,
+        content: data.data.content,
+        sourceImages: allSourceImages,
+        updatedAt: new Date(),
+      });
+
+      // Cleanup
+      readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url));
+      setReaderPendingImages([]);
+
+      toast.dismiss(toastId);
+      toast.success("¡Apuntes actualizados con las nuevas imágenes!");
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error(err instanceof ApiError ? err.message : "Error al enriquecer los apuntes");
+    } finally {
+      setReaderEnriching(false);
+    }
+  };
+
   // ── Voice recording functions ──
 
   const handleStartRecording = async () => {
@@ -1060,6 +1153,14 @@ export default function BoardPage() {
                               {entry.tags.map((tag) => (
                                 <span key={tag} className="px-1.5 py-0.5 rounded-full text-[10px] bg-secondary text-muted-foreground">{tag}</span>
                               ))}
+                            </div>
+                          )}
+                          {entry.sourceImages && entry.sourceImages.length > 0 && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <ImagePlus className="w-3 h-3 text-muted-foreground/60" />
+                              <span className="text-[10px] text-muted-foreground/60">
+                                {entry.sourceImages.length} foto{entry.sourceImages.length !== 1 ? "s" : ""} fuente
+                              </span>
                             </div>
                           )}
                           {entry.type === "notes" && entry.content.length > 30 && (
@@ -2009,13 +2110,31 @@ export default function BoardPage() {
       {/* Notes Reader Fullscreen */}
       {readerEntry && (
         <div className="fixed inset-0 z-50 bg-background flex flex-col">
+          {/* Hidden file inputs for reader image upload */}
+          <input
+            ref={readerFileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => { handleReaderFiles(e.target.files); e.target.value = ""; }}
+          />
+          <input
+            ref={readerCameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => { handleReaderFiles(e.target.files); e.target.value = ""; }}
+          />
+
           {/* Header */}
           <div
             className="shrink-0 px-4 pt-safe pb-3 border-b border-border"
             style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)` }}
           >
             <button
-              onClick={() => setReaderEntry(null)}
+              onClick={() => { setReaderEntry(null); readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url)); setReaderPendingImages([]); }}
               className="flex items-center gap-1.5 text-muted-foreground mb-2 active:opacity-70 touch-target"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -2030,6 +2149,11 @@ export default function BoardPage() {
               </span>
               {classSession && (
                 <span className="text-xs text-muted-foreground">&middot; {classSession.title}</span>
+              )}
+              {readerEntry.sourceImages && readerEntry.sourceImages.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  &middot; {readerEntry.sourceImages.length} foto{readerEntry.sourceImages.length !== 1 ? "s" : ""} fuente
+                </span>
               )}
             </div>
             {readerEntry.tags.length > 0 && (
@@ -2052,11 +2176,77 @@ export default function BoardPage() {
             <MarkdownMath content={readerEntry.content} />
           </div>
 
+          {/* Pending images strip */}
+          {readerPendingImages.length > 0 && (
+            <div className="shrink-0 px-4 pt-2 pb-1 border-t border-border bg-background">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                {readerPendingImages.length} foto{readerPendingImages.length !== 1 ? "s" : ""} pendiente{readerPendingImages.length !== 1 ? "s" : ""}
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {readerPendingImages.map((img, idx) => (
+                  <div key={idx} className="relative shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.url}
+                      alt="foto pendiente"
+                      className="w-14 h-14 rounded-xl object-cover border border-border"
+                    />
+                    <button
+                      onClick={() => removeReaderPending(idx)}
+                      aria-label="Quitar foto"
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Floating actions */}
           <div className="shrink-0 px-4 pb-safe pt-2 border-t border-border bg-background/80 backdrop-blur-lg">
+            {/* Enrich button (when there are pending images) */}
+            {readerPendingImages.length > 0 && (
+              <button
+                onClick={handleReaderEnrich}
+                disabled={readerEnriching}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-primary-foreground font-semibold text-sm mb-2 active:scale-[0.98] transition-transform disabled:opacity-60"
+                style={{ backgroundColor: color }}
+                aria-label="Enriquecer apuntes con IA"
+              >
+                {readerEnriching ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Enriqueciendo apuntes...</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> Enriquecer con IA ({readerPendingImages.length} foto{readerPendingImages.length !== 1 ? "s" : ""})</>
+                )}
+              </button>
+            )}
+
+            {/* Image add buttons */}
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <button
+                onClick={() => readerCameraInputRef.current?.click()}
+                disabled={readerEnriching}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-secondary text-foreground text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-50"
+                aria-label="Tomar foto para agregar"
+              >
+                <Camera className="w-3.5 h-3.5" /> Agregar foto
+              </button>
+              <button
+                onClick={() => readerFileInputRef.current?.click()}
+                disabled={readerEnriching}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-secondary text-foreground text-xs font-medium active:scale-[0.98] transition-transform disabled:opacity-50"
+                aria-label="Subir imagen para agregar"
+              >
+                <ImagePlus className="w-3.5 h-3.5" /> Galería
+              </button>
+            </div>
+
+            {/* Main actions */}
             <div className="flex items-center justify-center gap-2">
               <button
-                onClick={() => { const entry = readerEntry; setReaderEntry(null); openEdit(entry); }}
+                onClick={() => { const entry = readerEntry; setReaderEntry(null); readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url)); setReaderPendingImages([]); openEdit(entry); }}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-foreground text-sm font-medium active:scale-[0.97] transition-transform"
               >
                 <Pencil className="w-4 h-4" /> Editar
@@ -2074,7 +2264,7 @@ export default function BoardPage() {
                 )}
               </button>
               <button
-                onClick={() => { const id = readerEntry.id; setReaderEntry(null); setDeleteId(id); }}
+                onClick={() => { const id = readerEntry.id; setReaderEntry(null); readerPendingImages.forEach((img) => URL.revokeObjectURL(img.url)); setReaderPendingImages([]); setDeleteId(id); }}
                 className="px-3 py-2.5 rounded-xl bg-destructive/10 text-destructive active:scale-[0.97] transition-transform"
               >
                 <Trash2 className="w-4 h-4" />
