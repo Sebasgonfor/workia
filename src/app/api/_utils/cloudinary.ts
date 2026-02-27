@@ -24,7 +24,10 @@ export async function signCloudinaryUrl(
   // Already signed — don't double-sign
   if (/\/s--[A-Za-z0-9_-]{8}--\//.test(pathname)) return url;
 
-  const toSign = pathname.substring(uploadIdx + "/upload/".length);
+  let toSign = pathname.substring(uploadIdx + "/upload/".length);
+
+  // Cloudinary signs only the public_id — strip the version prefix (e.g. "v1234567890/")
+  toSign = toSign.replace(/^v\d+\//, "");
 
   const encoder = new TextEncoder();
   const data = encoder.encode(toSign + apiSecret);

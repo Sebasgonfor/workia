@@ -82,6 +82,10 @@ const preprocessKeywords = (text: string): string =>
     .replace(/<nc-kw\s+color="([^"]+)">(.*?)<\/nc-kw>/g, "[$2](nc-kw:$1)")
     .replace(/<nc-kw>(.*?)<\/nc-kw>/g, "[$1](nc-kw:)");
 
+// Strip any leftover <nc-*> open/close tags that weren't matched by the segment parser
+const stripNcTags = (text: string): string =>
+  text.replace(/<\/?nc-[a-z]+(\s[^>]*)?>/g, "");
+
 // ── React node text extractor (for heading IDs) ──
 
 const getNodeText = (node: React.ReactNode): string => {
@@ -114,7 +118,7 @@ interface MdBlockProps {
 }
 
 const MdBlock = ({ content, className = "", subjectColor = "#6366f1", textColor }: MdBlockProps) => {
-  const processed = useMemo(() => preprocessKeywords(content), [content]);
+  const processed = useMemo(() => preprocessKeywords(stripNcTags(content)), [content]);
 
   return (
     <div
