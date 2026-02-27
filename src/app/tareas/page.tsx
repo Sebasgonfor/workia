@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   CheckSquare,
@@ -12,12 +13,16 @@ import {
   Clock,
   ChevronRight,
   Flame,
+  Bot,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { useSubjects, useTasks, useSchedule } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth-context";
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { TASK_TYPES, TASK_PRIORITIES, nextClassDate } from "@/types";
 import type { Task } from "@/types";
 import { toast } from "sonner";
@@ -61,6 +66,8 @@ interface TaskGroup {
 }
 
 export default function TareasPage() {
+  const router = useRouter();
+  const { user } = useAuth();
   const { subjects } = useSubjects();
   const { tasks, loading, addTask, updateTask, deleteTask } = useTasks();
   const { slots } = useSchedule();
@@ -73,6 +80,32 @@ export default function TareasPage() {
 
   // Detail view
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [solvingAI, setSolvingAI] = useState(false);
+
+  const handleSolveWithAI = async (task: Task) => {
+    if (!user) return;
+    setSolvingAI(true);
+    try {
+      // If the task was created from a class, navigate directly
+      if (task.classSessionId) {
+        router.push(`/materias/${task.subjectId}/${task.classSessionId}/resolver/${task.id}`);
+        return;
+      }
+      // Otherwise, pick the first class of the subject as context
+      const classesRef = collection(db, "users", user.uid, "subjects", task.subjectId, "classes");
+      const snap = await getDocs(query(classesRef, orderBy("createdAt", "asc"), limit(1)));
+      if (snap.empty) {
+        toast.error("Esta materia no tiene entradas de clase todavía");
+        return;
+      }
+      const classId = snap.docs[0].id;
+      router.push(`/materias/${task.subjectId}/${classId}/resolver/${task.id}`);
+    } catch {
+      toast.error("Error al abrir el resolvedor");
+    } finally {
+      setSolvingAI(false);
+    }
+  };
 
   const [title, setTitle] = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -499,6 +532,22 @@ export default function TareasPage() {
                     <MarkdownMath content={detailTask.description} />
                   </div>
                 </div>
+              )}
+
+              {/* Resolver con IA */}
+              {!isComplete && (
+                <button
+                  onClick={() => { setDetailTask(null); handleSolveWithAI(detailTask); }}
+                  disabled={solvingAI}
+                  aria-label="Resolver tarea con IA"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm text-white bg-primary active:scale-[0.98] transition-transform disabled:opacity-60"
+                >
+                  {solvingAI ? (
+                    <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Abriendo...</>
+                  ) : (
+                    <><Bot className="w-4 h-4" />Resolver con IA</>
+                  )}
+                </button>
               )}
 
               {/* Actions */}
