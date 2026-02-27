@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, ReactNode } from "react";
 import { BottomNav } from "@/components/bottom-nav";
+import { Sidebar } from "@/components/sidebar";
 import { useTasks } from "@/lib/hooks";
 import { checkAndNotifyTasks } from "@/lib/notifications";
 
@@ -48,7 +49,8 @@ export function AppShell({ children, hideBottomNav = false }: { children: ReactN
   if (!user) return null;
 
   return (
-    <div className={hideBottomNav ? "" : "pb-20"}>
+    <div className={hideBottomNav ? "" : "pb-20 md:pb-0"}>
+      <Sidebar />
       {children}
       <NotificationChecker />
       {!hideBottomNav && <BottomNav />}

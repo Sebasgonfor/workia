@@ -81,7 +81,7 @@ export default function CalendarioPage() {
     <AppShell>
       <div className="page-enter flex flex-col" style={{ height: "calc(100dvh - 64px)" }}>
         {/* Header */}
-        <div className="px-4 pt-safe pb-2 flex-shrink-0">
+        <div className="px-4 pt-safe pb-2 flex-shrink-0 md:px-8 md:pt-8 md:max-w-6xl">
           <h1 className="text-2xl font-bold mb-2">Calendario</h1>
           <div className="flex items-center gap-2">
             <button
@@ -159,14 +159,14 @@ export default function CalendarioPage() {
                   <div
                     key={i}
                     className={cn(
-                      "flex flex-col items-center justify-center py-1.5 flex-shrink-0 border-l border-border",
+                      "flex flex-col items-center justify-center py-1.5 flex-shrink-0 border-l border-border md:flex-1 md:min-w-[120px]",
                       isToday(day) && "bg-primary/5"
                     )}
                     style={{ width: DAY_COL_W }}
                   >
                     <span
                       className={cn(
-                        "text-[10px] font-semibold uppercase tracking-wide",
+                        "text-[10px] font-semibold uppercase tracking-wide md:text-xs",
                         isToday(day) ? "text-primary" : "text-muted-foreground"
                       )}
                     >
@@ -204,7 +204,7 @@ export default function CalendarioPage() {
                     className="absolute flex items-start justify-end pr-1.5 w-full"
                     style={{ top: (hour - GRID_START) * HOUR_HEIGHT - 8 }}
                   >
-                    <span className="text-[10px] text-muted-foreground leading-none">
+                    <span className="text-[10px] text-muted-foreground leading-none md:text-xs">
                       {hour < 12
                         ? `${hour}am`
                         : hour === 12
@@ -228,7 +228,7 @@ export default function CalendarioPage() {
                   <div
                     key={toDateStr(day)}
                     className={cn(
-                      "flex-shrink-0 relative border-l border-border",
+                      "flex-shrink-0 relative border-l border-border md:flex-1 md:min-w-[120px]",
                       isToday(day) && "bg-primary/5"
                     )}
                     style={{ width: DAY_COL_W, height: gridHeight }}
@@ -284,10 +284,10 @@ export default function CalendarioPage() {
                               : "#6366f1d9",
                           }}
                         >
-                          <p className="text-[9px] font-bold text-white leading-tight truncate">
+                          <p className="text-[9px] font-bold text-white leading-tight truncate md:text-xs">
                             {subject?.emoji} {subject?.name}
                           </p>
-                          <p className="text-[8px] text-white/75 leading-tight">
+                          <p className="text-[8px] text-white/75 leading-tight md:text-xs">
                             {slot.startTime}
                           </p>
                         </div>
@@ -318,7 +318,7 @@ export default function CalendarioPage() {
                           }}
                         >
                           <span
-                            className="text-[8px] font-semibold truncate block leading-5"
+                            className="text-[8px] font-semibold truncate block leading-5 md:text-xs"
                             style={{
                               color: isParcial ? "#ef4444" : subject?.color ?? "#6366f1",
                             }}

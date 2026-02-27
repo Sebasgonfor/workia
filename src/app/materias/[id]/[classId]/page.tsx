@@ -880,9 +880,9 @@ export default function BoardPage() {
 
   return (
     <AppShell>
-      <div className="page-enter">
+      <div className="page-enter md:max-w-5xl md:mx-auto">
         <div
-          className="px-4 pt-safe pb-4"
+          className="px-4 pt-safe pb-4 md:px-8"
           style={{ background: `linear-gradient(135deg, ${color}15 0%, transparent 60%)` }}
         >
           <button onClick={() => router.back()} className="flex items-center gap-1.5 text-muted-foreground mb-3 active:opacity-70 touch-target">
@@ -936,7 +936,7 @@ export default function BoardPage() {
         )}
 
         {/* Tab bar */}
-        <div className="px-4 pt-3 pb-1">
+        <div className="px-4 pt-3 pb-1 md:px-8">
           <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl">
             <button
               onClick={() => setActiveTab("apuntes")}
@@ -980,7 +980,7 @@ export default function BoardPage() {
           <>
         {/* Filters */}
         {entries.length > 0 && (
-          <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5">
+          <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5 md:px-8">
             {[
               { key: "all" as const, label: "Todo" },
               { key: "notes" as const, label: "Apuntes" },
@@ -1002,7 +1002,7 @@ export default function BoardPage() {
           </div>
         )}
 
-        <div className="px-4">
+        <div className="px-4 md:px-8">
           {loading ? (
             <div className="space-y-2.5 mt-3">
               {[1, 2, 3].map((i) => (
@@ -1032,7 +1032,7 @@ export default function BoardPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2.5 mt-3">
+            <div className="space-y-2.5 mt-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
               {filteredEntries.map((entry) => {
                 const Icon = ENTRY_ICONS[entry.type];
                 const typeLabel = BOARD_ENTRY_TYPES.find((t) => t.value === entry.type)?.label || entry.type;
@@ -1052,7 +1052,7 @@ export default function BoardPage() {
                             <span className="text-[11px] font-semibold" style={{ color }}>{typeLabel}</span>
                             <span className="text-[11px] text-muted-foreground">{timeAgo(entry.createdAt)}</span>
                           </div>
-                          <div className="text-sm leading-relaxed line-clamp-4">
+                          <div className="text-sm leading-relaxed line-clamp-4 md:line-clamp-6">
                             <MarkdownMath content={entry.content} />
                           </div>
                           {entry.tags.length > 0 && (
@@ -1140,7 +1140,7 @@ export default function BoardPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Tareas de esta clase ({classTasks.length})
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                 {classTasks.map((task) => {
                   const isComplete = task.status === "completed";
                   const priorityData = TASK_PRIORITIES.find((p) => p.value === task.priority);
@@ -1219,7 +1219,7 @@ export default function BoardPage() {
         )}
 
         {activeTab === "tablero" && (
-          <div className="px-4">
+          <div className="px-4 md:px-8">
             <DynamicBoardTab
               subjectId={subjectId}
               classId={classId}
@@ -1231,7 +1231,7 @@ export default function BoardPage() {
         )}
 
         {activeTab === "documentos" && (
-          <div className="px-4 pt-2">
+          <div className="px-4 pt-2 md:px-8">
             <ClassDocuments
               subjectId={subjectId}
               classId={classId}

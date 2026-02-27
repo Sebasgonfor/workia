@@ -56,7 +56,7 @@ export default function PerfilPage() {
 
   return (
     <AppShell>
-      <div className="px-4 pt-safe page-enter">
+      <div className="px-4 pt-safe page-enter md:px-8 md:pt-8 md:max-w-3xl md:mx-auto">
         <h1 className="text-2xl font-bold mb-5">Perfil</h1>
 
         {/* User info */}
@@ -92,7 +92,7 @@ export default function PerfilPage() {
         </div>
 
         {/* Academic stats */}
-        <div className="grid grid-cols-2 gap-2.5 mb-4">
+        <div className="grid grid-cols-2 gap-2.5 mb-4 md:grid-cols-4">
           <div className="p-3.5 rounded-xl bg-card border border-border">
             <div className="flex items-center gap-2 mb-1.5">
               <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">

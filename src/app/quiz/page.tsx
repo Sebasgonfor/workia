@@ -73,7 +73,7 @@ export default function QuizListPage() {
 
   return (
     <AppShell>
-      <div className="px-4 pt-6 pb-32 max-w-lg mx-auto">
+      <div className="px-4 pt-6 pb-32 max-w-lg mx-auto md:px-8 md:pt-8 md:max-w-5xl">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Quiz</h1>
@@ -126,7 +126,7 @@ export default function QuizListPage() {
                 </div>
 
                 {/* Quiz cards */}
-                <div className="space-y-2">
+                <div className="space-y-2 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:space-y-0">
                   {group.quizzes.map((quiz) => (
                     <div
                       key={quiz.id}
