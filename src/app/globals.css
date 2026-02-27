@@ -260,6 +260,28 @@
 }
 .markdown-math .katex { font-size: 1.3em; }
 
+/* ── Equation step lists ── */
+/* Give list items that contain display math extra breathing room */
+.markdown-math ol li,
+.markdown-math ul li {
+  margin-bottom: 0.6em;
+  line-height: 1.7;
+}
+/* Display math inside a list item: add vertical spacing and a subtle left accent */
+.markdown-math ol li .katex-display,
+.markdown-math ul li .katex-display {
+  margin: 0.4em 0 0.6em 0;
+  padding: 0.55em 0.85em;
+  border-left: 3px solid hsl(var(--primary) / 0.45);
+  border-radius: 0 0.45rem 0.45rem 0;
+  background: hsl(var(--secondary) / 0.45);
+}
+/* Slightly smaller font so long equations don't overflow on mobile */
+.markdown-math ol li .katex-display > .katex,
+.markdown-math ul li .katex-display > .katex {
+  font-size: 1.2em;
+}
+
 /* Inline mode for titles */
 .markdown-math-inline { display: inline; }
 .markdown-math-inline .katex { font-size: 1.1em; }

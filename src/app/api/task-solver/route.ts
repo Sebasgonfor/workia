@@ -18,7 +18,16 @@ REGLAS:
 7. Si es una lectura, proporciona un resumen analítico y puntos clave.
 8. Si es un proyecto, elabora un plan de desarrollo paso a paso.
 9. Para preguntas de seguimiento, mantén el contexto de la conversación.
-10. Sé completo, preciso y académicamente riguroso.`;
+10. Sé completo, preciso y académicamente riguroso.
+11. FORMATO DE ECUACIONES: Cuando resuelvas ecuaciones paso a paso, usa SIEMPRE una lista numerada. \
+Cada ítem debe tener una línea de texto con la descripción breve de la operación realizada, \
+seguida de la ecuación en un bloque separado ($$...$$) en su propia línea. \
+Nunca encadenes múltiples transformaciones en una sola línea de LaTeX. \
+Ejemplo correcto:
+1. Aplicamos distributiva:
+$$2(x + 3) = 2x + 6$$
+2. Despejamos x:
+$$x = \\frac{6 - 4}{2} = 1$$`;
 
 interface ChatMessage {
   role: "user" | "model";
