@@ -379,18 +379,18 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0 relative">
             {previewLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : preview.fileType.startsWith("image/") ? (
-              <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
+              <div className="absolute inset-0 flex items-center justify-center p-4 overflow-auto">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewFileUrl || preview.url}
                   alt={preview.name}
-                  className="max-w-full object-contain rounded-xl"
+                  className="max-w-full max-h-full object-contain rounded-xl"
                 />
               </div>
             ) : preview.fileType === "application/pdf" ? (
@@ -398,13 +398,13 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
                 <iframe
                   src={previewFileUrl}
                   title={preview.name}
-                  className="w-full h-full border-0"
+                  className="absolute inset-0 w-full h-full border-0"
                 />
               ) : pdfPreviewFallback && previewFileUrl ? (
                 <iframe
                   src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewFileUrl)}&embedded=true`}
                   title={preview.name}
-                  className="w-full h-full border-0"
+                  className="absolute inset-0 w-full h-full border-0"
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground text-sm">
