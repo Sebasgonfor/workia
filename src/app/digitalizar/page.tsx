@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Plus,
   FileText,
   Camera,
+  ImagePlus,
   X,
   Loader2,
   Trash2,
@@ -25,6 +26,9 @@ import type { DigitalizationFilter } from "@/types";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { CameraScanner, type CapturedImage } from "@/components/camera-scanner";
+import { loadOpenCV, isOpenCVLoaded } from "@/lib/opencv-loader";
+import { processImageWithOpenCV } from "@/lib/document-detection";
 
 type Step = "upload" | "processing" | "preview";
 
@@ -34,43 +38,11 @@ interface ProcessedImage {
   height: number;
 }
 
-/** Compress an image file to a JPEG Blob (max 2000px, 80% quality) for mobile-friendly uploads */
-function compressImage(file: File): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const MAX = 2000;
-      let { width, height } = img;
-      if (width > MAX || height > MAX) {
-        if (width > height) {
-          height = Math.round((height * MAX) / width);
-          width = MAX;
-        } else {
-          width = Math.round((width * MAX) / height);
-          height = MAX;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("Canvas not supported")); return; }
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => {
-          URL.revokeObjectURL(img.src);
-          blob ? resolve(blob) : reject(new Error("Compression failed"));
-        },
-        "image/jpeg",
-        0.82
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(img.src);
-      reject(new Error("Failed to load image"));
-    };
-    img.src = URL.createObjectURL(file);
-  });
+interface PreparedImage {
+  blob: Blob;
+  preview: string;
+  width: number;
+  height: number;
 }
 
 export default function DigitalizarPage() {
@@ -82,9 +54,8 @@ export default function DigitalizarPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [step, setStep] = useState<Step>("upload");
 
-  // Upload form state
-  const [images, setImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  // Upload form state — images are now pre-processed (perspective-corrected)
+  const [preparedImages, setPreparedImages] = useState<PreparedImage[]>([]);
   const [title, setTitle] = useState("");
   const [filter, setFilter] = useState<DigitalizationFilter>("auto");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(
@@ -95,6 +66,13 @@ export default function DigitalizarPage() {
   // Processing / preview state
   const [processedImages, setProcessedImages] = useState<ProcessedImage[]>([]);
   const [saving, setSaving] = useState(false);
+  const [processingGallery, setProcessingGallery] = useState(false);
+
+  // Camera state
+  const [showCamera, setShowCamera] = useState(false);
+
+  // OpenCV state
+  const [cvLoaded, setCvLoaded] = useState(false);
 
   // Delete state
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -110,52 +88,99 @@ export default function DigitalizarPage() {
     selectedClassId
   );
 
-  // ── Image handling ──
+  // ── Preload OpenCV.js ──
+  useEffect(() => {
+    loadOpenCV()
+      .then(() => setCvLoaded(true))
+      .catch((err) => console.warn("OpenCV preload failed:", err));
+  }, []);
+
+  // ── Camera capture ──
+
+  const handleCameraCapture = useCallback((images: CapturedImage[]) => {
+    setShowCamera(false);
+    setPreparedImages((prev) => [
+      ...prev,
+      ...images.map((img) => ({
+        blob: img.blob,
+        preview: img.preview,
+        width: img.width,
+        height: img.height,
+      })),
+    ]);
+  }, []);
+
+  // ── Gallery file select ──
 
   const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files || []);
       if (files.length === 0) return;
-
-      const newImages = [...images, ...files];
-      setImages(newImages);
-
-      // Generate previews
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          setImagePreviews((prev) => [...prev, ev.target?.result as string]);
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // Reset the input so the same file can be re-selected
       e.target.value = "";
-    },
-    [images]
-  );
 
-  const removeImage = useCallback(
-    (index: number) => {
-      setImages((prev) => prev.filter((_, i) => i !== index));
-      setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+      setProcessingGallery(true);
+
+      for (const file of files) {
+        try {
+          // Load image into an HTMLImageElement
+          const img = await loadImageFromFile(file);
+
+          // Resize for processing (max 2000px)
+          const canvas = resizeToCanvas(img, 2000);
+
+          if (isOpenCVLoaded()) {
+            // Process with OpenCV: detect document + correct perspective
+            const cv = (window as any).cv;
+            const result = await processImageWithOpenCV(cv, canvas);
+            setPreparedImages((prev) => [
+              ...prev,
+              {
+                blob: result.blob,
+                preview: result.preview,
+                width: result.width,
+                height: result.height,
+              },
+            ]);
+          } else {
+            // OpenCV not ready: use image as-is (server will just enhance)
+            const blob = await canvasToBlob(canvas);
+            const preview = canvas.toDataURL("image/jpeg", 0.85);
+            setPreparedImages((prev) => [
+              ...prev,
+              {
+                blob,
+                preview,
+                width: canvas.width,
+                height: canvas.height,
+              },
+            ]);
+          }
+        } catch (err) {
+          console.error("Error processing gallery image:", err);
+          toast.error("Error al cargar imagen");
+        }
+      }
+
+      setProcessingGallery(false);
     },
     []
   );
 
-  // ── Process images ──
+  const removeImage = useCallback((index: number) => {
+    setPreparedImages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // ── Process images (send to server for enhancement) ──
 
   const handleDigitalize = useCallback(async () => {
-    if (images.length === 0 || !title.trim()) return;
+    if (preparedImages.length === 0 || !title.trim()) return;
 
     setStep("processing");
 
     try {
-      // Compress images client-side before sending (critical for mobile cameras)
       const fd = new FormData();
-      for (const img of images) {
-        const compressed = await compressImage(img);
-        fd.append("images", compressed, "photo.jpg");
+      for (const img of preparedImages) {
+        fd.append("images", img.blob, "photo.jpg");
       }
       fd.append("filter", filter);
 
@@ -174,14 +199,13 @@ export default function DigitalizarPage() {
       toast.error("Error al procesar las imagenes");
       setStep("upload");
     }
-  }, [images, title, filter]);
+  }, [preparedImages, title, filter]);
 
   // ── Save flow ──
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      // 1. Generate PDF client-side (dynamic import for SSR safety)
       const { jsPDF } = await import("jspdf");
       const pdf = new jsPDF({ unit: "px" });
 
@@ -203,7 +227,6 @@ export default function DigitalizarPage() {
         type: "application/pdf",
       });
 
-      // 2. Upload PDF to Cloudinary (single upload — the only one needed)
       const pdfFd = new FormData();
       pdfFd.append("file", pdfFile);
       pdfFd.append("folder", "workia/digitalizations");
@@ -214,7 +237,6 @@ export default function DigitalizarPage() {
       const pdfData = await pdfRes.json();
       if (!pdfRes.ok) throw new Error(pdfData.error);
 
-      // 3. Save to digitalizations collection
       await addDigitalization({
         title: title.trim(),
         subjectId: selectedSubjectId,
@@ -226,7 +248,6 @@ export default function DigitalizarPage() {
         filter,
       });
 
-      // 4. Also save as document in subject/class if selected
       if (selectedSubjectId) {
         const docData = {
           name: `${title.trim()}.pdf`,
@@ -265,8 +286,7 @@ export default function DigitalizarPage() {
   // ── Reset ──
 
   const resetForm = useCallback(() => {
-    setImages([]);
-    setImagePreviews([]);
+    setPreparedImages([]);
     setTitle("");
     setFilter("auto");
     setSelectedSubjectId(null);
@@ -411,7 +431,7 @@ export default function DigitalizarPage() {
       <Sheet
         open={showCreate}
         onClose={() => {
-          if (step === "processing") return; // Prevent closing during processing
+          if (step === "processing") return;
           setShowCreate(false);
           resetForm();
         }}
@@ -426,23 +446,37 @@ export default function DigitalizarPage() {
         {/* ── Step: Upload ── */}
         {step === "upload" && (
           <div className="space-y-4">
-            {/* Image upload area */}
+            {/* Capture options: Camera + Gallery */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                 Imagenes
               </label>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-8 rounded-xl border-2 border-dashed border-border bg-secondary/50 flex flex-col items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-              >
-                <Camera className="w-8 h-8 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Toca para subir fotos
-                </span>
-                <span className="text-[10px] text-muted-foreground/50">
-                  Puedes seleccionar varias a la vez
-                </span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setShowCamera(true)}
+                  className="py-6 rounded-xl border-2 border-dashed border-border bg-secondary/50 flex flex-col items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                >
+                  <Camera className="w-7 h-7 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Camara
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/50">
+                    Deteccion en vivo
+                  </span>
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="py-6 rounded-xl border-2 border-dashed border-border bg-secondary/50 flex flex-col items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                >
+                  <ImagePlus className="w-7 h-7 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Galeria
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/50">
+                    Seleccionar fotos
+                  </span>
+                </button>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -453,13 +487,23 @@ export default function DigitalizarPage() {
               />
             </div>
 
+            {/* Processing gallery indicator */}
+            {processingGallery && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10">
+                <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                <span className="text-xs text-primary font-medium">
+                  Detectando documentos...
+                </span>
+              </div>
+            )}
+
             {/* Image thumbnails grid */}
-            {imagePreviews.length > 0 && (
+            {preparedImages.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
-                {imagePreviews.map((preview, index) => (
+                {preparedImages.map((img, index) => (
                   <div key={index} className="relative group">
                     <img
-                      src={preview}
+                      src={img.preview}
                       alt={`Imagen ${index + 1}`}
                       className="w-full h-32 object-cover rounded-xl border border-border"
                     />
@@ -540,7 +584,7 @@ export default function DigitalizarPage() {
               </select>
             </div>
 
-            {/* Class dropdown (only if subject selected) */}
+            {/* Class dropdown */}
             {selectedSubjectId && classes.length > 0 && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
@@ -567,7 +611,7 @@ export default function DigitalizarPage() {
             {/* Digitalizar button */}
             <button
               onClick={handleDigitalize}
-              disabled={images.length === 0 || !title.trim()}
+              disabled={preparedImages.length === 0 || !title.trim()}
               className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <Camera className="w-4 h-4" />
@@ -581,10 +625,10 @@ export default function DigitalizarPage() {
           <div className="flex flex-col items-center justify-center py-16">
             <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
             <p className="text-sm text-muted-foreground">
-              Procesando imagenes...
+              Mejorando imagenes...
             </p>
             <p className="text-[10px] text-muted-foreground/50 mt-1">
-              Esto puede tomar unos segundos
+              Aplicando filtros de escaner
             </p>
           </div>
         )}
@@ -599,7 +643,6 @@ export default function DigitalizarPage() {
                 : "imagenes procesadas"}
             </p>
 
-            {/* Preview grid */}
             <div className="grid grid-cols-2 gap-2">
               {processedImages.map((img, index) => (
                 <div key={index} className="relative">
@@ -615,7 +658,6 @@ export default function DigitalizarPage() {
               ))}
             </div>
 
-            {/* Action buttons */}
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -647,6 +689,14 @@ export default function DigitalizarPage() {
         )}
       </Sheet>
 
+      {/* Camera Scanner Overlay */}
+      {showCamera && (
+        <CameraScanner
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
       {/* Confirm delete dialog */}
       <Confirm
         open={!!deleteId}
@@ -657,4 +707,50 @@ export default function DigitalizarPage() {
       />
     </AppShell>
   );
+}
+
+// ── Utility functions ──
+
+function loadImageFromFile(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function resizeToCanvas(img: HTMLImageElement, maxDim: number): HTMLCanvasElement {
+  let { width, height } = img;
+  if (width > maxDim || height > maxDim) {
+    if (width > height) {
+      height = Math.round((height * maxDim) / width);
+      width = maxDim;
+    } else {
+      width = Math.round((width * maxDim) / height);
+      height = maxDim;
+    }
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, width, height);
+  return canvas;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
+      "image/jpeg",
+      0.85
+    );
+  });
 }
