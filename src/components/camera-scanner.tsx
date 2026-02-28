@@ -2,7 +2,6 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { X, Camera, Loader2, Check } from "lucide-react";
-import { processImage } from "@/lib/document-detection";
 
 export interface CapturedImage {
   blob: Blob;
@@ -16,7 +15,12 @@ interface CameraScannerProps {
   onClose: () => void;
 }
 
-export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
+/**
+ * Simple camera capture component.
+ * No live document detection — just capture photos.
+ * Corner editing happens post-capture in the CornerEditor.
+ */
+export const CameraScanner = ({ onCapture, onClose }: CameraScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
@@ -27,7 +31,7 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
 
   const streamRef = useRef<MediaStream | null>(null);
 
-  // ── Init camera (instant — no OpenCV loading) ──
+  // ── Init camera ──
   useEffect(() => {
     let mounted = true;
 
@@ -76,30 +80,31 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
     };
   }, []);
 
-  // ── Capture current frame + detect & correct perspective ──
+  // ── Capture current frame (raw, no processing) ──
   const captureFrame = useCallback(async () => {
     if (capturing || !videoRef.current) return;
     setCapturing(true);
 
     try {
       const video = videoRef.current;
-
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(video, 0, 0);
 
-      // Detect document + correct perspective (pure JS, ~100-200ms)
-      const result = await processImage(canvas);
+      const preview = canvas.toDataURL("image/jpeg", 0.92);
+      const blob = await new Promise<Blob>((resolve) =>
+        canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.92)
+      );
 
       setCapturedImages((prev) => [
         ...prev,
         {
-          blob: result.blob,
-          preview: result.preview,
-          width: result.width,
-          height: result.height,
+          blob,
+          preview,
+          width: canvas.width,
+          height: canvas.height,
         },
       ]);
     } finally {
@@ -131,6 +136,8 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
         <button
           onClick={handleClose}
           className="mt-4 px-4 py-2 text-white/60 text-sm"
+          aria-label="Cancel camera"
+          tabIndex={0}
         >
           Cancelar
         </button>
@@ -149,6 +156,8 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
         <button
           onClick={handleClose}
           className="mt-4 px-6 py-2.5 rounded-xl bg-white/10 text-white text-sm"
+          aria-label="Close camera"
+          tabIndex={0}
         >
           Cerrar
         </button>
@@ -163,12 +172,14 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
         <button
           onClick={handleClose}
           className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white"
+          aria-label="Close camera"
+          tabIndex={0}
         >
           <X className="w-5 h-5" />
         </button>
         <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm">
           <span className="text-white text-xs font-medium">
-            {capturing ? "Procesando..." : "Apunta al documento"}
+            {capturing ? "Capturando..." : "Apunta al documento"}
           </span>
         </div>
         <div className="w-10" />
@@ -198,6 +209,7 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
             <div className="flex gap-2 overflow-x-auto flex-1">
               {capturedImages.map((img, i) => (
                 <div key={i} className="relative shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.preview}
                     alt={`Captura ${i + 1}`}
@@ -206,6 +218,8 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
                   <button
                     onClick={() => removeCapture(i)}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center"
+                    aria-label={`Remove capture ${i + 1}`}
+                    tabIndex={0}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -218,6 +232,8 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
             <button
               onClick={handleDone}
               className="shrink-0 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-1.5"
+              aria-label={`Done with ${capturedImages.length} captures`}
+              tabIndex={0}
             >
               <Check className="w-4 h-4" />
               Listo ({capturedImages.length})
@@ -234,6 +250,8 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
             onClick={captureFrame}
             disabled={capturing}
             className="relative w-[72px] h-[72px] rounded-full border-[4px] border-white flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+            aria-label="Capture photo"
+            tabIndex={0}
           >
             <div
               className={`w-[58px] h-[58px] rounded-full transition-colors ${
@@ -247,4 +265,4 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
       </div>
     </div>
   );
-}
+};
