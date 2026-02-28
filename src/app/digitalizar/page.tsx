@@ -110,16 +110,23 @@ export default function DigitalizarPage() {
 
       setProcessingGallery(true);
 
+      // Load OpenCV on-demand if not already loaded
+      let cvReady = isOpenCVLoaded();
+      if (!cvReady) {
+        try {
+          await loadOpenCV();
+          cvReady = true;
+        } catch (err) {
+          console.warn("OpenCV load failed, processing without detection:", err);
+        }
+      }
+
       for (const file of files) {
         try {
-          // Load image into an HTMLImageElement
           const img = await loadImageFromFile(file);
-
-          // Resize for processing (max 2000px)
           const canvas = resizeToCanvas(img, 2000);
 
-          if (isOpenCVLoaded()) {
-            // Process with OpenCV: detect document + correct perspective
+          if (cvReady && isOpenCVLoaded()) {
             const cv = (window as any).cv;
             const result = await processImageWithOpenCV(cv, canvas);
             setPreparedImages((prev) => [
@@ -132,7 +139,6 @@ export default function DigitalizarPage() {
               },
             ]);
           } else {
-            // OpenCV not ready: use image as-is (server will just enhance)
             const blob = await canvasToBlob(canvas);
             const preview = canvas.toDataURL("image/jpeg", 0.85);
             setPreparedImages((prev) => [
@@ -483,7 +489,7 @@ export default function DigitalizarPage() {
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10">
                 <Loader2 className="w-4 h-4 text-primary animate-spin" />
                 <span className="text-xs text-primary font-medium">
-                  Detectando documentos...
+                  Procesando imagenes...
                 </span>
               </div>
             )}

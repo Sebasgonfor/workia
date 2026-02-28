@@ -4,14 +4,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * POST /api/digitalize
- *
- * Receives pre-processed images (already perspective-corrected by OpenCV.js on the client)
- * and applies enhancement filters using Sharp's background subtraction technique.
- *
- * Images arrive as FormData with:
- * - "images": one or more image files
- * - "filter": "auto" | "document" | "grayscale" | "enhanced" | "original"
+ * Enhancement-only route.
+ * Document detection + perspective correction is done client-side with OpenCV.js.
+ * This route receives already-cropped images and applies background subtraction filters.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -29,35 +24,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const MAX_DIM = 2000;
-    const processedImages: { base64: string; width: number; height: number }[] =
-      [];
+    const MAX_PROCESS_DIM = 2000;
+    const processedImages: {
+      base64: string;
+      width: number;
+      height: number;
+    }[] = [];
 
     for (const file of files) {
       const arrayBuf = await file.arrayBuffer();
       const inputBuffer = Buffer.from(arrayBuf);
 
-      // Resize + auto-rotate (images are already perspective-corrected by client)
-      const prepBuffer = await sharp(inputBuffer)
+      // Resize + auto-rotate
+      const documentBuffer = await sharp(inputBuffer)
         .rotate()
-        .resize(MAX_DIM, MAX_DIM, {
+        .resize(MAX_PROCESS_DIM, MAX_PROCESS_DIM, {
           fit: "inside",
           withoutEnlargement: true,
         })
         .jpeg({ quality: 95 })
         .toBuffer();
 
-      // Apply enhancement filter
-      // All modes (except original) use BACKGROUND SUBTRACTION:
-      // 1. Estimate background via heavy Gaussian blur
-      // 2. Divide each pixel by its local background → normalizes uneven lighting
-      // 3. Paper becomes ~255 (white), text becomes dark, shadows are eliminated
+      // Enhancement filter using background subtraction
       let finalBuffer: Buffer;
 
       switch (filter) {
         case "document": {
-          // Clean B&W scan: background subtraction + threshold
-          const grayBuf = await sharp(prepBuffer).greyscale().toBuffer();
+          // Clean B&W: background subtraction + threshold
+          const grayBuf = await sharp(documentBuffer).greyscale().toBuffer();
 
           const [{ data: px, info: gi }, { data: bg }] = await Promise.all([
             sharp(grayBuf).raw().toBuffer({ resolveWithObject: true }),
@@ -87,8 +81,7 @@ export async function POST(req: NextRequest) {
         }
 
         case "grayscale": {
-          // Clean grayscale: background subtraction without threshold
-          const grayBuf = await sharp(prepBuffer).greyscale().toBuffer();
+          const grayBuf = await sharp(documentBuffer).greyscale().toBuffer();
 
           const [{ data: px, info: gi }, { data: bg }] = await Promise.all([
             sharp(grayBuf).raw().toBuffer({ resolveWithObject: true }),
@@ -118,11 +111,10 @@ export async function POST(req: NextRequest) {
         }
 
         case "enhanced": {
-          // Vivid color: gain-map background normalization + saturation
           const [{ data: colorPx, info: ci }, { data: bgPx }] =
             await Promise.all([
-              sharp(prepBuffer).raw().toBuffer({ resolveWithObject: true }),
-              sharp(prepBuffer)
+              sharp(documentBuffer).raw().toBuffer({ resolveWithObject: true }),
+              sharp(documentBuffer)
                 .greyscale()
                 .blur(40)
                 .raw()
@@ -152,11 +144,10 @@ export async function POST(req: NextRequest) {
         }
 
         case "auto": {
-          // Clean natural scan: color gain-map normalization
           const [{ data: colorPx, info: ci }, { data: bgPx }] =
             await Promise.all([
-              sharp(prepBuffer).raw().toBuffer({ resolveWithObject: true }),
-              sharp(prepBuffer)
+              sharp(documentBuffer).raw().toBuffer({ resolveWithObject: true }),
+              sharp(documentBuffer)
                 .greyscale()
                 .blur(40)
                 .raw()
@@ -186,7 +177,7 @@ export async function POST(req: NextRequest) {
 
         case "original":
         default:
-          finalBuffer = await sharp(prepBuffer)
+          finalBuffer = await sharp(documentBuffer)
             .jpeg({ quality: 88 })
             .toBuffer();
           break;

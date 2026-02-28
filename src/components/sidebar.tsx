@@ -11,7 +11,6 @@ import {
   GraduationCap,
   Calendar,
   Clock,
-  ScanLine,
   HelpCircle,
   FileOutput,
 } from "lucide-react";
@@ -25,7 +24,6 @@ const navItems = [
   { href: "/flashcards", label: "Tarjetas", icon: Layers },
   { href: "/calendario", label: "Calendario", icon: Calendar },
   { href: "/horario", label: "Horario", icon: Clock },
-  { href: "/escanear", label: "Escanear", icon: ScanLine },
   { href: "/digitalizar", label: "Digitalizar", icon: FileOutput },
   { href: "/quiz", label: "Quiz", icon: HelpCircle },
   { href: "/perfil", label: "Perfil", icon: User },
