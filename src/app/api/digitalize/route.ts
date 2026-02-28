@@ -11,9 +11,11 @@ export const maxDuration = 60;
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
-const CORNER_DETECTION_PROMPT = `You are a document scanner AI. Analyze this image and find the document, paper, or notebook page.
+const CORNER_DETECTION_PROMPT = `You are a precision document edge detector. Find the exact 4 corners of the paper/document/notebook page in this image.
 
-Return ONLY a valid JSON object with the 4 corner coordinates of the document as PIXEL coordinates (not percentages):
+IMAGE DIMENSIONS: {width} x {height} pixels.
+
+Return ONLY this JSON with PIXEL coordinates:
 {
   "found": true,
   "corners": {
@@ -25,11 +27,41 @@ Return ONLY a valid JSON object with the 4 corner coordinates of the document as
 }
 
 RULES:
-- The image dimensions are {width}x{height} pixels. Coordinates must be within these bounds.
-- Identify the paper/document edges precisely, even if partially obscured.
-- topLeft is the corner closest to the top-left of the image, etc.
-- If no clear document/paper is found, return: {"found": false}
-- Return ONLY JSON, no markdown, no backticks.`;
+- Coordinates are PIXELS. (0,0) = top-left of image. Max = ({width},{height}).
+- Find the PHYSICAL EDGES of the paper where it meets the background surface.
+- For spiral notebooks: trace the full outer page edge including past spiral holes.
+- topLeft = paper corner nearest image top-left. topRight = nearest top-right. Etc.
+- Be PRECISE - follow the actual paper boundary exactly.
+- All coordinates must be within image bounds (0 to {width} for x, 0 to {height} for y).
+- If no clear paper/document is visible: {"found": false}
+- Return ONLY valid JSON.`;
+
+function quadArea(pts: Point[]): number {
+  const [a, b, c, d] = pts;
+  return 0.5 * Math.abs(
+    (a.x * b.y - b.x * a.y) +
+    (b.x * c.y - c.x * b.y) +
+    (c.x * d.y - d.x * c.y) +
+    (d.x * a.y - a.x * d.y)
+  );
+}
+
+function isConvex(pts: Point[]): boolean {
+  const n = pts.length;
+  let sign = 0;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const c = pts[(i + 2) % n];
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cross) > 1) {
+      const s = cross > 0 ? 1 : -1;
+      if (sign === 0) sign = s;
+      else if (s !== sign) return false;
+    }
+  }
+  return sign !== 0;
+}
 
 async function detectCorners(
   imageBase64: string,
@@ -43,8 +75,8 @@ async function detectCorners(
     });
 
     const prompt = CORNER_DETECTION_PROMPT
-      .replace("{width}", String(width))
-      .replace("{height}", String(height));
+      .replace(/{width}/g, String(width))
+      .replace(/{height}/g, String(height));
 
     const result = await model.generateContent([
       { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
@@ -57,20 +89,21 @@ async function detectCorners(
     if (!parsed.found || !parsed.corners) return null;
 
     const { topLeft, topRight, bottomRight, bottomLeft } = parsed.corners;
-    const corners = [topLeft, topRight, bottomRight, bottomLeft];
+    const corners: Point[] = [topLeft, topRight, bottomRight, bottomLeft];
 
     for (const c of corners) {
       if (
-        typeof c.x !== "number" ||
-        typeof c.y !== "number" ||
-        c.x < 0 || c.y < 0 ||
-        c.x > width || c.y > height
+        typeof c.x !== "number" || typeof c.y !== "number" ||
+        c.x < 0 || c.y < 0 || c.x > width || c.y > height
       ) {
         return null;
       }
     }
 
-    return corners as Point[];
+    if (quadArea(corners) < width * height * 0.15) return null;
+    if (!isConvex(corners)) return null;
+
+    return corners;
   } catch (err) {
     console.error("Corner detection failed:", err);
     return null;
@@ -142,35 +175,62 @@ export async function POST(req: NextRequest) {
       }
 
       // Step 4: Apply enhancement filter
-      // CLAHE (Contrast Limited Adaptive Histogram Equalization) is the key:
-      // - Equalizes contrast within local tiles → inherently reduces shadow impact
-      // - Each tile gets its own histogram stretch → dark shadowed areas get brightened
-      // - maxSlope limits over-amplification of noise
-      // More tiles (higher width/height) = gentler effect
+      // All modes (except original) use BACKGROUND SUBTRACTION:
+      // 1. Estimate background via heavy Gaussian blur
+      // 2. Divide each pixel by its local background → normalizes uneven lighting
+      // 3. Paper becomes ~255 (white), text becomes dark, shadows are eliminated
+      // This is the core technique used by CamScanner and similar apps.
       let finalBuffer: Buffer;
 
       switch (filter) {
         case "document": {
-          // B&W clean document scan
-          // CLAHE with moderate tiles handles shadows by equalizing each region
-          // linear(a, b) = a*pixel + b → increases contrast and pushes paper to white
-          finalBuffer = await sharp(documentBuffer)
-            .greyscale()
-            .normalize()
-            .clahe({ width: 8, height: 8, maxSlope: 5 })
-            .linear(1.4, -40)
-            .sharpen(1.5)
+          // Clean B&W scan: background subtraction + threshold
+          // Result: pure white paper, crisp black text, no shadows, no notebook lines
+          const grayBuf = await sharp(documentBuffer).greyscale().toBuffer();
+
+          const [{ data: px, info: gi }, { data: bg }] = await Promise.all([
+            sharp(grayBuf).raw().toBuffer({ resolveWithObject: true }),
+            sharp(grayBuf).blur(50).raw().toBuffer({ resolveWithObject: true }),
+          ]);
+
+          const w = gi.width;
+          const h = gi.height;
+          const norm = Buffer.alloc(px.length);
+
+          for (let i = 0; i < px.length; i++) {
+            const b = bg[i] || 1;
+            // Division normalizes lighting: paper/bg ≈ 1.0 → 255, text/bg ≈ 0.25 → 64
+            norm[i] = Math.min(255, Math.max(0, Math.round((px[i] / b) * 255)));
+          }
+
+          finalBuffer = await sharp(norm, { raw: { width: w, height: h, channels: 1 } })
+            .threshold(210)
+            .sharpen(0.5)
             .jpeg({ quality: 88 })
             .toBuffer();
           break;
         }
 
         case "grayscale": {
-          // Clean grayscale
-          finalBuffer = await sharp(documentBuffer)
-            .greyscale()
+          // Clean grayscale: background subtraction without threshold
+          const grayBuf = await sharp(documentBuffer).greyscale().toBuffer();
+
+          const [{ data: px, info: gi }, { data: bg }] = await Promise.all([
+            sharp(grayBuf).raw().toBuffer({ resolveWithObject: true }),
+            sharp(grayBuf).blur(40).raw().toBuffer({ resolveWithObject: true }),
+          ]);
+
+          const w = gi.width;
+          const h = gi.height;
+          const norm = Buffer.alloc(px.length);
+
+          for (let i = 0; i < px.length; i++) {
+            const b = bg[i] || 1;
+            norm[i] = Math.min(255, Math.max(0, Math.round((px[i] / b) * 240)));
+          }
+
+          finalBuffer = await sharp(norm, { raw: { width: w, height: h, channels: 1 } })
             .normalize()
-            .clahe({ width: 10, height: 10, maxSlope: 3 })
             .sharpen(1)
             .jpeg({ quality: 88 })
             .toBuffer();
@@ -178,24 +238,57 @@ export async function POST(req: NextRequest) {
         }
 
         case "enhanced": {
-          // Vivid color with shadow reduction
-          finalBuffer = await sharp(documentBuffer)
-            .normalize()
-            .clahe({ width: 10, height: 10, maxSlope: 3 })
+          // Vivid color: gain-map background normalization + saturation boost
+          const [{ data: colorPx, info: ci }, { data: bgPx }] = await Promise.all([
+            sharp(documentBuffer).raw().toBuffer({ resolveWithObject: true }),
+            sharp(documentBuffer).greyscale().blur(40).raw().toBuffer({ resolveWithObject: true }),
+          ]);
+
+          const ch = ci.channels;
+          const total = ci.width * ci.height;
+          const out = Buffer.alloc(colorPx.length);
+
+          for (let p = 0; p < total; p++) {
+            const gain = Math.min(240 / (bgPx[p] || 1), 2.5);
+            for (let c = 0; c < ch; c++) {
+              const idx = p * ch + c;
+              out[idx] = Math.min(255, Math.round(colorPx[idx] * gain));
+            }
+          }
+
+          finalBuffer = await sharp(out, {
+            raw: { width: ci.width, height: ci.height, channels: ch },
+          })
             .sharpen(1.5)
-            .modulate({ brightness: 1.03, saturation: 1.1 })
+            .modulate({ saturation: 1.2 })
             .jpeg({ quality: 88 })
             .toBuffer();
           break;
         }
 
         case "auto": {
-          // Clean readable scan with natural colors
-          finalBuffer = await sharp(documentBuffer)
-            .normalize()
-            .clahe({ width: 10, height: 10, maxSlope: 3 })
+          // Clean natural scan: color gain-map normalization
+          const [{ data: colorPx, info: ci }, { data: bgPx }] = await Promise.all([
+            sharp(documentBuffer).raw().toBuffer({ resolveWithObject: true }),
+            sharp(documentBuffer).greyscale().blur(40).raw().toBuffer({ resolveWithObject: true }),
+          ]);
+
+          const ch = ci.channels;
+          const total = ci.width * ci.height;
+          const out = Buffer.alloc(colorPx.length);
+
+          for (let p = 0; p < total; p++) {
+            const gain = Math.min(230 / (bgPx[p] || 1), 2.5);
+            for (let c = 0; c < ch; c++) {
+              const idx = p * ch + c;
+              out[idx] = Math.min(255, Math.round(colorPx[idx] * gain));
+            }
+          }
+
+          finalBuffer = await sharp(out, {
+            raw: { width: ci.width, height: ci.height, channels: ch },
+          })
             .sharpen(1.2)
-            .modulate({ brightness: 1.02 })
             .jpeg({ quality: 88 })
             .toBuffer();
           break;
@@ -203,7 +296,6 @@ export async function POST(req: NextRequest) {
 
         case "original":
         default:
-          // Only perspective correction, no enhancement
           finalBuffer = await sharp(documentBuffer)
             .jpeg({ quality: 88 })
             .toBuffer();
