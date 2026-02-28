@@ -28,10 +28,10 @@ Return ONLY this JSON with PIXEL coordinates:
 
 RULES:
 - Coordinates are PIXELS. (0,0) = top-left of image. Max = ({width},{height}).
-- Find the PHYSICAL EDGES of the paper where it meets the background surface.
-- For spiral notebooks: trace the full outer page edge including past spiral holes.
+- Find the OUTERMOST PHYSICAL EDGES of the paper where it meets the background surface.
+- IMPORTANT: Place corners SLIGHTLY OUTSIDE the paper edge (a few pixels beyond) rather than inside. It is much better to include a tiny bit of background than to cut off any page content.
+- For spiral notebooks: go BEYOND the spiral holes to the very outer edge of the page.
 - topLeft = paper corner nearest image top-left. topRight = nearest top-right. Etc.
-- Be PRECISE - follow the actual paper boundary exactly.
 - All coordinates must be within image bounds (0 to {width} for x, 0 to {height} for y).
 - If no clear paper/document is visible: {"found": false}
 - Return ONLY valid JSON.`;
@@ -44,6 +44,20 @@ function quadArea(pts: Point[]): number {
     (c.x * d.y - d.x * c.y) +
     (d.x * a.y - a.x * d.y)
   );
+}
+
+function expandCorners(
+  corners: Point[],
+  width: number,
+  height: number,
+  factor: number = 1.05
+): Point[] {
+  const cx = corners.reduce((s, c) => s + c.x, 0) / 4;
+  const cy = corners.reduce((s, c) => s + c.y, 0) / 4;
+  return corners.map((c) => ({
+    x: Math.min(width, Math.max(0, Math.round(cx + (c.x - cx) * factor))),
+    y: Math.min(height, Math.max(0, Math.round(cy + (c.y - cy) * factor))),
+  }));
 }
 
 function isConvex(pts: Point[]): boolean {
@@ -103,7 +117,8 @@ async function detectCorners(
     if (quadArea(corners) < width * height * 0.15) return null;
     if (!isConvex(corners)) return null;
 
-    return corners;
+    // Expand corners 5% outward from centroid to avoid cutting off page edges
+    return expandCorners(corners, width, height, 1.05);
   } catch (err) {
     console.error("Corner detection failed:", err);
     return null;
