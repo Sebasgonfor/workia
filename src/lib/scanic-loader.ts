@@ -1,54 +1,44 @@
 /**
- * Lazy loader for Scanic WASM document detection library.
- * Caches the scanner instance for reuse across multiple scans.
+ * Client-side document corner detection.
+ * Calls the /api/digitalize/detect endpoint (Gemini AI) to locate
+ * the 4 corners of a document in an image.
  */
 
-import type { Scanner, ScannerResult, CornerPoints } from "scanic";
-
-let scannerInstance: Scanner | null = null;
-let initPromise: Promise<Scanner> | null = null;
-
-export type { ScannerResult, CornerPoints };
-
-/**
- * Get or initialize the cached Scanic scanner instance.
- * Safe to call multiple times — only initializes once.
- */
-export const getScanner = async (): Promise<Scanner> => {
-  if (scannerInstance) return scannerInstance;
-
-  if (!initPromise) {
-    initPromise = (async () => {
-      const { Scanner } = await import("scanic");
-      const scanner = new Scanner({
-        mode: "detect",
-        output: "canvas",
-        maxProcessingDimension: 1000,
-      });
-      await scanner.initialize();
-      scannerInstance = scanner;
-      return scanner;
-    })();
-  }
-
-  return initPromise;
-};
+export interface CornerPoints {
+  topLeft: { x: number; y: number };
+  topRight: { x: number; y: number };
+  bottomRight: { x: number; y: number };
+  bottomLeft: { x: number; y: number };
+}
 
 /**
- * Detect document corners using Scanic.
- * Returns corner points or null if no document found.
+ * Detect document corners by sending the image to the Gemini AI detect endpoint.
+ * Returns corner coordinates in the original image pixel space, or null if
+ * no document is found.
  */
 export const detectCorners = async (
-  image: HTMLImageElement | HTMLCanvasElement | ImageData
+  canvas: HTMLCanvasElement
 ): Promise<CornerPoints | null> => {
   try {
-    const scanner = await getScanner();
-    const result = await scanner.scan(image, { mode: "detect" });
+    const blob = await new Promise<Blob>((resolve) =>
+      canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.85)
+    );
 
-    if (!result.success || !result.corners) return null;
-    return result.corners;
+    const fd = new FormData();
+    fd.append("image", blob, "detect.jpg");
+    fd.append("width", String(canvas.width));
+    fd.append("height", String(canvas.height));
+
+    const res = await fetch("/api/digitalize/detect", {
+      method: "POST",
+      body: fd,
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.corners ?? null;
   } catch (err) {
-    console.error("Scanic detection failed:", err);
+    console.error("Corner detection failed:", err);
     return null;
   }
 };

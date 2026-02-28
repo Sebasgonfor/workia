@@ -1,9 +1,8 @@
 /**
- * Document detection using Scanic WASM (~100KB).
+ * Document detection using Gemini AI (via /api/digitalize/detect).
  * Replaces the previous pure-JS pipeline (Canny + contour finding).
  *
- * Scanic handles: edge detection + perspective correction via WASM.
- * This module wraps Scanic and provides the public API used by
+ * This module wraps the Gemini endpoint and provides the public API used by
  * camera-scanner.tsx and digitalizar/page.tsx.
  */
 
@@ -32,13 +31,16 @@ const toDocumentCorners = (corners: CornerPoints): DocumentCorners => ({
 });
 
 /**
- * Detect document corners in an image using Scanic WASM.
+ * Detect document corners in an image using the Gemini AI endpoint.
+ * Converts HTMLImageElement to canvas if necessary before calling detectCorners.
  * Returns DocumentCorners or null if no document found.
  */
 export const detectDocument = async (
   image: HTMLImageElement | HTMLCanvasElement
 ): Promise<DocumentCorners | null> => {
-  const corners = await detectCorners(image);
+  const canvas =
+    image instanceof HTMLCanvasElement ? image : imageToCanvas(image);
+  const corners = await detectCorners(canvas);
   if (!corners) return null;
   return toDocumentCorners(corners);
 };
