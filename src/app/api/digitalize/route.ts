@@ -77,113 +77,6 @@ async function detectCorners(
   }
 }
 
-/**
- * Shadow removal using morphological closing + illumination normalization.
- * This is the standard technique used by CamScanner, OpenCV, and document scanning apps:
- *   1. Estimate background illumination via morphological closing (dilate → erode)
- *   2. Divide original by background to flatten lighting
- *   3. Normalize result to full 0-255 range
- *
- * The closing operation removes text/foreground while preserving shadow gradients,
- * giving us a pure illumination map. Dividing by it cancels out shadows.
- */
-async function removeShadows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sharp: any,
-  imageBuffer: Buffer
-): Promise<Buffer> {
-  const meta = await sharp(imageBuffer).metadata();
-  const w = meta.width!;
-  const h = meta.height!;
-
-  // Step 1: Morphological closing = dilate then erode
-  // Large kernel to bridge over text while keeping shadow structure
-  // Kernel size proportional to image size (similar to OpenCV's 150x150 for ~2000px images)
-  const morphSize = Math.max(15, Math.round(Math.min(w, h) / 14));
-
-  const backgroundBuffer = await sharp(imageBuffer)
-    .greyscale()
-    .dilate(morphSize)  // Expand bright areas → fills in text gaps
-    .erode(morphSize)   // Shrink back → background estimate without text
-    .blur(Math.max(5, Math.round(morphSize / 3))) // Smooth the estimate
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  // Step 2: Get original grayscale pixels
-  const originalBuffer = await sharp(imageBuffer)
-    .greyscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  // Step 3: Divide original by background to normalize illumination
-  const pixelCount = w * h;
-  const result = Buffer.alloc(pixelCount);
-
-  for (let i = 0; i < pixelCount; i++) {
-    const orig = originalBuffer.data[i];
-    const bg = Math.max(backgroundBuffer.data[i], 1);
-    // Standard formula: output = orig * 255 / bg
-    // This makes paper white and text dark regardless of shadow
-    const val = Math.round((orig / bg) * 255);
-    result[i] = Math.min(255, Math.max(0, val));
-  }
-
-  return sharp(result, { raw: { width: w, height: h, channels: 1 } })
-    .jpeg({ quality: 95 })
-    .toBuffer();
-}
-
-/**
- * Color-preserving shadow removal for enhanced/auto modes.
- * Applies the illumination correction per-channel.
- */
-async function removeShadowsColor(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sharp: any,
-  imageBuffer: Buffer
-): Promise<Buffer> {
-  const meta = await sharp(imageBuffer).metadata();
-  const w = meta.width!;
-  const h = meta.height!;
-
-  const morphSize = Math.max(15, Math.round(Math.min(w, h) / 14));
-
-  // Background estimate from grayscale version
-  const bgBuffer = await sharp(imageBuffer)
-    .greyscale()
-    .dilate(morphSize)
-    .erode(morphSize)
-    .blur(Math.max(5, Math.round(morphSize / 3)))
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  // Original in RGB
-  const origBuffer = await sharp(imageBuffer)
-    .toColorspace("srgb")
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const channels = 3;
-  const pixelCount = w * h;
-  const result = Buffer.alloc(pixelCount * channels);
-
-  for (let i = 0; i < pixelCount; i++) {
-    const bg = Math.max(bgBuffer.data[i], 1);
-    const scale = 255 / bg; // illumination correction factor
-
-    for (let c = 0; c < channels; c++) {
-      const orig = origBuffer.data[i * channels + c];
-      const val = Math.round(orig * scale);
-      result[i * channels + c] = Math.min(255, Math.max(0, val));
-    }
-  }
-
-  return sharp(result, { raw: { width: w, height: h, channels } })
-    .jpeg({ quality: 95 })
-    .toBuffer();
-}
-
 export async function POST(req: NextRequest) {
   try {
     const sharpModule = await import("sharp");
@@ -248,16 +141,24 @@ export async function POST(req: NextRequest) {
         documentBuffer = prepBuffer;
       }
 
-      // Step 4: Apply filter with shadow removal
+      // Step 4: Apply enhancement filter
+      // CLAHE (Contrast Limited Adaptive Histogram Equalization) is the key:
+      // - Equalizes contrast within local tiles → inherently reduces shadow impact
+      // - Each tile gets its own histogram stretch → dark shadowed areas get brightened
+      // - maxSlope limits over-amplification of noise
+      // More tiles (higher width/height) = gentler effect
       let finalBuffer: Buffer;
 
       switch (filter) {
         case "document": {
-          // CamScanner-style B&W: shadow removal + clean contrast
-          const shadowFree = await removeShadows(sharp, documentBuffer);
-          finalBuffer = await sharp(shadowFree)
+          // B&W clean document scan
+          // CLAHE with moderate tiles handles shadows by equalizing each region
+          // linear(a, b) = a*pixel + b → increases contrast and pushes paper to white
+          finalBuffer = await sharp(documentBuffer)
+            .greyscale()
             .normalize()
-            .linear(1.2, 10)
+            .clahe({ width: 8, height: 8, maxSlope: 5 })
+            .linear(1.4, -40)
             .sharpen(1.5)
             .jpeg({ quality: 88 })
             .toBuffer();
@@ -265,10 +166,11 @@ export async function POST(req: NextRequest) {
         }
 
         case "grayscale": {
-          // Clean grayscale with shadow removal
-          const shadowFree = await removeShadows(sharp, documentBuffer);
-          finalBuffer = await sharp(shadowFree)
+          // Clean grayscale
+          finalBuffer = await sharp(documentBuffer)
+            .greyscale()
             .normalize()
+            .clahe({ width: 10, height: 10, maxSlope: 3 })
             .sharpen(1)
             .jpeg({ quality: 88 })
             .toBuffer();
@@ -276,10 +178,10 @@ export async function POST(req: NextRequest) {
         }
 
         case "enhanced": {
-          // Color-preserved shadow removal + vivid enhancement
-          const shadowFree = await removeShadowsColor(sharp, documentBuffer);
-          finalBuffer = await sharp(shadowFree)
+          // Vivid color with shadow reduction
+          finalBuffer = await sharp(documentBuffer)
             .normalize()
+            .clahe({ width: 10, height: 10, maxSlope: 3 })
             .sharpen(1.5)
             .modulate({ brightness: 1.03, saturation: 1.1 })
             .jpeg({ quality: 88 })
@@ -288,11 +190,11 @@ export async function POST(req: NextRequest) {
         }
 
         case "auto": {
-          // Color-preserved shadow removal + clean look
-          const shadowFree = await removeShadowsColor(sharp, documentBuffer);
-          finalBuffer = await sharp(shadowFree)
+          // Clean readable scan with natural colors
+          finalBuffer = await sharp(documentBuffer)
             .normalize()
-            .sharpen(1)
+            .clahe({ width: 10, height: 10, maxSlope: 3 })
+            .sharpen(1.2)
             .modulate({ brightness: 1.02 })
             .jpeg({ quality: 88 })
             .toBuffer();
@@ -301,6 +203,7 @@ export async function POST(req: NextRequest) {
 
         case "original":
         default:
+          // Only perspective correction, no enhancement
           finalBuffer = await sharp(documentBuffer)
             .jpeg({ quality: 88 })
             .toBuffer();
