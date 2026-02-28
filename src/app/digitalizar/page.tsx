@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Plus,
   FileText,
@@ -71,9 +71,6 @@ export default function DigitalizarPage() {
   // Camera state
   const [showCamera, setShowCamera] = useState(false);
 
-  // OpenCV state
-  const [cvLoaded, setCvLoaded] = useState(false);
-
   // Delete state
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -87,13 +84,6 @@ export default function DigitalizarPage() {
     selectedSubjectId,
     selectedClassId
   );
-
-  // ── Preload OpenCV.js ──
-  useEffect(() => {
-    loadOpenCV()
-      .then(() => setCvLoaded(true))
-      .catch((err) => console.warn("OpenCV preload failed:", err));
-  }, []);
 
   // ── Camera capture ──
 
@@ -416,16 +406,17 @@ export default function DigitalizarPage() {
           )}
         </div>
 
-        {/* FAB */}
-        {digitalizations.length > 0 && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform z-50 md:bottom-8 md:right-8"
-          >
-            <Plus className="w-6 h-6" />
-          </button>
-        )}
       </div>
+
+      {/* FAB — outside page-enter to avoid transform breaking fixed positioning */}
+      {digitalizations.length > 0 && (
+        <button
+          onClick={() => setShowCreate(true)}
+          className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform z-50 md:bottom-8 md:right-8"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Creation Sheet */}
       <Sheet

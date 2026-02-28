@@ -127,7 +127,7 @@ export default function MateriasPage() {
               <div key={subject.id} className="relative">
                 <button
                   onClick={() => router.push(`/materias/${subject.id}`)}
-                  className="w-full text-left p-3.5 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
+                  className="w-full text-left p-3.5 pr-12 rounded-xl bg-card border border-border active:scale-[0.98] transition-transform"
                 >
                   <div className="flex items-center gap-3.5">
                     <div

@@ -1,7 +1,7 @@
 /**
  * Lazy loader for OpenCV.js from CDN.
- * Loads ~8MB WASM module on first call, caches for subsequent calls.
- * Only runs in browser context.
+ * Only loads when explicitly called (camera open or gallery processing).
+ * Never loads on page mount to avoid freezing the main thread.
  */
 
 let cvPromise: Promise<any> | null = null;
@@ -17,27 +17,38 @@ export function loadOpenCV(): Promise<any> {
       return;
     }
 
-    // Already loaded from a previous page visit
+    // Already loaded from a previous call
     const existing = (window as any).cv;
     if (existing && existing.Mat) {
       resolve(existing);
       return;
     }
 
-    // onRuntimeInitialized must be set BEFORE the script loads
-    (window as any).Module = {
-      onRuntimeInitialized: () => {
-        resolve((window as any).cv);
-      },
-    };
-
     const script = document.createElement("script");
     script.src = OPENCV_CDN;
     script.async = true;
+
+    script.onload = () => {
+      // OpenCV.js sets window.cv — poll until it's fully initialized
+      const check = () => {
+        const cv = (window as any).cv;
+        if (cv && cv.Mat) {
+          resolve(cv);
+        } else if (cv && cv.onRuntimeInitialized !== undefined) {
+          // WASM still compiling, wait for callback
+          cv.onRuntimeInitialized = () => resolve((window as any).cv);
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      check();
+    };
+
     script.onerror = () => {
       cvPromise = null;
       reject(new Error("Failed to load OpenCV.js"));
     };
+
     document.body.appendChild(script);
   });
 
