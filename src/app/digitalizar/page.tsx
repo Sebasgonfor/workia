@@ -27,8 +27,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CameraScanner, type CapturedImage } from "@/components/camera-scanner";
-import { loadOpenCV, isOpenCVLoaded } from "@/lib/opencv-loader";
-import { processImageWithOpenCV } from "@/lib/document-detection";
+import { processImage } from "@/lib/document-detection";
 
 type Step = "upload" | "processing" | "preview";
 
@@ -110,47 +109,20 @@ export default function DigitalizarPage() {
 
       setProcessingGallery(true);
 
-      // Load OpenCV on-demand if not already loaded
-      let cvReady = isOpenCVLoaded();
-      if (!cvReady) {
-        try {
-          await loadOpenCV();
-          cvReady = true;
-        } catch (err) {
-          console.warn("OpenCV load failed, processing without detection:", err);
-        }
-      }
-
       for (const file of files) {
         try {
           const img = await loadImageFromFile(file);
           const canvas = resizeToCanvas(img, 2000);
-
-          if (cvReady && isOpenCVLoaded()) {
-            const cv = (window as any).cv;
-            const result = await processImageWithOpenCV(cv, canvas);
-            setPreparedImages((prev) => [
-              ...prev,
-              {
-                blob: result.blob,
-                preview: result.preview,
-                width: result.width,
-                height: result.height,
-              },
-            ]);
-          } else {
-            const blob = await canvasToBlob(canvas);
-            const preview = canvas.toDataURL("image/jpeg", 0.85);
-            setPreparedImages((prev) => [
-              ...prev,
-              {
-                blob,
-                preview,
-                width: canvas.width,
-                height: canvas.height,
-              },
-            ]);
-          }
+          const result = await processImage(canvas);
+          setPreparedImages((prev) => [
+            ...prev,
+            {
+              blob: result.blob,
+              preview: result.preview,
+              width: result.width,
+              height: result.height,
+            },
+          ]);
         } catch (err) {
           console.error("Error processing gallery image:", err);
           toast.error("Error al cargar imagen");
