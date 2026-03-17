@@ -164,8 +164,10 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
         fileSize: file.size,
       });
       toast.success(MSG_UPLOAD_SUCCESS);
-    } catch {
-      toast.error(MSG_UPLOAD_ERROR);
+    } catch (err) {
+      console.error("Upload error:", err);
+      const msg = err instanceof Error ? err.message : null;
+      toast.error(msg && msg !== "Upload failed" ? msg : MSG_UPLOAD_ERROR);
     } finally {
       setUploading(false);
     }
@@ -203,7 +205,6 @@ export function SubjectDocuments({ subjectId, subject }: SubjectDocumentsProps) 
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
             className="hidden"
             onChange={handleFileSelect}
             disabled={uploading}

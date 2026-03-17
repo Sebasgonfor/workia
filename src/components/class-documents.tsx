@@ -158,8 +158,10 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
         fileSize: file.size,
       });
       toast.success("Documento guardado");
-    } catch {
-      toast.error("Error al subir el documento");
+    } catch (err) {
+      console.error("Upload error:", err);
+      const msg = err instanceof Error ? err.message : null;
+      toast.error(msg && msg !== "Upload failed" ? msg : "Error al subir el documento");
     } finally {
       setUploading(false);
     }
@@ -230,7 +232,6 @@ export function ClassDocuments({ subjectId, classId, color }: ClassDocumentsProp
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
               className="hidden"
               onChange={handleFileSelect}
               disabled={uploading}
