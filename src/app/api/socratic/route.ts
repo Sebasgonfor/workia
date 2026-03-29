@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { cleanContentForPrompt } from "@/lib/services/content-cleaner";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -66,11 +67,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se enviaron mensajes" }, { status: 400 });
     }
 
+    const cleanedNotes = cleanContentForPrompt(notesContent || "");
     const systemInstruction = SYSTEM_INSTRUCTION
       .replace("{subjectName}", subjectName || "General")
       .replace("{classTitle}", classTitle || "Clase")
       .replace("{currentDate}", currentDate || new Date().toISOString().split("T")[0])
-      .replace("{notesContent}", notesContent || "Sin apuntes disponibles")
+      .replace("{notesContent}", cleanedNotes || "Sin apuntes disponibles")
       .replace("{topic}", topic || "General");
 
     const history: ChatMessage[] = messages.slice(0, -1).map((msg) => ({

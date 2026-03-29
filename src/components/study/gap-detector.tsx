@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { AlertTriangle, Loader2, X, Search, GraduationCap } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { AlertTriangle, Loader2, X, Search, GraduationCap, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import type { KnowledgeGap } from "@/types";
 
@@ -22,9 +22,12 @@ export function GapDetector({ content, subjectName, onOpenSocratic, onClose }: G
   const [gaps, setGaps] = useState<KnowledgeGap[]>([]);
   const [loading, setLoading] = useState(false);
   const [analyzed, setAnalyzed] = useState(false);
+  const [error, setError] = useState(false);
+  const detectedRef = useRef(false);
 
   const detectGaps = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
       const res = await fetch("/api/gaps/detect", {
         method: "POST",
@@ -39,15 +42,19 @@ export function GapDetector({ content, subjectName, onOpenSocratic, onClose }: G
       }
     } catch {
       toast.error("Error de conexion");
+      setError(true);
     } finally {
       setLoading(false);
       setAnalyzed(true);
     }
   }, [content, subjectName]);
 
-  if (!analyzed && !loading) {
-    detectGaps();
-  }
+  useEffect(() => {
+    if (!detectedRef.current) {
+      detectedRef.current = true;
+      detectGaps();
+    }
+  }, [detectGaps]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col">
@@ -67,6 +74,27 @@ export function GapDetector({ content, subjectName, onOpenSocratic, onClose }: G
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
             <p className="text-sm text-zinc-400">Analizando tus apuntes en busca de gaps...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7 text-red-400" />
+            </div>
+            <p className="text-white font-medium">Error al analizar</p>
+            <p className="text-sm text-zinc-400 text-center max-w-xs">
+              No se pudieron detectar los gaps. Revisa tu conexion e intenta de nuevo.
+            </p>
+            <button
+              onClick={() => {
+                detectedRef.current = false;
+                setError(false);
+                detectGaps();
+              }}
+              className="flex items-center gap-2 mt-2 px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/15 transition-colors text-sm"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reintentar
+            </button>
           </div>
         ) : gaps.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">

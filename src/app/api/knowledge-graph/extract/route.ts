@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
+import { cleanContentForPrompt as cleanContent } from "@/lib/services/content-cleaner";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
-
-function cleanContent(raw: string): string {
-  return raw
-    .replace(/```mermaid[\s\S]*?```/gi, "[diagrama]")
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/<nc-(?:def|formula|warn|ex|ai)>([\s\S]*?)<\/nc-(?:def|formula|warn|ex|ai)>/gi, "$1")
-    .replace(/<[^>]+>/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
 
 const PROMPT = `Eres un experto en pedagogía y mapas conceptuales. Analiza el siguiente contenido académico y extrae un grafo de conocimiento con nodos (conceptos) y aristas (relaciones).
 

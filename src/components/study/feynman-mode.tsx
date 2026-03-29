@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Brain, ChevronRight, RotateCcw, CheckCircle2, XCircle, AlertTriangle, Lightbulb, Loader2, X, Sparkles } from "lucide-react";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { useFeynmanSessions } from "@/lib/hooks/useFeynmanSessions";
@@ -130,10 +130,13 @@ export function FeynmanMode({ content, subjectName, subjectId, classId, onClose 
     setStep("concepts");
   };
 
-  // Extract concepts on first render
-  if (concepts.length === 0 && !extracting && step === "concepts") {
-    extractConcepts();
-  }
+  const extractedRef = useRef(false);
+  useEffect(() => {
+    if (step === "concepts" && !extractedRef.current) {
+      extractedRef.current = true;
+      extractConcepts();
+    }
+  }, [step, extractConcepts]);
 
   const scoreColor = (score: number) =>
     score >= 80 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-red-400";

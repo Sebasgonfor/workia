@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { BookOpen, Loader2, X, Save, FileText, HelpCircle, Key, Layers } from "lucide-react";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { useFlashcards } from "@/lib/hooks/useFlashcards";
@@ -36,8 +36,9 @@ export function StudyKitGenerator({ content, subjectName, subjectId, classId, su
   const [quizSaved, setQuizSaved] = useState(false);
   const { addFlashcards } = useFlashcards();
   const { addQuiz } = useQuizzes();
+  const generatedRef = useRef(false);
 
-  const generate = async () => {
+  const generate = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/study-kit/generate", {
@@ -56,7 +57,14 @@ export function StudyKitGenerator({ content, subjectName, subjectId, classId, su
     } finally {
       setLoading(false);
     }
-  };
+  }, [content, subjectName, subjectDocuments]);
+
+  useEffect(() => {
+    if (!generatedRef.current) {
+      generatedRef.current = true;
+      generate();
+    }
+  }, [generate]);
 
   const handleSaveFlashcards = async () => {
     if (!kit || flashcardsSaved) return;
@@ -66,7 +74,7 @@ export function StudyKitGenerator({ content, subjectName, subjectId, classId, su
         kit.flashcards.map((fc) => ({
           subjectId,
           subjectName,
-          noteId: classId,
+          noteId: null,
           question: fc.question,
           answer: fc.answer,
           type: fc.type,
@@ -88,7 +96,7 @@ export function StudyKitGenerator({ content, subjectName, subjectId, classId, su
       await addQuiz({
         subjectId,
         subjectName,
-        entryId: classId,
+        entryId: null,
         title: kit.quiz.title,
         questions: kit.quiz.questions,
       });
@@ -100,11 +108,6 @@ export function StudyKitGenerator({ content, subjectName, subjectId, classId, su
       setSavingQuiz(false);
     }
   };
-
-  // Auto-generate on mount
-  if (!kit && !loading) {
-    generate();
-  }
 
   const importanceColors = {
     high: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
