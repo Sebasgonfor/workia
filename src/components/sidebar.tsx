@@ -13,6 +13,7 @@ import {
   Clock,
   HelpCircle,
   FileOutput,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/horario", label: "Horario", icon: Clock },
   { href: "/digitalizar", label: "Digitalizar", icon: FileOutput },
   { href: "/quiz", label: "Quiz", icon: HelpCircle },
+  { href: "/dominio", label: "Dominio", icon: Trophy },
   { href: "/perfil", label: "Perfil", icon: User },
 ];
 
