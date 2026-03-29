@@ -180,6 +180,7 @@ export default function BoardPage() {
   const [showStudyKit, setShowStudyKit] = useState(false);
   const [showGapDetector, setShowGapDetector] = useState(false);
   const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
+  const [socraticInitialTopic, setSocraticInitialTopic] = useState("");
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
@@ -2478,7 +2479,8 @@ export default function BoardPage() {
           subjectName={subject?.name || ""}
           classTitle={classSession?.title || ""}
           notesContent={allNotesContent}
-          onClose={() => setShowSocratic(false)}
+          initialTopic={socraticInitialTopic}
+          onClose={() => { setShowSocratic(false); setSocraticInitialTopic(""); }}
         />
       )}
       {showStudyKit && allNotesContent && (
@@ -2497,6 +2499,7 @@ export default function BoardPage() {
           subjectName={subject?.name || ""}
           onOpenSocratic={(topic) => {
             setShowGapDetector(false);
+            setSocraticInitialTopic(topic);
             setShowSocratic(true);
           }}
           onClose={() => setShowGapDetector(false)}
@@ -2507,6 +2510,7 @@ export default function BoardPage() {
           content={allNotesContent}
           subjectName={subject?.name || ""}
           subjectColor={color}
+          subjectId={subjectId}
           onClose={() => setShowKnowledgeGraph(false)}
         />
       )}

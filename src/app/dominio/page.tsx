@@ -42,7 +42,7 @@ function CircularGauge({ value, size = 120, strokeWidth = 8, className = "" }: {
   );
 }
 
-function MiniBar({ value, color, label, icon: Icon }: { value: number; color: string; label: string; icon: typeof Brain }) {
+function MiniBar({ value, label, icon: Icon }: { value: number; label: string; icon: typeof Brain }) {
   return (
     <div className="flex items-center gap-2">
       <Icon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
@@ -129,10 +129,10 @@ export default function DominioPage() {
                   </div>
 
                   <div className="space-y-2.5">
-                    <MiniBar value={m.flashcardMastery} color={m.subjectColor} label="Flashcards" icon={Layers} />
-                    <MiniBar value={m.quizMastery} color={m.subjectColor} label="Quizzes" icon={HelpCircle} />
-                    <MiniBar value={m.feynmanMastery} color={m.subjectColor} label="Feynman" icon={Brain} />
-                    <MiniBar value={m.socraticMastery} color={m.subjectColor} label="Socratico" icon={GraduationCap} />
+                    <MiniBar value={m.flashcardMastery} label="Flashcards" icon={Layers} />
+                    <MiniBar value={m.quizMastery} label="Quizzes" icon={HelpCircle} />
+                    <MiniBar value={m.feynmanMastery} label="Feynman" icon={Brain} />
+                    <MiniBar value={m.socraticMastery} label="Socratico" icon={GraduationCap} />
                   </div>
                 </div>
               ))}

@@ -12,6 +12,7 @@ interface SocraticTutorProps {
   subjectName: string;
   classTitle: string;
   notesContent: string;
+  initialTopic?: string;
   onClose: () => void;
 }
 
@@ -25,8 +26,8 @@ interface MasteryResult {
   summary: string;
 }
 
-export function SocraticTutor({ subjectId, classId, subjectName, classTitle, notesContent, onClose }: SocraticTutorProps) {
-  const [topic, setTopic] = useState("");
+export function SocraticTutor({ subjectId, classId, subjectName, classTitle, notesContent, initialTopic, onClose }: SocraticTutorProps) {
+  const [topic, setTopic] = useState(initialTopic || "");
   const [started, setStarted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -34,6 +35,7 @@ export function SocraticTutor({ subjectId, classId, subjectName, classTitle, not
   const [mastery, setMastery] = useState<MasteryResult | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const masterySavedRef = useRef(false);
   const { addSession } = useSocraticSessions();
 
   useEffect(() => {
@@ -84,7 +86,8 @@ export function SocraticTutor({ subjectId, classId, subjectName, classTitle, not
           return updated;
         });
 
-        if (masteryMatch) {
+        if (masteryMatch && !masterySavedRef.current) {
+          masterySavedRef.current = true;
           try {
             const masteryData = JSON.parse(masteryMatch[1]);
             setMastery(masteryData);
@@ -109,13 +112,20 @@ export function SocraticTutor({ subjectId, classId, subjectName, classTitle, not
     }
   }, [subjectName, classTitle, notesContent, topic, subjectId, classId, addSession]);
 
-  const handleStart = () => {
+  const handleStart = useCallback(() => {
     if (!topic.trim()) return;
     setStarted(true);
     const initialMessages: Message[] = [{ role: "user", content: `Quiero entender: ${topic}` }];
     setMessages(initialMessages);
     sendMessage(initialMessages);
-  };
+  }, [topic, sendMessage]);
+
+  useEffect(() => {
+    if (initialTopic && !started) {
+      handleStart();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSend = () => {
     if (!input.trim() || streaming) return;

@@ -4,9 +4,7 @@ import { useState, useEffect } from "react";
 import {
   collection,
   query,
-  orderBy,
   getDocs,
-  Timestamp,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -34,9 +32,7 @@ export function useMasteryData(subjects: SubjectInfo[]) {
 
     const fetchData = async () => {
       try {
-        const results: SubjectMastery[] = [];
-
-        for (const subject of subjects) {
+        const results = await Promise.all(subjects.map(async (subject) => {
           // Flashcard mastery
           let flashcardMastery = 0;
           let flashcardCount = 0;
@@ -118,7 +114,7 @@ export function useMasteryData(subjects: SubjectInfo[]) {
                 socraticMastery * weights.socratic
               );
 
-          results.push({
+          return {
             subjectId: subject.id,
             subjectName: subject.name,
             subjectColor: subject.color,
@@ -130,8 +126,8 @@ export function useMasteryData(subjects: SubjectInfo[]) {
             overallMastery: overall,
             totalStudyItems: totalItems,
             conceptsToReview: [],
-          });
-        }
+          };
+        }));
 
         setMastery(results);
       } catch (err) {

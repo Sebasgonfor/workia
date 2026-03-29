@@ -9,6 +9,7 @@ interface KnowledgeGraphProps {
   content: string;
   subjectName: string;
   subjectColor: string;
+  subjectId?: string;
   onClose: () => void;
 }
 
@@ -19,7 +20,7 @@ interface SimNode extends GraphNode {
   fy?: number;
 }
 
-export function KnowledgeGraph({ content, subjectName, subjectColor, onClose }: KnowledgeGraphProps) {
+export function KnowledgeGraph({ content, subjectName, subjectColor, subjectId, onClose }: KnowledgeGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<SimNode[]>([]);
@@ -48,6 +49,7 @@ export function KnowledgeGraph({ content, subjectName, subjectColor, onClose }: 
           const h = window.innerHeight;
           const simNodes: SimNode[] = data.data.nodes.map((n: GraphNode) => ({
             ...n,
+            subjectId: subjectId || "",
             subjectColor,
             mastery: 50,
             x: w / 2 + (Math.random() - 0.5) * 300,
@@ -235,16 +237,14 @@ export function KnowledgeGraph({ content, subjectName, subjectColor, onClose }: 
     return () => window.removeEventListener("resize", resize);
   }, []);
 
-  // Mouse/Touch handlers
-  const getCanvasPos = (e: React.MouseEvent | React.TouchEvent) => {
+  // Pointer handlers (unified mouse + touch)
+  const getCanvasPos = (e: React.PointerEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
     return {
-      x: (clientX - rect.left - offset.x) / zoom,
-      y: (clientY - rect.top - offset.y) / zoom,
+      x: (e.clientX - rect.left - offset.x) / zoom,
+      y: (e.clientY - rect.top - offset.y) / zoom,
     };
   };
 
@@ -259,7 +259,7 @@ export function KnowledgeGraph({ content, subjectName, subjectColor, onClose }: 
     return null;
   };
 
-  const handlePointerDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     const pos = getCanvasPos(e);
     const node = findNodeAt(pos.x, pos.y);
     if (node) {
@@ -271,7 +271,7 @@ export function KnowledgeGraph({ content, subjectName, subjectColor, onClose }: 
     }
   };
 
-  const handlePointerMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     const d = draggingRef.current;
     if (d.nodeId) {
       const dx = (e.clientX - d.lastX) / zoom;
@@ -327,10 +327,10 @@ export function KnowledgeGraph({ content, subjectName, subjectColor, onClose }: 
           <canvas
             ref={canvasRef}
             className="w-full h-full cursor-grab active:cursor-grabbing"
-            onMouseDown={handlePointerDown}
-            onMouseMove={handlePointerMove}
-            onMouseUp={handlePointerUp}
-            onMouseLeave={handlePointerUp}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
           />
 
           {/* Selected node info */}
