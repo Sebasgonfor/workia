@@ -8,7 +8,7 @@ import { MermaidChart } from "./mermaid-chart";
 
 // ── Types ──
 
-type NoteColorType = "formula" | "def" | "warn" | "ex" | "ai";
+export type NoteColorType = "formula" | "def" | "warn" | "ex" | "ai";
 
 interface NoteSegment {
   type: "md" | NoteColorType;
@@ -17,7 +17,7 @@ interface NoteSegment {
 
 // ── Color config ──
 
-const COLOR_CONFIG: Record<NoteColorType, {
+export const COLOR_CONFIG: Record<NoteColorType, {
   bg: string; headerBg: string; border: string; text: string; label: string; emoji: string;
 }> = {
   formula: { bg: "rgba(139,92,246,0.06)", headerBg: "rgba(139,92,246,0.18)", border: "#8b5cf6", text: "#8b5cf6", label: "Fórmula",    emoji: "🔮" },
@@ -27,7 +27,7 @@ const COLOR_CONFIG: Record<NoteColorType, {
   ai:      { bg: "rgba(236,72,153,0.06)",  headerBg: "rgba(236,72,153,0.18)",  border: "#ec4899", text: "#ec4899", label: "IA",         emoji: "✨" },
 };
 
-const COLOR_TAGS: NoteColorType[] = ["formula", "def", "warn", "ex", "ai"];
+export const COLOR_TAGS: NoteColorType[] = ["formula", "def", "warn", "ex", "ai"];
 
 // ── Segment parser ──
 
@@ -184,10 +184,16 @@ interface MarkdownMathProps {
   className?: string;
   inline?: boolean;
   subjectColor?: string;
+  filterTags?: NoteColorType[] | null;
 }
 
-export function MarkdownMath({ content, className = "", inline = false, subjectColor = "#6366f1" }: MarkdownMathProps) {
+export function MarkdownMath({ content, className = "", inline = false, subjectColor = "#6366f1", filterTags }: MarkdownMathProps) {
   const segments = useMemo(() => parseSegments(content), [content]);
+
+  const filteredSegments = useMemo(() => {
+    if (!filterTags || filterTags.length === 0) return segments;
+    return segments.filter((s) => s.type === "md" || filterTags.includes(s.type as NoteColorType));
+  }, [segments, filterTags]);
 
   if (inline) {
     return (
@@ -204,7 +210,7 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
   }
 
   // Fast path: no color tags
-  if (segments.length === 1 && segments[0].type === "md") {
+  if (filteredSegments.length === 1 && filteredSegments[0].type === "md") {
     return <MdBlock content={content} className={className} subjectColor={subjectColor} />;
   }
 
@@ -216,8 +222,8 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
     | { kind: "cards"; items: { segment: NoteSegment; index: number }[] };
 
   const groups: SegmentGroup[] = [];
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
+  for (let i = 0; i < filteredSegments.length; i++) {
+    const seg = filteredSegments[i];
     if (seg.type !== "md") {
       // It's a card — append to last cards group or create a new one
       const last = groups[groups.length - 1];
@@ -231,7 +237,7 @@ export function MarkdownMath({ content, className = "", inline = false, subjectC
       // (i.e. this md block is just blank lines between cards); if so, skip it (merge groups)
       const isBlank = seg.content.trim() === "";
       const prevGroup = groups[groups.length - 1];
-      const nextNonBlank = segments.slice(i + 1).find((s) => s.type !== "md" || s.content.trim() !== "");
+      const nextNonBlank = filteredSegments.slice(i + 1).find((s) => s.type !== "md" || s.content.trim() !== "");
       if (isBlank && prevGroup?.kind === "cards" && nextNonBlank && nextNonBlank.type !== "md") {
         // Skip this blank separator — the next card will be appended to the current cards group
         continue;

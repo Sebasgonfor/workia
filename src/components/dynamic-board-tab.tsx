@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Camera, ImagePlus, BookOpen, Loader2, Sparkles, X, Trash2, FileText } from "lucide-react";
-import { MarkdownMath } from "@/components/ui/markdown-math";
+import { Camera, ImagePlus, BookOpen, Loader2, Sparkles, X, Trash2, FileText, Settings2 } from "lucide-react";
+import { MarkdownMath, NoteColorType, COLOR_CONFIG, COLOR_TAGS } from "@/components/ui/markdown-math";
 import { Sheet } from "@/components/ui/sheet";
 import { useDynamicBoard } from "@/lib/hooks";
 import { uploadScanImage } from "@/lib/storage";
@@ -50,6 +50,14 @@ export function DynamicBoardTab({
   const [showImport, setShowImport] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<NoteColorType[]>([]);
+  const [enrichmentLevel, setEnrichmentLevel] = useState<"basic" | "complete" | "deep">("complete");
+
+  const toggleFilter = (tag: NoteColorType) => {
+    setActiveFilters((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -119,6 +127,7 @@ export function DynamicBoardTab({
             newImages: base64Images,
             existingNotes: importNotes,
             subjectName,
+            enrichmentLevel,
           }),
         });
 
@@ -141,7 +150,7 @@ export function DynamicBoardTab({
         setProcessing(false);
       }
     },
-    [pendingImages, board, boardEntries, subjectName, user, saveBoard]
+    [pendingImages, board, boardEntries, subjectName, user, saveBoard, enrichmentLevel]
   );
 
   const handleImportConfirm = () => {
@@ -179,6 +188,39 @@ export function DynamicBoardTab({
         onChange={(e) => handleFiles(e.target.files)}
       />
 
+      {/* Tag filters */}
+      {board?.content && (
+        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 no-scrollbar">
+          <button
+            onClick={() => setActiveFilters([])}
+            className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+              activeFilters.length === 0
+                ? "bg-foreground text-background"
+                : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            Todo
+          </button>
+          {COLOR_TAGS.map((tag) => {
+            const cfg = COLOR_CONFIG[tag];
+            const isActive = activeFilters.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleFilter(tag)}
+                className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all"
+                style={{
+                  backgroundColor: isActive ? cfg.border : `${cfg.border}15`,
+                  color: isActive ? "white" : cfg.text,
+                }}
+              >
+                {cfg.emoji} {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Board content or empty state */}
       {board?.content ? (
         <div>
@@ -201,7 +243,10 @@ export function DynamicBoardTab({
             </button>
           </div>
           <div className="p-4 rounded-2xl bg-card border border-border">
-            <MarkdownMath content={board.content} />
+            <MarkdownMath
+              content={board.content}
+              filterTags={activeFilters.length > 0 ? activeFilters : null}
+            />
           </div>
           {board.sourceImages.length > 0 && (
             <p className="text-[10px] text-muted-foreground mt-2 text-center">
@@ -273,6 +318,32 @@ export function DynamicBoardTab({
               )}
             </button>
           )}
+          {/* Enrichment level selector */}
+          <div className="flex items-center gap-1 mb-2">
+            <Settings2 className="w-3 h-3 text-muted-foreground shrink-0" />
+            <div className="flex gap-1 flex-1">
+              {([
+                { key: "basic" as const, label: "Basico", desc: "Solo estructura" },
+                { key: "complete" as const, label: "Completo", desc: "Tags + ejemplos" },
+                { key: "deep" as const, label: "Profundo", desc: "Todo + conexiones" },
+              ]).map((level) => (
+                <button
+                  key={level.key}
+                  onClick={() => setEnrichmentLevel(level.key)}
+                  disabled={processing}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
+                    enrichmentLevel === level.key
+                      ? "text-primary-foreground"
+                      : "bg-secondary/50 text-muted-foreground"
+                  }`}
+                  style={enrichmentLevel === level.key ? { backgroundColor: color } : undefined}
+                  title={level.desc}
+                >
+                  {level.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className={`grid gap-2 ${notesEntries.length > 0 ? "grid-cols-3" : "grid-cols-2"} md:flex md:gap-2`}>
             <button
               onClick={() => cameraInputRef.current?.click()}

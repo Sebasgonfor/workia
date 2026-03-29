@@ -83,6 +83,39 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
 
 export const maxDuration = 60;
 
+// Validation: check that enrichment actually used color tags
+function validateEnrichment(content: string): { valid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  const wordCount = content.split(/\s+/).length;
+  if (wordCount < 300) issues.push(`Solo ${wordCount} palabras (min 300)`);
+
+  const tags = ["nc-def", "nc-formula", "nc-ex", "nc-warn", "nc-ai"];
+  const found = tags.filter((tag) => content.includes(`<${tag}>`));
+  if (found.length < 3) issues.push(`Solo ${found.length}/5 tags de color usados`);
+
+  return { valid: issues.length === 0, issues };
+}
+
+const ENRICHMENT_LEVEL_MODIFIERS: Record<string, string> = {
+  basic: `\n\nNIVEL DE ENRIQUECIMIENTO: BÁSICO
+- Solo estructura el contenido con headers y formato markdown
+- Usa tags de color SOLO para definiciones (<nc-def>) y fórmulas (<nc-formula>)
+- NO agregues contenido que no esté en el input
+- NO uses <nc-ai>
+- Mantén el contenido conciso y directo`,
+
+  complete: "", // default behavior, no modifier needed
+
+  deep: `\n\nNIVEL DE ENRIQUECIMIENTO: PROFUNDO
+- Usa TODOS los 5 tags de color sin excepción
+- MÍNIMO 5 bloques <nc-ai> con contenido que NO esté en el input
+- Agrega conexiones con otros temas de la materia
+- Incluye al menos 3 ejemplos resueltos completos (<nc-ex>)
+- Agrega una tabla comparativa si hay múltiples conceptos
+- Incluye aplicaciones reales en ingeniería
+- MÍNIMO 800 palabras de contenido`,
+};
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -94,11 +127,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { existingContent, newImages, existingNotes, subjectName } = body as {
+    const { existingContent, newImages, existingNotes, subjectName, enrichmentLevel } = body as {
       existingContent?: string;
-      newImages?: string[]; // base64 data URLs
+      newImages?: string[];
       existingNotes?: string[];
       subjectName?: string;
+      enrichmentLevel?: "basic" | "complete" | "deep";
     };
 
     const hasExisting = !!(existingContent && existingContent.trim());
@@ -129,15 +163,22 @@ export async function POST(req: NextRequest) {
         ? `NOTAS IMPORTADAS DE LA CLASE (integra este contenido al tablero):\n${existingNotes.join("\n\n---\n\n")}`
         : "";
 
-    const prompt = ENRICH_PROMPT
-      .replace("{subjectName}", subjectName || "General")
-      .replace("{currentDate}", new Date().toISOString().split("T")[0])
-      .replace("{boardState}", boardState)
-      .replace("{mission}", mission)
-      .replace("{existingSection}", existingSection)
-      .replace("{notesSection}", notesSection);
+    const levelModifier = ENRICHMENT_LEVEL_MODIFIERS[enrichmentLevel || "complete"] || "";
 
-    // Build Gemini parts: prompt text + images
+    const buildPrompt = (retryHint?: string) => {
+      let prompt = ENRICH_PROMPT
+        .replace("{subjectName}", subjectName || "General")
+        .replace("{currentDate}", new Date().toISOString().split("T")[0])
+        .replace("{boardState}", boardState)
+        .replace("{mission}", mission)
+        .replace("{existingSection}", existingSection)
+        .replace("{notesSection}", notesSection);
+
+      if (levelModifier) prompt += levelModifier;
+      if (retryHint) prompt += `\n\nIMPORTANTE - CORRECCIÓN REQUERIDA: ${retryHint}`;
+      return prompt;
+    };
+
     const imageParts = (newImages || [])
       .filter((dataUrl: string) => typeof dataUrl === "string" && dataUrl.includes(","))
       .map((dataUrl: string) => {
@@ -151,10 +192,11 @@ export async function POST(req: NextRequest) {
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    const result = await model.generateContent([prompt, ...imageParts]);
-    const text = result.response.text().trim();
-
+    // First attempt
+    let result = await model.generateContent([buildPrompt(), ...imageParts]);
+    let text = result.response.text().trim();
     let parsed: { content: string };
+
     try {
       parsed = parseGeminiResponse(text) as { content: string };
     } catch {
@@ -162,6 +204,24 @@ export async function POST(req: NextRequest) {
     }
 
     if (!parsed.content) throw new Error("La IA no devolvió contenido");
+
+    // Validate (skip for basic level)
+    if (enrichmentLevel !== "basic") {
+      const validation = validateEnrichment(parsed.content);
+      if (!validation.valid) {
+        console.log("Enrichment validation failed, retrying:", validation.issues);
+        // Retry with explicit instructions
+        const retryHint = `Tu respuesta anterior fue insuficiente: ${validation.issues.join("; ")}. DEBES usar los tags <nc-def>, <nc-formula>, <nc-ex>, <nc-warn>, <nc-ai> en el contenido. DEBES generar al menos 300 palabras.`;
+        result = await model.generateContent([buildPrompt(retryHint), ...imageParts]);
+        text = result.response.text().trim();
+        try {
+          parsed = parseGeminiResponse(text) as { content: string };
+        } catch {
+          throw new Error("No se pudo interpretar la respuesta de la IA en reintento");
+        }
+        if (!parsed.content) throw new Error("La IA no devolvió contenido en reintento");
+      }
+    }
 
     return NextResponse.json({ success: true, data: parsed });
   } catch (err) {

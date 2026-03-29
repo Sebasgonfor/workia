@@ -37,6 +37,7 @@ import {
   BookOpen,
   Search,
   Share2,
+  Link2,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
@@ -51,6 +52,7 @@ import { SocraticTutor } from "@/components/study/socratic-tutor";
 import { StudyKitGenerator } from "@/components/study/study-kit-generator";
 import { GapDetector } from "@/components/study/gap-detector";
 import { KnowledgeGraph } from "@/components/analytics/knowledge-graph";
+import { ConnectionsPanel } from "@/components/study/connections-panel";
 import { uploadScanImage, uploadAudio, uploadNoteImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
@@ -180,6 +182,7 @@ export default function BoardPage() {
   const [showStudyKit, setShowStudyKit] = useState(false);
   const [showGapDetector, setShowGapDetector] = useState(false);
   const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
+  const [showConnections, setShowConnections] = useState(false);
   const [socraticInitialTopic, setSocraticInitialTopic] = useState("");
 
   // Reader state
@@ -1169,6 +1172,13 @@ export default function BoardPage() {
               >
                 <Share2 className="w-3 h-3" />
                 Mapa
+              </button>
+              <button
+                onClick={() => setShowConnections(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-500/10 text-teal-400 text-xs font-medium whitespace-nowrap hover:bg-teal-500/20 transition-colors"
+              >
+                <Link2 className="w-3 h-3" />
+                Conexiones
               </button>
             </div>
           )}
@@ -2512,6 +2522,19 @@ export default function BoardPage() {
           subjectColor={color}
           subjectId={subjectId}
           onClose={() => setShowKnowledgeGraph(false)}
+        />
+      )}
+
+      {showConnections && entries.filter((e) => e.type === "notes").length >= 2 && (
+        <ConnectionsPanel
+          entries={entries
+            .filter((e) => e.type === "notes" && e.content.trim().length > 30)
+            .map((e) => ({
+              classTitle: classSession?.title || "Clase",
+              subjectName: subject?.name || "",
+              content: e.content,
+            }))}
+          onClose={() => setShowConnections(false)}
         />
       )}
 
