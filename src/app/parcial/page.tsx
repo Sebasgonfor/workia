@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   GraduationCap, ChevronRight, Loader2, CheckCircle2, BookOpen, AlertTriangle,
   Brain, Clock, FileText, HelpCircle, Lightbulb, Timer, Trophy, ArrowLeft,
-  Play, ChevronDown,
+  Play, ChevronDown, Download,
 } from "lucide-react";
 
 type Step = "select" | "generating" | "guide" | "simulating" | "exam" | "results";
@@ -180,6 +180,185 @@ export default function ParcialPage() {
     const s = seconds % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
+
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPDF = useCallback(async () => {
+    if (!guide || !subject) return;
+    setExporting(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      const maxW = pageW - margin * 2;
+      let y = 20;
+
+      const addPage = () => { doc.addPage(); y = 20; };
+      const checkPage = (need: number) => { if (y + need > 270) addPage(); };
+
+      // Helper: strip markdown/latex for plain text PDF
+      const strip = (s: string) => s
+        .replace(/\$\$[\s\S]*?\$\$/g, "[formula]")
+        .replace(/\$[^$]+\$/g, "[formula]")
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/[#*_`~]/g, "")
+        .replace(/<[^>]+>/g, "")
+        .trim();
+
+      // Title
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${subject.emoji} Guia de Parcial`, margin, y);
+      y += 8;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text(subject.name, margin, y);
+      y += 4;
+      doc.setFontSize(9);
+      doc.setTextColor(120);
+      doc.text(new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" }), margin, y);
+      doc.setTextColor(0);
+      y += 10;
+
+      // Separator
+      doc.setDrawColor(200);
+      doc.line(margin, y, pageW - margin, y);
+      y += 8;
+
+      // Summary
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Resumen", margin, y);
+      y += 7;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      const summaryLines = doc.splitTextToSize(strip(guide.summary), maxW);
+      for (const line of summaryLines) {
+        checkPage(5);
+        doc.text(line, margin, y);
+        y += 4.5;
+      }
+      y += 6;
+
+      // Key Concepts
+      checkPage(15);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Conceptos Clave", margin, y);
+      y += 7;
+      for (const c of guide.keyConcepts) {
+        checkPage(15);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(`• ${c.name}`, margin, y);
+        const diffLabel = ` [${c.difficulty}]`;
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100);
+        doc.text(diffLabel, margin + doc.getTextWidth(`• ${c.name}`) + 2, y);
+        doc.setTextColor(0);
+        y += 5;
+        doc.setFontSize(9);
+        const defLines = doc.splitTextToSize(strip(c.definition), maxW - 5);
+        for (const line of defLines) {
+          checkPage(5);
+          doc.text(line, margin + 5, y);
+          y += 4;
+        }
+        y += 3;
+      }
+      y += 4;
+
+      // Formulas
+      if (guide.formulas.length > 0) {
+        checkPage(15);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Formulas", margin, y);
+        y += 7;
+        for (const f of guide.formulas) {
+          checkPage(15);
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text(`• ${f.name}`, margin, y);
+          y += 5;
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
+          doc.text(`Formula: ${strip(f.formula)}`, margin + 5, y);
+          y += 4;
+          const whenLines = doc.splitTextToSize(`Cuando usar: ${f.whenToUse}`, maxW - 5);
+          for (const line of whenLines) {
+            checkPage(5);
+            doc.text(line, margin + 5, y);
+            y += 4;
+          }
+          y += 3;
+        }
+        y += 4;
+      }
+
+      // Common Mistakes
+      if (guide.commonMistakes.length > 0) {
+        checkPage(15);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Errores Comunes", margin, y);
+        y += 7;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        for (const m of guide.commonMistakes) {
+          checkPage(8);
+          const lines = doc.splitTextToSize(`⚠ ${m}`, maxW);
+          for (const line of lines) {
+            doc.text(line, margin, y);
+            y += 4.5;
+          }
+          y += 2;
+        }
+        y += 4;
+      }
+
+      // Study Plan
+      if (guide.studyPlan.length > 0) {
+        checkPage(15);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Plan de Estudio", margin, y);
+        y += 7;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        for (let i = 0; i < guide.studyPlan.length; i++) {
+          const s = guide.studyPlan[i];
+          checkPage(8);
+          doc.text(`${i + 1}. ${s.topic} — ${s.estimatedMinutes} min (Prioridad ${s.priority})`, margin, y);
+          y += 5;
+        }
+        const totalMin = guide.studyPlan.reduce((sum, s) => sum + s.estimatedMinutes, 0);
+        y += 3;
+        doc.setFont("helvetica", "bold");
+        doc.text(`Tiempo total estimado: ${totalMin} minutos`, margin, y);
+      }
+
+      // Footer on last page
+      const pages = doc.getNumberOfPages();
+      for (let i = 1; i <= pages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Generado por Workia — Pagina ${i}/${pages}`, margin, 290);
+        doc.setTextColor(0);
+      }
+
+      doc.save(`Guia-Parcial-${subject.name.replace(/\s+/g, "-")}.pdf`);
+      toast.success("PDF descargado");
+    } catch (err) {
+      console.error("PDF export error:", err);
+      toast.error("Error al exportar PDF");
+    } finally {
+      setExporting(false);
+    }
+  }, [guide, subject]);
 
   useEffect(() => {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
@@ -434,6 +613,16 @@ export default function ParcialPage() {
                 </div>
               </div>
             )}
+
+            {/* Export PDF */}
+            <button
+              onClick={handleExportPDF}
+              disabled={exporting}
+              className="w-full py-2.5 rounded-xl bg-secondary text-foreground text-sm font-medium flex items-center justify-center gap-2 hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            >
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {exporting ? "Exportando..." : "Descargar Guia en PDF"}
+            </button>
 
             {/* Simulate Exam Button */}
             <div className="pt-4 space-y-3">
