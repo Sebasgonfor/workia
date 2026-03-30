@@ -233,7 +233,9 @@
 .markdown-math h3 { font-size: 1rem; font-weight: 600; }
 .markdown-math p { margin-bottom: 0.5em; line-height: 1.6; }
 .markdown-math ul, .markdown-math ol { padding-left: 1.25em; margin-bottom: 0.5em; }
-.markdown-math li { margin-bottom: 0.2em; }
+.markdown-math ul { list-style-type: disc; }
+.markdown-math ol { list-style-type: decimal; }
+.markdown-math li { margin-bottom: 0.2em; display: list-item; }
 .markdown-math strong { color: hsl(var(--primary)); font-weight: 600; }
 .markdown-math code {
   background: hsl(var(--secondary));
