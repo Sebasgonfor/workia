@@ -295,6 +295,115 @@ export const DIGITALIZATION_FILTERS = [
   { value: "original" as const, label: "Original", description: "Sin cambios" },
 ] as const;
 
+// ── Feynman Mode ──
+
+export interface FeynmanSession {
+  id: string;
+  subjectId: string;
+  classSessionId: string;
+  concept: string;
+  score: number;
+  userExplanation: string;
+  feedback: FeynmanFeedback;
+  createdAt: Date;
+}
+
+export interface FeynmanFeedback {
+  score: number;
+  correct: string[];
+  missed: string[];
+  wrong: string[];
+  suggestions: string[];
+  detailedFeedback: string;
+}
+
+// ── Socratic Tutor ──
+
+export interface SocraticSession {
+  id: string;
+  subjectId: string;
+  classSessionId: string;
+  topic: string;
+  score: number;
+  messageCount: number;
+  mastered: boolean;
+  createdAt: Date;
+}
+
+// ── Mastery Dashboard ──
+
+export interface SubjectMastery {
+  subjectId: string;
+  subjectName: string;
+  subjectColor: string;
+  subjectEmoji: string;
+  flashcardMastery: number;
+  quizMastery: number;
+  feynmanMastery: number;
+  socraticMastery: number;
+  overallMastery: number;
+  totalStudyItems: number;
+  conceptsToReview: string[];
+}
+
+// ── Study Kit ──
+
+export interface StudyKit {
+  summary: string;
+  flashcards: Array<{
+    question: string;
+    answer: string;
+    type: "definition" | "application" | "comparison" | "calculation";
+  }>;
+  quiz: {
+    title: string;
+    questions: Array<{
+      id: string;
+      question: string;
+      type: "multiple_choice" | "true_false";
+      options: string[];
+      correctIndex: number;
+      explanation: string;
+    }>;
+  };
+  keyConcepts: Array<{
+    name: string;
+    definition: string;
+    relatedConcepts: string[];
+    importance: "high" | "medium" | "low";
+  }>;
+}
+
+// ── Knowledge Graph ──
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  subjectId: string;
+  subjectColor: string;
+  mastery: number;
+  x?: number;
+  y?: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  label: string;
+  strength: number;
+}
+
+// ── Gap Detection ──
+
+export interface KnowledgeGap {
+  topic: string;
+  description: string;
+  severity: "critical" | "moderate" | "minor";
+  suggestion: string;
+}
+
+export type QuizDifficulty = "recognition" | "recall" | "application";
+
 /** Returns the next occurrence date+slot for a given subject, or null if no slots exist. */
 export const nextClassDate = (
   slots: ScheduleSlot[],

@@ -13,6 +13,8 @@ import {
   Clock,
   HelpCircle,
   FileOutput,
+  Trophy,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +28,8 @@ const navItems = [
   { href: "/horario", label: "Horario", icon: Clock },
   { href: "/digitalizar", label: "Digitalizar", icon: FileOutput },
   { href: "/quiz", label: "Quiz", icon: HelpCircle },
+  { href: "/dominio", label: "Dominio", icon: Trophy },
+  { href: "/parcial", label: "Parcial", icon: ClipboardList },
   { href: "/perfil", label: "Perfil", icon: User },
 ];
 

@@ -33,6 +33,11 @@ import {
   FolderOpen,
   MessageCircle,
   List,
+  GraduationCap,
+  BookOpen,
+  Search,
+  Share2,
+  Link2,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
@@ -42,6 +47,12 @@ import { DynamicBoardTab } from "@/components/dynamic-board-tab";
 import { ClassDocuments } from "@/components/class-documents";
 import { NotesChatPanel } from "@/components/notes-chat-panel";
 import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
+import { FeynmanMode } from "@/components/study/feynman-mode";
+import { SocraticTutor } from "@/components/study/socratic-tutor";
+import { StudyKitGenerator } from "@/components/study/study-kit-generator";
+import { GapDetector } from "@/components/study/gap-detector";
+import { KnowledgeGraph } from "@/components/analytics/knowledge-graph";
+import { ConnectionsPanel } from "@/components/study/connections-panel";
 import { uploadScanImage, uploadAudio, uploadNoteImage } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
@@ -150,6 +161,7 @@ export default function BoardPage() {
   const subject = useMemo(() => subjects.find((s) => s.id === subjectId), [subjects, subjectId]);
   const classSession = useMemo(() => classes.find((c) => c.id === classId), [classes, classId]);
   const classTasks = useMemo(() => allTasks.filter((t) => t.classSessionId === classId), [allTasks, classId]);
+  const allNotesContent = useMemo(() => entries.filter((e) => e.type === "notes").map((e) => e.content).join("\n\n"), [entries]);
 
   // Entry CRUD state
   const [showSheet, setShowSheet] = useState(false);
@@ -163,6 +175,15 @@ export default function BoardPage() {
 
   // Tab state
   const [activeTab, setActiveTab] = useState<"apuntes" | "tablero" | "documentos" | "ia">("apuntes");
+
+  // Study tools state
+  const [showFeynman, setShowFeynman] = useState(false);
+  const [showSocratic, setShowSocratic] = useState(false);
+  const [showStudyKit, setShowStudyKit] = useState(false);
+  const [showGapDetector, setShowGapDetector] = useState(false);
+  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
+  const [showConnections, setShowConnections] = useState(false);
+  const [socraticInitialTopic, setSocraticInitialTopic] = useState("");
 
   // Reader state
   const [readerEntry, setReaderEntry] = useState<BoardEntry | null>(null);
@@ -1113,6 +1134,54 @@ export default function BoardPage() {
               IA
             </button>
           </div>
+
+          {/* Study Tools Bar */}
+          {entries.length > 0 && (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <button
+                onClick={() => setShowFeynman(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-500/10 text-purple-400 text-xs font-medium whitespace-nowrap hover:bg-purple-500/20 transition-colors"
+              >
+                <Brain className="w-3 h-3" />
+                Feynman
+              </button>
+              <button
+                onClick={() => setShowSocratic(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-medium whitespace-nowrap hover:bg-indigo-500/20 transition-colors"
+              >
+                <GraduationCap className="w-3 h-3" />
+                Socratico
+              </button>
+              <button
+                onClick={() => setShowStudyKit(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium whitespace-nowrap hover:bg-emerald-500/20 transition-colors"
+              >
+                <BookOpen className="w-3 h-3" />
+                Kit de Estudio
+              </button>
+              <button
+                onClick={() => setShowGapDetector(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium whitespace-nowrap hover:bg-amber-500/20 transition-colors"
+              >
+                <Search className="w-3 h-3" />
+                Gaps
+              </button>
+              <button
+                onClick={() => setShowKnowledgeGraph(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-400 text-xs font-medium whitespace-nowrap hover:bg-cyan-500/20 transition-colors"
+              >
+                <Share2 className="w-3 h-3" />
+                Mapa
+              </button>
+              <button
+                onClick={() => setShowConnections(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-500/10 text-teal-400 text-xs font-medium whitespace-nowrap hover:bg-teal-500/20 transition-colors"
+              >
+                <Link2 className="w-3 h-3" />
+                Conexiones
+              </button>
+            </div>
+          )}
         </div>
 
         {activeTab === "apuntes" && (
@@ -2401,6 +2470,72 @@ export default function BoardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Study Tool Modals */}
+      {showFeynman && allNotesContent && (
+        <FeynmanMode
+          content={allNotesContent}
+          subjectName={subject?.name || ""}
+          subjectId={subjectId}
+          classId={classId}
+          onClose={() => setShowFeynman(false)}
+        />
+      )}
+      {showSocratic && (
+        <SocraticTutor
+          subjectId={subjectId}
+          classId={classId}
+          subjectName={subject?.name || ""}
+          classTitle={classSession?.title || ""}
+          notesContent={allNotesContent}
+          initialTopic={socraticInitialTopic}
+          onClose={() => { setShowSocratic(false); setSocraticInitialTopic(""); }}
+        />
+      )}
+      {showStudyKit && allNotesContent && (
+        <StudyKitGenerator
+          content={allNotesContent}
+          subjectName={subject?.name || ""}
+          subjectId={subjectId}
+          classId={classId}
+          subjectDocuments={subjectDocuments.map((d) => ({ name: d.name, url: d.url, fileType: d.fileType }))}
+          onClose={() => setShowStudyKit(false)}
+        />
+      )}
+      {showGapDetector && allNotesContent && (
+        <GapDetector
+          content={allNotesContent}
+          subjectName={subject?.name || ""}
+          onOpenSocratic={(topic) => {
+            setShowGapDetector(false);
+            setSocraticInitialTopic(topic);
+            setShowSocratic(true);
+          }}
+          onClose={() => setShowGapDetector(false)}
+        />
+      )}
+      {showKnowledgeGraph && allNotesContent && (
+        <KnowledgeGraph
+          content={allNotesContent}
+          subjectName={subject?.name || ""}
+          subjectColor={color}
+          subjectId={subjectId}
+          onClose={() => setShowKnowledgeGraph(false)}
+        />
+      )}
+
+      {showConnections && entries.filter((e) => e.type === "notes").length >= 2 && (
+        <ConnectionsPanel
+          entries={entries
+            .filter((e) => e.type === "notes" && e.content.trim().length > 30)
+            .map((e) => ({
+              classTitle: classSession?.title || "Clase",
+              subjectName: subject?.name || "",
+              content: e.content,
+            }))}
+          onClose={() => setShowConnections(false)}
+        />
       )}
 
       {/* TOC Sheet */}

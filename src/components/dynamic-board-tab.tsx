@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Camera, ImagePlus, BookOpen, Loader2, Sparkles, X, Trash2, FileText } from "lucide-react";
-import { MarkdownMath } from "@/components/ui/markdown-math";
+import { Camera, ImagePlus, BookOpen, Loader2, Sparkles, X, Trash2, FileText, Settings2, GitBranch } from "lucide-react";
+import { MarkdownMath, NoteColorType, COLOR_CONFIG, COLOR_TAGS } from "@/components/ui/markdown-math";
+import { MermaidChart } from "@/components/ui/mermaid-chart";
 import { Sheet } from "@/components/ui/sheet";
 import { useDynamicBoard } from "@/lib/hooks";
 import { uploadScanImage } from "@/lib/storage";
@@ -50,6 +51,16 @@ export function DynamicBoardTab({
   const [showImport, setShowImport] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
+  const [mindMapCode, setMindMapCode] = useState<string | null>(null);
+  const [generatingMindMap, setGeneratingMindMap] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<NoteColorType[]>([]);
+  const [enrichmentLevel, setEnrichmentLevel] = useState<"basic" | "complete" | "deep">("complete");
+
+  const toggleFilter = (tag: NoteColorType) => {
+    setActiveFilters((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -119,6 +130,7 @@ export function DynamicBoardTab({
             newImages: base64Images,
             existingNotes: importNotes,
             subjectName,
+            enrichmentLevel,
           }),
         });
 
@@ -141,8 +153,30 @@ export function DynamicBoardTab({
         setProcessing(false);
       }
     },
-    [pendingImages, board, boardEntries, subjectName, user, saveBoard]
+    [pendingImages, board, boardEntries, subjectName, user, saveBoard, enrichmentLevel]
   );
+
+  const handleGenerateMindMap = useCallback(async () => {
+    if (!board?.content) return;
+    setGeneratingMindMap(true);
+    try {
+      const res = await fetch("/api/mind-map/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: board.content, subjectName }),
+      });
+      const data = await res.json();
+      if (data.success && data.code) {
+        setMindMapCode(data.code);
+      } else {
+        toast.error("Error al generar mapa mental");
+      }
+    } catch {
+      toast.error("Error de conexion");
+    } finally {
+      setGeneratingMindMap(false);
+    }
+  }, [board, subjectName]);
 
   const handleImportConfirm = () => {
     if (selectedIds.size === 0) { toast.error("Selecciona al menos una nota"); return; }
@@ -179,6 +213,39 @@ export function DynamicBoardTab({
         onChange={(e) => handleFiles(e.target.files)}
       />
 
+      {/* Tag filters */}
+      {board?.content && (
+        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 no-scrollbar">
+          <button
+            onClick={() => setActiveFilters([])}
+            className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+              activeFilters.length === 0
+                ? "bg-foreground text-background"
+                : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            Todo
+          </button>
+          {COLOR_TAGS.map((tag) => {
+            const cfg = COLOR_CONFIG[tag];
+            const isActive = activeFilters.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleFilter(tag)}
+                className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all"
+                style={{
+                  backgroundColor: isActive ? cfg.border : `${cfg.border}15`,
+                  color: isActive ? "white" : cfg.text,
+                }}
+              >
+                {cfg.emoji} {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Board content or empty state */}
       {board?.content ? (
         <div>
@@ -201,13 +268,39 @@ export function DynamicBoardTab({
             </button>
           </div>
           <div className="p-4 rounded-2xl bg-card border border-border">
-            <MarkdownMath content={board.content} />
+            <MarkdownMath
+              content={board.content}
+              filterTags={activeFilters.length > 0 ? activeFilters : null}
+            />
           </div>
           {board.sourceImages.length > 0 && (
             <p className="text-[10px] text-muted-foreground mt-2 text-center">
               {board.sourceImages.length} foto
               {board.sourceImages.length !== 1 ? "s" : ""} fuente
             </p>
+          )}
+
+          {/* Mind Map Button */}
+          <button
+            onClick={handleGenerateMindMap}
+            disabled={generatingMindMap}
+            className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          >
+            {generatingMindMap ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitBranch className="w-3.5 h-3.5" />}
+            {generatingMindMap ? "Generando..." : "Generar Mapa Mental"}
+          </button>
+
+          {/* Mind Map Display */}
+          {mindMapCode && (
+            <div className="mt-3 bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-muted-foreground">Mapa Mental</span>
+                <button onClick={() => setMindMapCode(null)} className="text-xs text-muted-foreground hover:text-foreground">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <MermaidChart code={mindMapCode} />
+            </div>
           )}
         </div>
       ) : (
@@ -273,6 +366,32 @@ export function DynamicBoardTab({
               )}
             </button>
           )}
+          {/* Enrichment level selector */}
+          <div className="flex items-center gap-1 mb-2">
+            <Settings2 className="w-3 h-3 text-muted-foreground shrink-0" />
+            <div className="flex gap-1 flex-1">
+              {([
+                { key: "basic" as const, label: "Basico", desc: "Solo estructura" },
+                { key: "complete" as const, label: "Completo", desc: "Tags + ejemplos" },
+                { key: "deep" as const, label: "Profundo", desc: "Todo + conexiones" },
+              ]).map((level) => (
+                <button
+                  key={level.key}
+                  onClick={() => setEnrichmentLevel(level.key)}
+                  disabled={processing}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
+                    enrichmentLevel === level.key
+                      ? "text-primary-foreground"
+                      : "bg-secondary/50 text-muted-foreground"
+                  }`}
+                  style={enrichmentLevel === level.key ? { backgroundColor: color } : undefined}
+                  title={level.desc}
+                >
+                  {level.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className={`grid gap-2 ${notesEntries.length > 0 ? "grid-cols-3" : "grid-cols-2"} md:flex md:gap-2`}>
             <button
               onClick={() => cameraInputRef.current?.click()}

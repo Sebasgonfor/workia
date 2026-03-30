@@ -14,6 +14,8 @@ import {
   Clock,
   HelpCircle,
   FileOutput,
+  Trophy,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -33,6 +35,8 @@ const moreTabs = [
   { href: "/horario", label: "Horario", icon: Clock },
   { href: "/digitalizar", label: "Digitalizar", icon: FileOutput },
   { href: "/quiz", label: "Quiz", icon: HelpCircle },
+  { href: "/dominio", label: "Dominio", icon: Trophy },
+  { href: "/parcial", label: "Parcial", icon: ClipboardList },
 ];
 
 export function BottomNav() {
