@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Camera, ImagePlus, BookOpen, Loader2, Sparkles, X, Trash2, FileText, Settings2 } from "lucide-react";
+import { Camera, ImagePlus, BookOpen, Loader2, Sparkles, X, Trash2, FileText, Settings2, GitBranch } from "lucide-react";
 import { MarkdownMath, NoteColorType, COLOR_CONFIG, COLOR_TAGS } from "@/components/ui/markdown-math";
+import { MermaidChart } from "@/components/ui/mermaid-chart";
 import { Sheet } from "@/components/ui/sheet";
 import { useDynamicBoard } from "@/lib/hooks";
 import { uploadScanImage } from "@/lib/storage";
@@ -50,6 +51,8 @@ export function DynamicBoardTab({
   const [showImport, setShowImport] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
+  const [mindMapCode, setMindMapCode] = useState<string | null>(null);
+  const [generatingMindMap, setGeneratingMindMap] = useState(false);
   const [activeFilters, setActiveFilters] = useState<NoteColorType[]>([]);
   const [enrichmentLevel, setEnrichmentLevel] = useState<"basic" | "complete" | "deep">("complete");
 
@@ -153,6 +156,28 @@ export function DynamicBoardTab({
     [pendingImages, board, boardEntries, subjectName, user, saveBoard, enrichmentLevel]
   );
 
+  const handleGenerateMindMap = useCallback(async () => {
+    if (!board?.content) return;
+    setGeneratingMindMap(true);
+    try {
+      const res = await fetch("/api/mind-map/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: board.content, subjectName }),
+      });
+      const data = await res.json();
+      if (data.success && data.code) {
+        setMindMapCode(data.code);
+      } else {
+        toast.error("Error al generar mapa mental");
+      }
+    } catch {
+      toast.error("Error de conexion");
+    } finally {
+      setGeneratingMindMap(false);
+    }
+  }, [board, subjectName]);
+
   const handleImportConfirm = () => {
     if (selectedIds.size === 0) { toast.error("Selecciona al menos una nota"); return; }
     handleEnrich(selectedIds);
@@ -253,6 +278,29 @@ export function DynamicBoardTab({
               {board.sourceImages.length} foto
               {board.sourceImages.length !== 1 ? "s" : ""} fuente
             </p>
+          )}
+
+          {/* Mind Map Button */}
+          <button
+            onClick={handleGenerateMindMap}
+            disabled={generatingMindMap}
+            className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          >
+            {generatingMindMap ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitBranch className="w-3.5 h-3.5" />}
+            {generatingMindMap ? "Generando..." : "Generar Mapa Mental"}
+          </button>
+
+          {/* Mind Map Display */}
+          {mindMapCode && (
+            <div className="mt-3 bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-muted-foreground">Mapa Mental</span>
+                <button onClick={() => setMindMapCode(null)} className="text-xs text-muted-foreground hover:text-foreground">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <MermaidChart code={mindMapCode} />
+            </div>
           )}
         </div>
       ) : (
