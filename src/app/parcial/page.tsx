@@ -37,12 +37,12 @@ interface SimExam {
 }
 
 const diffColors: Record<string, { bg: string; text: string }> = {
-  fundamental: { bg: "bg-emerald-500/10", text: "text-emerald-400" },
-  importante: { bg: "bg-amber-500/10", text: "text-amber-400" },
-  avanzado: { bg: "bg-red-500/10", text: "text-red-400" },
-  facil: { bg: "bg-emerald-500/10", text: "text-emerald-400" },
-  medio: { bg: "bg-amber-500/10", text: "text-amber-400" },
-  dificil: { bg: "bg-red-500/10", text: "text-red-400" },
+  fundamental: { bg: "bg-emerald-500/10", text: "text-emerald-600" },
+  importante: { bg: "bg-amber-500/10", text: "text-amber-600" },
+  avanzado: { bg: "bg-red-500/10", text: "text-red-600" },
+  facil: { bg: "bg-emerald-500/10", text: "text-emerald-600" },
+  medio: { bg: "bg-amber-500/10", text: "text-amber-600" },
+  dificil: { bg: "bg-red-500/10", text: "text-red-600" },
 };
 
 export default function ParcialPage() {
@@ -464,8 +464,8 @@ export default function ParcialPage() {
         {/* Step: Generating */}
         {step === "generating" && (
           <div className="flex flex-col items-center py-20 gap-3">
-            <Loader2 className="w-10 h-10 text-indigo-400 animate-spin" />
-            <p className="text-white font-medium">Generando guia de estudio...</p>
+            <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+            <p className="text-foreground font-medium">Generando guia de estudio...</p>
             <p className="text-sm text-muted-foreground">Analizando {selectedClasses.size} clases</p>
           </div>
         )}
@@ -525,82 +525,90 @@ export default function ParcialPage() {
             )}
 
             {guideTab === "formulas" && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {guide.formulas.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No hay formulas para esta materia</p>
                 ) : guide.formulas.map((f, i) => (
-                  <div key={i} className="bg-card border border-border rounded-xl p-4">
-                    <h3 className="font-medium text-sm mb-2">{f.name}</h3>
-                    <div className="bg-secondary/50 rounded-lg p-3 mb-2">
+                  <div key={i} className="bg-card border border-border shadow-sm hover:shadow-md transition-shadow rounded-xl p-5">
+                    <h3 className="font-semibold text-sm mb-3">{f.name}</h3>
+                    <div className="bg-secondary/50 rounded-lg p-4 mb-4 flex justify-center">
                       <MarkdownMath content={f.formula} />
                     </div>
-                    <p className="text-xs text-muted-foreground"><strong>Cuando usar:</strong> {f.whenToUse}</p>
-                    <p className="text-xs text-muted-foreground mt-1"><strong>Variables:</strong> {f.variables}</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      <strong className="text-foreground">Cuando usar:</strong> <MarkdownMath content={f.whenToUse} inline />
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      <strong className="text-foreground">Variables:</strong> <MarkdownMath content={f.variables} inline />
+                    </p>
                   </div>
                 ))}
               </div>
             )}
 
             {guideTab === "practice" && (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {guide.commonMistakes.length > 0 && (
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-4">
-                    <h3 className="text-amber-400 font-medium text-sm flex items-center gap-2 mb-2">
-                      <AlertTriangle className="w-4 h-4" /> Errores comunes en parciales
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-4 shadow-sm">
+                    <h3 className="text-amber-700 font-semibold text-sm flex items-center gap-2 mb-3">
+                      <AlertTriangle className="w-5 h-5" /> Errores comunes en parciales
                     </h3>
-                    <ul className="space-y-1">
+                    <ul className="space-y-2">
                       {guide.commonMistakes.map((m, i) => (
-                        <li key={i} className="text-xs text-amber-200/80 flex items-start gap-2">
-                          <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-400 shrink-0" />{m}
+                        <li key={i} className="text-xs text-amber-900/80 flex items-start gap-2 leading-relaxed">
+                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />{m}
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
                 {guide.practiceQuestions.map((q, i) => (
-                  <div key={q.id} className="bg-card border border-border rounded-xl p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <p className="text-sm font-medium flex-1">
+                  <div key={q.id} className="bg-card border border-border shadow-sm rounded-xl p-5">
+                    <div className="flex items-start justify-between mb-4">
+                      <p className="text-sm font-medium flex-1 text-foreground leading-relaxed">
                         <span className="text-muted-foreground mr-1">{i + 1}.</span>
                         <MarkdownMath content={q.question} inline />
                       </p>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ml-2 shrink-0 ${(diffColors[q.difficulty] || diffColors.importante).bg} ${(diffColors[q.difficulty] || diffColors.importante).text}`}>
+                      <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-md ml-2 shrink-0 ${(diffColors[q.difficulty] || diffColors.importante).bg} ${(diffColors[q.difficulty] || diffColors.importante).text}`}>
                         {q.difficulty}
                       </span>
                     </div>
                     {q.options.length > 0 && (
-                      <div className="space-y-1 mt-2">
+                      <div className="space-y-2 mt-3">
                         {q.options.map((opt, j) => (
-                          <div key={j} className={`text-xs px-3 py-2 rounded-lg ${
-                            j === q.correctIndex ? "bg-emerald-500/10 text-emerald-400" : "bg-secondary/50 text-muted-foreground"
+                          <div key={j} className={`text-xs px-4 py-3 rounded-lg border ${
+                            j === q.correctIndex ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-secondary/50 border-transparent text-muted-foreground"
                           }`}>
-                            {opt}
+                            <MarkdownMath content={opt} inline />
                           </div>
                         ))}
                       </div>
                     )}
-                    <p className="text-xs text-muted-foreground mt-2 italic">{q.explanation}</p>
+                    <div className="text-xs text-muted-foreground mt-4 italic bg-secondary/30 p-3 rounded-lg border border-border/50">
+                      <MarkdownMath content={q.explanation} inline />
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
             {guideTab === "plan" && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {guide.studyPlan.map((s, i) => {
-                  const pColor = s.priority === "alta" ? "text-red-400" : s.priority === "media" ? "text-amber-400" : "text-emerald-400";
+                  const pColor = s.priority === "alta" ? "text-red-600" : s.priority === "media" ? "text-amber-600" : "text-emerald-600";
                   return (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl">
-                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
+                    <div key={i} className="flex items-center gap-4 p-4 bg-card border border-border shadow-sm rounded-xl">
+                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-foreground shrink-0 border border-border/50">
                         {i + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium">{s.topic}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <p className="text-sm font-semibold text-foreground">{s.topic}</p>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 bg-secondary/50 px-2 py-0.5 rounded-md">
                             <Clock className="w-3 h-3" />{s.estimatedMinutes} min
                           </span>
-                          <span className={`text-xs ${pColor}`}>Prioridad {s.priority}</span>
+                          <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded-md ${s.priority === "alta" ? "bg-red-50" : s.priority === "media" ? "bg-amber-50" : "bg-emerald-50"} ${pColor}`}>
+                            Prioridad {s.priority}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -662,8 +670,8 @@ export default function ParcialPage() {
         {/* Step: Simulating */}
         {step === "simulating" && (
           <div className="flex flex-col items-center py-20 gap-3">
-            <Loader2 className="w-10 h-10 text-indigo-400 animate-spin" />
-            <p className="font-medium">Generando simulacro de parcial...</p>
+            <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+            <p className="text-foreground font-medium">Generando simulacro de parcial...</p>
             <p className="text-sm text-muted-foreground">{questionCount} preguntas, {duration} minutos</p>
           </div>
         )}
@@ -696,18 +704,18 @@ export default function ParcialPage() {
                   <span className="text-xs text-muted-foreground ml-2">{q.points} pts</span>
                 </div>
                 {q.type === "multiple_choice" && q.options.length > 0 ? (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {q.options.map((opt, j) => (
                       <button
                         key={j}
                         onClick={() => setExamAnswers((prev) => ({ ...prev, [q.id]: j }))}
-                        className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
+                        className={`w-full text-left text-sm px-4 py-3 rounded-xl border transition-colors ${
                           examAnswers[q.id] === j
-                            ? "bg-primary/20 text-primary border border-primary/30"
-                            : "bg-secondary/50 text-foreground hover:bg-secondary"
+                            ? "bg-primary/10 border-primary/30 text-primary"
+                            : "bg-secondary/50 border-transparent text-foreground hover:bg-secondary"
                         }`}
                       >
-                        {opt}
+                        <MarkdownMath content={opt} inline />
                       </button>
                     ))}
                   </div>
@@ -735,15 +743,17 @@ export default function ParcialPage() {
         {(step === "results" || examSubmitted) && exam && (
           <div className="space-y-4">
             {/* Score */}
-            <div className={`rounded-2xl p-6 text-center border border-border ${
-              examScore.points >= examScore.totalPoints * 0.6 ? "bg-emerald-500/10" : "bg-red-500/10"
+            <div className={`rounded-2xl p-8 text-center border shadow-sm ${
+              examScore.points >= examScore.totalPoints * 0.6 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
             }`}>
-              <Trophy className={`w-8 h-8 mx-auto mb-2 ${
-                examScore.points >= examScore.totalPoints * 0.6 ? "text-emerald-400" : "text-red-400"
+              <Trophy className={`w-10 h-10 mx-auto mb-3 ${
+                examScore.points >= examScore.totalPoints * 0.6 ? "text-emerald-600" : "text-red-600"
               }`} />
-              <p className="text-3xl font-bold">{examScore.points}/{examScore.totalPoints}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {examScore.correct} de {examScore.total} correctas (opcion multiple)
+              <p className={`text-4xl font-extrabold ${examScore.points >= examScore.totalPoints * 0.6 ? "text-emerald-700" : "text-red-700"}`}>
+                {examScore.points}/{examScore.totalPoints}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2 font-medium">
+                {examScore.correct} de {examScore.total} correctas (opción múltiple)
               </p>
             </div>
 
@@ -762,27 +772,29 @@ export default function ParcialPage() {
                     <MarkdownMath content={q.question} inline />
                   </p>
                   {q.type === "multiple_choice" && q.options.length > 0 && (
-                    <div className="space-y-1 mb-2">
+                    <div className="space-y-2 mb-3 mt-3">
                       {q.options.map((opt, j) => (
-                        <div key={j} className={`text-xs px-3 py-2 rounded-lg ${
-                          j === q.correctIndex ? "bg-emerald-500/10 text-emerald-400" :
-                          j === userAnswer ? "bg-red-500/10 text-red-400" : "bg-secondary/30 text-muted-foreground"
+                        <div key={j} className={`text-xs px-4 py-3 rounded-lg border ${
+                          j === q.correctIndex ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                          j === userAnswer ? "bg-red-50 border-red-200 text-red-700" : "bg-secondary/30 border-transparent text-muted-foreground"
                         }`}>
-                          {opt}
+                          <MarkdownMath content={opt} inline />
                         </div>
                       ))}
                     </div>
                   )}
                   {q.solution && (
-                    <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-3 mt-2">
-                      <p className="text-xs text-blue-400 font-medium mb-1">Solucion:</p>
-                      <div className="text-xs text-muted-foreground">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                      <p className="text-xs text-blue-700 font-bold mb-2">Solución:</p>
+                      <div className="text-sm text-muted-foreground leading-relaxed">
                         <MarkdownMath content={q.solution} />
                       </div>
                     </div>
                   )}
                   {q.explanation && (
-                    <p className="text-xs text-muted-foreground mt-2 italic">{q.explanation}</p>
+                    <div className="text-xs text-muted-foreground mt-4 italic bg-secondary/30 p-3 rounded-lg border border-border/50">
+                      <MarkdownMath content={q.explanation} inline />
+                    </div>
                   )}
                 </div>
               );

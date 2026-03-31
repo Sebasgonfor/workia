@@ -36,7 +36,7 @@ function CircularGauge({ value, size = 120, strokeWidth = 8, className = "" }: {
       </svg>
       <div className="absolute flex flex-col items-center">
         <span className={`text-2xl font-bold ${masteryColor(value)}`}>{value}</span>
-        <span className="text-xs text-zinc-500">de 100</span>
+        <span className="text-xs text-muted-foreground">de 100</span>
       </div>
     </div>
   );
@@ -45,13 +45,13 @@ function CircularGauge({ value, size = 120, strokeWidth = 8, className = "" }: {
 function MiniBar({ value, label, icon: Icon }: { value: number; label: string; icon: typeof Brain }) {
   return (
     <div className="flex items-center gap-2">
-      <Icon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+      <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
       <div className="flex-1">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-zinc-500">{label}</span>
-          <span className="text-xs text-zinc-400">{value}%</span>
+          <span className="text-xs text-muted-foreground">{label}</span>
+          <span className="text-xs text-muted-foreground">{value}%</span>
         </div>
-        <div className="h-1.5 rounded-full bg-white/5">
+        <div className="h-1.5 rounded-full bg-secondary/80">
           <div
             className={`h-full rounded-full transition-all duration-700 ${masteryBg(value)}`}
             style={{ width: `${value}%` }}
@@ -77,58 +77,58 @@ export default function DominioPage() {
       <div className="max-w-lg mx-auto px-4 pt-6 pb-24 space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-xl font-bold text-white flex items-center justify-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-400" />
+          <h1 className="text-xl font-bold text-foreground flex items-center justify-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" />
             Tu Dominio
           </h1>
-          <p className="text-sm text-zinc-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Mide tu comprension real con datos de todos tus estudios
           </p>
         </div>
 
         {loading ? (
           <div className="flex flex-col items-center py-16 gap-3">
-            <Loader2 className="w-8 h-8 text-zinc-400 animate-spin" />
-            <p className="text-sm text-zinc-500">Calculando dominio...</p>
+            <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+            <p className="text-sm text-muted-foreground">Calculando dominio...</p>
           </div>
         ) : mastery.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-3">
-            <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center">
-              <BarChart3 className="w-7 h-7 text-zinc-600" />
+            <div className="w-14 h-14 rounded-full bg-secondary/50 flex items-center justify-center shadow-sm">
+              <BarChart3 className="w-7 h-7 text-muted-foreground" />
             </div>
-            <p className="text-white font-medium">Sin datos aun</p>
-            <p className="text-sm text-zinc-500 text-center max-w-xs">
+            <p className="text-foreground font-medium">Sin datos aun</p>
+            <p className="text-sm text-muted-foreground text-center max-w-xs">
               Usa flashcards, quizzes, modo Feynman o el tutor socratico para empezar a medir tu dominio.
             </p>
           </div>
         ) : (
           <>
             {/* Overall gauge */}
-            <div className={`bg-gradient-to-b ${masteryGradient(overallMastery)} rounded-2xl p-6 flex flex-col items-center border border-white/10`}>
-              <CircularGauge value={overallMastery} size={140} strokeWidth={10} />
-              <p className="text-white font-medium mt-3">Dominio General</p>
-              <p className="text-xs text-zinc-500 mt-1">{totalItems} items de estudio totales</p>
+            <div className={`bg-gradient-to-b ${masteryGradient(overallMastery)} rounded-2xl p-6 flex flex-col items-center border border-border shadow-sm`}>
+              <CircularGauge value={overallMastery} size={140} strokeWidth={10} className="drop-shadow-sm" />
+              <p className="text-foreground font-semibold mt-4">Dominio General</p>
+              <p className="text-xs text-muted-foreground mt-1">{totalItems} items de estudio totales</p>
             </div>
 
             {/* Subject cards */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {mastery.map((m) => (
-                <div key={m.subjectId} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <div className="flex items-center gap-3 mb-4">
+                <div key={m.subjectId} className="bg-card border border-border shadow-sm rounded-xl p-5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 mb-5">
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-sm"
                       style={{ backgroundColor: m.subjectColor + "20" }}
                     >
                       {m.subjectEmoji}
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-white font-medium">{m.subjectName}</h3>
-                      <p className="text-xs text-zinc-500">{m.totalStudyItems} items de estudio</p>
+                      <h3 className="text-foreground font-semibold">{m.subjectName}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">{m.totalStudyItems} items de estudio</p>
                     </div>
-                    <CircularGauge value={m.overallMastery} size={52} strokeWidth={4} />
+                    <CircularGauge value={m.overallMastery} size={56} strokeWidth={5} className="drop-shadow-sm" />
                   </div>
-
-                  <div className="space-y-2.5">
+                  
+                  <div className="space-y-3 pt-1">
                     <MiniBar value={m.flashcardMastery} label="Flashcards" icon={Layers} />
                     <MiniBar value={m.quizMastery} label="Quizzes" icon={HelpCircle} />
                     <MiniBar value={m.feynmanMastery} label="Feynman" icon={Brain} />
