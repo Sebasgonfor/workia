@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText } from "@/lib/ai";
 import type { CorteGrades } from "@/types";
 import { CORTE_WEIGHTS, MIN_PASSING_GRADE, MAX_GRADE } from "@/types";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 // ── Helpers ──
 
@@ -87,14 +85,6 @@ REGLAS:
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "API key de Gemini no configurada" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const { subjectName, grades } = body as {
       subjectName: string;
@@ -113,9 +103,7 @@ export async function POST(req: NextRequest) {
     );
 
     const prompt = PROMPT.replace("{summary}", summary);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const result = await model.generateContent(prompt);
-    const analysis = result.response.text().trim();
+    const analysis = (await generateText(prompt)).trim();
 
     return NextResponse.json({ analysis });
   } catch (error) {

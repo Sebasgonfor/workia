@@ -1,11 +1,11 @@
 /**
- * Sanitize a JSON string returned by Gemini that may contain:
+ * Sanitize a JSON string returned by la IA that may contain:
  * - Unescaped control characters inside string values (\n, \t, \r as raw bytes)
  * - LaTeX backslash sequences that are invalid JSON escapes (e.g. \f → formfeed, \b → backspace, \i, \v, etc.)
  * - Trailing commas before } or ]
  * - Markdown code-block wrapping
  */
-function sanitizeGeminiJSON(raw: string): string {
+function sanitizeAiJson(raw: string): string {
   // 1. Strip markdown fences
   let text = raw
     .replace(/^```(?:json)?\s*\n?/i, "")
@@ -57,18 +57,18 @@ function sanitizeGeminiJSON(raw: string): string {
   return out;
 }
 
-/** Try multiple strategies to parse JSON from Gemini output */
-export function parseGeminiResponse(text: string): Record<string, unknown> {
+/** Try multiple strategies to parse JSON from la IA output */
+export function parseAiJson<T = Record<string, unknown>>(text: string): T {
   // Strategy 1: Direct parse (responseMimeType should give clean JSON)
-  try { return JSON.parse(text); } catch {}
+  try { return JSON.parse(text) as T; } catch {}
 
   // Strategy 2: Sanitize and parse
-  try { return JSON.parse(sanitizeGeminiJSON(text)); } catch {}
+  try { return JSON.parse(sanitizeAiJson(text)) as T; } catch {}
 
   // Strategy 3: Extract the outermost JSON object and sanitize
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
-    try { return JSON.parse(sanitizeGeminiJSON(jsonMatch[0])); } catch {}
+    try { return JSON.parse(sanitizeAiJson(jsonMatch[0])) as T; } catch {}
   }
 
   throw new Error("No se pudo interpretar la respuesta de la IA");

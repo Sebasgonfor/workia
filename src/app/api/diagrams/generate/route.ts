@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+import { generateText } from "@/lib/ai";
 
 const DIAGRAM_PROMPT = `Eres un experto en diagramas Mermaid para uso académico universitario de INGENIERÍA.
 El usuario quiere un diagrama a partir de esta descripción:
@@ -26,11 +24,6 @@ INSTRUCCIONES CRÍTICAS:
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key no configurada" }, { status: 500 });
-    }
-
     const body = await req.json() as { description?: string };
     const description = body.description?.trim();
 
@@ -38,13 +31,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Descripción requerida" }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-    const result = await model.generateContent(
-      DIAGRAM_PROMPT.replace("{description}", description)
-    );
-
-    const raw = result.response.text().trim();
+    const raw = (
+      await generateText(DIAGRAM_PROMPT.replace("{description}", description))
+    ).trim();
 
     // Strip any accidental markdown fences the model may add
     const code = raw

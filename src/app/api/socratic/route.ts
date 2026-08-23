@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { streamText, toReadableStream } from "@/lib/ai";
 import { cleanContentForPrompt } from "@/lib/services/content-cleaner";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const SYSTEM_INSTRUCTION = `Eres un tutor socrático universitario. Tu ÚNICA herramienta son las preguntas. NUNCA das respuestas directas.
 
@@ -39,11 +37,6 @@ TEMA QUE EL ESTUDIANTE QUIERE DOMINAR: {topic}
 
 Comienza con una pregunta introductoria sobre el tema.`;
 
-interface ChatMessage {
-  role: "user" | "model";
-  parts: Array<{ text: string }>;
-}
-
 interface RequestBody {
   subjectName: string;
   classTitle: string;
@@ -55,11 +48,6 @@ interface RequestBody {
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key no configurada" }, { status: 500 });
-    }
-
     const body = (await req.json()) as RequestBody;
     const { subjectName, classTitle, notesContent, topic, messages, currentDate } = body;
 
@@ -75,35 +63,12 @@ export async function POST(req: NextRequest) {
       .replace("{notesContent}", cleanedNotes || "Sin apuntes disponibles")
       .replace("{topic}", topic || "General");
 
-    const history: ChatMessage[] = messages.slice(0, -1).map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }],
-    }));
+    const chunks = await streamText(
+      messages.map((msg) => ({ role: msg.role, content: msg.content })),
+      { system: systemInstruction }
+    );
 
-    const lastMessage = messages[messages.length - 1];
-
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction,
-    });
-
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessageStream(lastMessage.content);
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of result.stream) {
-            const text = chunk.text();
-            if (text) controller.enqueue(new TextEncoder().encode(text));
-          }
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
+    return new Response(toReadableStream(chunks), {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Transfer-Encoding": "chunked",

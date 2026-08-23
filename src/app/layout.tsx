@@ -3,6 +3,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { ThemeToaster } from "@/components/theme-toaster";
 import "./globals.css";
+import "./workia.css";
 
 export const metadata: Metadata = {
   title: "Workia",
@@ -36,6 +37,13 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
+        {/* Workia dashboard typography */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap"
+        />
         {/* Anti-FOUC: apply theme before first paint */}
         <script
           dangerouslySetInnerHTML={{
@@ -52,7 +60,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background">
         <ThemeProvider>
           <AuthProvider>
-            <main className="mx-auto max-w-lg md:max-w-none md:ml-56 min-h-screen">
+            <main className="mx-auto max-w-lg md:max-w-none wk-with-sidebar min-h-screen">
               {children}
             </main>
             <ThemeToaster />

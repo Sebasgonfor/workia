@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+import { generateJSON } from "@/lib/ai";
 
 // ── System Instruction (role + formatting + color tags) ──
 
@@ -159,11 +156,6 @@ const ENRICHMENT_LEVEL_MODIFIERS: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ success: false, error: "API key de Gemini no configurada" }, { status: 500 });
-    }
-
     const body = await req.json();
     const { existingContent, newImages, existingNotes, subjectName, enrichmentLevel } = body as {
       existingContent?: string;
@@ -223,23 +215,20 @@ export async function POST(req: NextRequest) {
       .map((dataUrl: string) => {
         const [meta, base64] = dataUrl.split(",");
         const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
-        return { inlineData: { data: base64, mimeType } };
+        return { data: base64, mimeType };
       });
 
-    // Use systemInstruction for role + formatting + tag system
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: { responseMimeType: "application/json" },
-    });
+    // El rol, el formato y el sistema de tags van como systemInstruction
+    const enrich = (retryHint?: string) =>
+      generateJSON<{ content: string }>(
+        { prompt: buildPrompt(retryHint), images: imageParts },
+        { system: SYSTEM_INSTRUCTION }
+      );
 
     // First attempt
-    let result = await model.generateContent([buildPrompt(), ...imageParts]);
-    let text = result.response.text().trim();
     let parsed: { content: string };
-
     try {
-      parsed = parseGeminiResponse(text) as { content: string };
+      parsed = await enrich();
     } catch {
       throw new Error("No se pudo interpretar la respuesta de la IA");
     }
@@ -251,10 +240,8 @@ export async function POST(req: NextRequest) {
       if (!validation.valid) {
         console.log("Enrichment validation failed, retrying:", validation.issues);
         const retryHint = `Tu respuesta anterior fue insuficiente: ${validation.issues.join("; ")}. DEBES usar los tags <nc-def>, <nc-ex>, <nc-ai> en el contenido. DEBES generar al menos 300 palabras. Revisa el EJEMPLO en las instrucciones del sistema.`;
-        result = await model.generateContent([buildPrompt(retryHint), ...imageParts]);
-        text = result.response.text().trim();
         try {
-          parsed = parseGeminiResponse(text) as { content: string };
+          parsed = await enrich(retryHint);
         } catch {
           throw new Error("No se pudo interpretar la respuesta en reintento");
         }

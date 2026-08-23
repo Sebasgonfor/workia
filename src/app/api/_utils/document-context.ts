@@ -1,8 +1,10 @@
+import type { AiImage } from "@/lib/ai";
+
 /**
- * Builds Gemini-compatible context from subject documents.
+ * Builds model context from subject documents.
  *
- * - image/* and application/pdf → fetched as base64 and passed as inlineData parts
- *   (Gemini 2.0 Flash supports both natively)
+ * - image/* and application/pdf → fetched as base64 and passed as images
+ *   (los modelos con visión los aceptan nativamente)
  * - All other file types → referenced by name only in the text context block
  *
  * Capped at MAX_INLINE_DOCS inline documents to avoid exceeding token limits.
@@ -14,13 +16,9 @@ export interface DocRef {
   fileType: string;
 }
 
-interface InlineDataPart {
-  inlineData: { data: string; mimeType: string };
-}
-
 export interface DocumentContext {
-  /** Inline parts ready to be spread into model.generateContent([prompt, ...parts]) */
-  parts: InlineDataPart[];
+  /** Imágenes/PDFs en base64, listos para pasar a la capa de IA */
+  images: AiImage[];
   /** Text block to inject into the prompt describing available documents */
   contextText: string;
 }
@@ -46,7 +44,7 @@ export async function buildDocumentContext(
   docs: DocRef[]
 ): Promise<DocumentContext> {
   if (!docs || docs.length === 0) {
-    return { parts: [], contextText: "" };
+    return { images: [], contextText: "" };
   }
 
   const inlineable = docs.filter((d) => isInlineable(d.fileType)).slice(0, MAX_INLINE_DOCS);
@@ -60,13 +58,13 @@ export async function buildDocumentContext(
     })
   );
 
-  const parts: InlineDataPart[] = [];
+  const images: AiImage[] = [];
   const inlinedNames: string[] = [];
   const failedNames: string[] = [];
 
   for (const { doc, data } of fetchResults) {
     if (data) {
-      parts.push({ inlineData: { data, mimeType: doc.fileType } });
+      images.push({ data, mimeType: doc.fileType });
       inlinedNames.push(doc.name);
     } else {
       failedNames.push(doc.name);
@@ -95,7 +93,7 @@ export async function buildDocumentContext(
   }
 
   return {
-    parts,
+    images,
     contextText: lines.join("\n"),
   };
 }

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, parseAiJson } from "@/lib/ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const VOICE_AUTO_PROMPT = `Escucha este audio de clase universitaria con MÁXIMA atención y extrae TODO su contenido con precisión absoluta.
 
@@ -63,14 +60,6 @@ function detectMimeType(audioUrl: string, providedMime?: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "API key de Gemini no configurada. Agrega GOOGLE_AI_API_KEY en .env" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const { audioUrl, mimeType: providedMime, subjectName, existingSubjects, currentDate, subjectDocuments, existingNotes } = body as {
       audioUrl: string;
@@ -119,29 +108,17 @@ export async function POST(req: NextRequest) {
       prompt = `${prompt}\n\n${documentContext.contextText}`;
     }
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    const result = await model.generateContent([
-      prompt,
+    const text = await generateText(
       {
-        inlineData: {
-          data: base64Audio,
-          mimeType,
-        },
+        prompt,
+        images: [{ data: base64Audio, mimeType }, ...documentContext.images],
       },
-      ...documentContext.parts,
-    ]);
-
-    const text = result.response.text();
+      { json: true }
+    );
 
     let parsed;
     try {
-      parsed = parseGeminiResponse(text);
+      parsed = parseAiJson(text);
     } catch {
       return NextResponse.json(
         { error: "Error al interpretar respuesta de IA", raw: text.slice(0, 500) },

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { streamText, toReadableStream } from "@/lib/ai";
+import type { AiImage, AiMessage } from "@/lib/ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const SYSTEM_INSTRUCTION = `Eres un asistente de estudio académico universitario inteligente y experto. \
 Estás integrado en los apuntes de clase del estudiante y tienes acceso completo a sus notas, \
@@ -57,11 +56,6 @@ IMPORTANTE sobre acciones:
 - Si no tienes suficiente información para la acción, pregunta al estudiante.
 - Para fechas, usa el formato YYYY-MM-DD.
 - NO inventes taskIds, solo usa los que están en el contexto de tareas.`;
-
-interface ChatMessage {
-  role: "user" | "model";
-  parts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }>;
-}
 
 interface TaskDto {
   id: string;
@@ -131,11 +125,6 @@ const buildNotesContext = (body: RequestBody): string => {
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key no configurada" }, { status: 500 });
-    }
-
     const body = (await req.json()) as RequestBody;
     const { messages, subjectDocuments, noteImages } = body;
 
@@ -147,7 +136,7 @@ export async function POST(req: NextRequest) {
     const documentContext = await buildDocumentContext(subjectDocuments || []);
 
     // Build image parts from noteImages (class source images)
-    const noteImageParts: Array<{ inlineData: { data: string; mimeType: string } }> = [];
+    const noteImageParts: AiImage[] = [];
     if (noteImages && noteImages.length > 0) {
       const imagesToFetch = noteImages.slice(0, 5);
       for (const url of imagesToFetch) {
@@ -157,7 +146,7 @@ export async function POST(req: NextRequest) {
           const buffer = await res.arrayBuffer();
           const base64 = Buffer.from(buffer).toString("base64");
           const contentType = res.headers.get("content-type") || "image/jpeg";
-          noteImageParts.push({ inlineData: { data: base64, mimeType: contentType } });
+          noteImageParts.push({ data: base64, mimeType: contentType });
         } catch {
           // skip failed images
         }
@@ -179,26 +168,10 @@ export async function POST(req: NextRequest) {
       return msg;
     });
 
-    // Build Gemini chat history (all messages except the last)
-    const history: ChatMessage[] = enrichedMessages.slice(0, -1).map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }],
-    }));
-
     const lastMessage = enrichedMessages[enrichedMessages.length - 1];
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: SYSTEM_INSTRUCTION,
-    });
-
-    const chat = model.startChat({ history });
-
-    // Build parts for the last message
-    type GeminiPart = string | { inlineData: { data: string; mimeType: string } };
-    const lastParts: GeminiPart[] = [lastMessage.content];
-
-    // Add inline user images from last message
+    // Imágenes que el usuario adjuntó en el último mensaje
+    const lastImages: AiImage[] = [];
     if (lastMessage.imageUrls && lastMessage.imageUrls.length > 0) {
       for (const url of lastMessage.imageUrls.slice(0, 3)) {
         try {
@@ -207,37 +180,28 @@ export async function POST(req: NextRequest) {
           const buffer = await res.arrayBuffer();
           const base64 = Buffer.from(buffer).toString("base64");
           const contentType = res.headers.get("content-type") || "image/jpeg";
-          lastParts.push({ inlineData: { data: base64, mimeType: contentType } });
+          lastImages.push({ data: base64, mimeType: contentType });
         } catch {
           // skip
         }
       }
     }
 
-    // On first message, add document and note image parts
+    // En el primer intercambio se adjuntan documentos e imágenes de los apuntes
     const isFirstExchange = enrichedMessages.filter((m) => m.role === "user").length <= 1;
     if (isFirstExchange) {
-      lastParts.push(...documentContext.parts, ...noteImageParts);
+      lastImages.push(...documentContext.images, ...noteImageParts);
     }
 
-    const result = await chat.sendMessageStream(
-      lastParts as Parameters<typeof chat.sendMessageStream>[0]
-    );
+    const chatMessages: AiMessage[] = enrichedMessages.map((msg, idx) => ({
+      role: msg.role === "assistant" ? "assistant" : "user",
+      content: msg.content,
+      images: idx === enrichedMessages.length - 1 ? lastImages : undefined,
+    }));
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of result.stream) {
-            const text = chunk.text();
-            if (text) controller.enqueue(new TextEncoder().encode(text));
-          }
-        } finally {
-          controller.close();
-        }
-      },
-    });
+    const chunks = await streamText(chatMessages, { system: SYSTEM_INSTRUCTION });
 
-    return new Response(stream, {
+    return new Response(toReadableStream(chunks), {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Transfer-Encoding": "chunked",

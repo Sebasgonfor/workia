@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, parseAiJson } from "@/lib/ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const PROMPT = `Eres un profesor universitario experto en crear evaluaciones de estudio de alta calidad.
 
@@ -80,14 +77,6 @@ function cleanContentForPrompt(raw: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "API key de Gemini no configurada" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const { content, subjectName, subjectDocuments } = body as {
       content: string;
@@ -114,17 +103,11 @@ export async function POST(req: NextRequest) {
       prompt = `${prompt}\n\n${documentContext.contextText}`;
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const result = await model.generateContent(
-      documentContext.parts.length > 0
-        ? [prompt, ...documentContext.parts]
-        : prompt
-    );
-    const text = result.response.text();
+    const text = await generateText({ prompt, images: documentContext.images });
 
     let parsed;
     try {
-      parsed = parseGeminiResponse(text);
+      parsed = parseAiJson(text);
     } catch {
       return NextResponse.json(
         { error: "Error al interpretar respuesta de IA", raw: text.slice(0, 500) },

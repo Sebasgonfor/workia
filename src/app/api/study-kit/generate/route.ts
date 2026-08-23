@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, parseAiJson } from "@/lib/ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
 import { cleanContentForPrompt as cleanContent } from "@/lib/services/content-cleaner";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const PROMPT = `Eres un profesor universitario experto. A partir del siguiente contenido académico, genera un KIT DE ESTUDIO completo.
 
@@ -50,11 +47,6 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key no configurada" }, { status: 500 });
-    }
-
     const body = await req.json();
     const { content, subjectName, subjectDocuments } = body as {
       content: string;
@@ -75,18 +67,11 @@ export async function POST(req: NextRequest) {
       prompt = prompt + "\n\n" + documentContext.contextText;
     }
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
-    const result = await model.generateContent(
-      documentContext.parts.length > 0
-        ? [prompt, ...documentContext.parts]
-        : prompt
-    );
-    const text = result.response.text().trim();
-    const parsed = parseGeminiResponse(text);
+    const text = (await generateText(
+      { prompt, images: documentContext.images },
+      { json: true }
+    )).trim();
+    const parsed = parseAiJson(text);
 
     return NextResponse.json({ success: true, data: parsed });
   } catch (err) {

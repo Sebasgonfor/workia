@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
+import { generateJSON } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const DETECT_PROMPT = `You are a document edge detection AI. Analyze this image and find the 4 corners of the main document/paper in the image.
 
@@ -61,24 +58,14 @@ export async function POST(req: NextRequest) {
     const base64 = Buffer.from(arrayBuf).toString("base64");
     const mimeType = file.type || "image/jpeg";
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
-
     const prompt = imageWidth && imageHeight
       ? `${DETECT_PROMPT}\n\nImage dimensions: ${imageWidth}x${imageHeight}px`
       : DETECT_PROMPT;
 
-    const result = await model.generateContent([
+    const parsed = await generateJSON<DetectResponse>({
       prompt,
-      { inlineData: { data: base64, mimeType } },
-    ]);
-
-    const text = result.response.text();
-    const parsed = parseGeminiResponse(text) as unknown as DetectResponse;
+      images: [{ data: base64, mimeType }],
+    });
 
     if (!parsed || !parsed.corners) {
       return NextResponse.json({ corners: null });

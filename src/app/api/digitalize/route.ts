@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateJSON } from "@/lib/ai";
 import {
   perspectiveWarp,
   calculateOutputDimensions,
   type Point,
 } from "@/app/api/_utils/perspective";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 // ── Corner detection via Gemini (fallback) ──
 
@@ -28,20 +25,13 @@ const detectCornersWithGemini = async (
   height: number
 ): Promise<CornersData | null> => {
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
     const prompt = `Analyze this ${width}x${height}px image. Find the 4 corners of the main document/paper.
 Return JSON: { "corners": { "topLeft": {"x":N,"y":N}, "topRight": {"x":N,"y":N}, "bottomRight": {"x":N,"y":N}, "bottomLeft": {"x":N,"y":N} } | null }`;
 
-    const result = await model.generateContent([
+    const parsed = await generateJSON<{ corners: CornersData | null }>({
       prompt,
-      { inlineData: { data: base64, mimeType } },
-    ]);
-
-    const parsed = parseGeminiResponse(result.response.text()) as { corners: CornersData | null };
+      images: [{ data: base64, mimeType }],
+    });
     return parsed?.corners ?? null;
   } catch {
     return null;

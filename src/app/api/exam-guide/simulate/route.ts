@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
+import { generateText, parseAiJson } from "@/lib/ai";
 import { cleanContentForPrompt } from "@/lib/services/content-cleaner";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const PROMPT = `Eres un profesor universitario creando un SIMULACRO DE PARCIAL realista.
 
@@ -50,11 +47,6 @@ RESPONDE SOLO CON JSON VÁLIDO:
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key no configurada" }, { status: 500 });
-    }
-
     const { content, subjectName, duration, difficulty, questionCount } = await req.json() as {
       content: string;
       subjectName: string;
@@ -74,14 +66,8 @@ export async function POST(req: NextRequest) {
       .replace("{difficulty}", difficulty || "medio")
       .replace("{questionCount}", String(questionCount || 10));
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const parsed = parseGeminiResponse(text);
+    const text = (await generateText(prompt, { json: true })).trim();
+    const parsed = parseAiJson(text);
 
     return NextResponse.json({ success: true, data: parsed });
   } catch (err) {

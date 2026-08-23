@@ -12,6 +12,7 @@ import {
 import { LogOut, User, Mail, BookOpen, CheckSquare, Clock, TrendingUp, Bell, BellOff, Layers, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "@/lib/theme-context";
+import { AiModelPicker } from "@/components/ai-model-picker";
 
 export default function PerfilPage() {
   const { user, signOut } = useAuth();
@@ -151,6 +152,9 @@ export default function PerfilPage() {
             </div>
           </div>
         )}
+
+        {/* AI model selection */}
+        <AiModelPicker />
 
         {/* Theme toggle */}
         <button

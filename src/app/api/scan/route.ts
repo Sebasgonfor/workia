@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, parseAiJson } from "@/lib/ai";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
-import { parseGeminiResponse } from "@/app/api/_utils/parse-gemini-json";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const TASK_PROMPT = `Eres un asistente experto en extraer tareas académicas de imágenes de tableros, cuadernos y presentaciones universitarias de INGENIERÍA.
 
@@ -194,14 +191,6 @@ export const maxDuration = 60; // Allow up to 60s for Gemini processing
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "API key de Gemini no configurada. Agrega GOOGLE_AI_API_KEY en .env" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const { images, type, subjectName, existingSubjects, currentDate, subjectDocuments, existingNotes } = body as {
       images: string[];
@@ -251,28 +240,21 @@ export async function POST(req: NextRequest) {
       .map((dataUrl: string) => {
         const [meta, base64] = dataUrl.split(",");
         const mimeType = meta.match(/data:(.*?);/)?.[1] || "image/jpeg";
-        return {
-          inlineData: { data: base64, mimeType },
-        };
+        return { data: base64, mimeType };
       });
 
     if (imageParts.length === 0) {
       return NextResponse.json({ error: "No se pudieron procesar las imágenes" }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    const result = await model.generateContent([prompt, ...imageParts, ...documentContext.parts]);
-    const text = result.response.text();
+    const text = await generateText(
+      { prompt, images: [...imageParts, ...documentContext.images] },
+      { json: true }
+    );
 
     let parsed;
     try {
-      parsed = parseGeminiResponse(text);
+      parsed = parseAiJson(text);
     } catch {
       return NextResponse.json(
         { error: "Error al interpretar respuesta de IA", raw: text.slice(0, 500) },

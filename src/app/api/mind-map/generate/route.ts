@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText } from "@/lib/ai";
 import { cleanContentForPrompt } from "@/lib/services/content-cleaner";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 const PROMPT = `Genera un mapa mental en formato Mermaid mindmap a partir del siguiente contenido académico.
 
@@ -32,11 +30,6 @@ mindmap
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key no configurada" }, { status: 500 });
-    }
-
     const { content, subjectName } = await req.json() as {
       content: string;
       subjectName: string;
@@ -50,9 +43,7 @@ export async function POST(req: NextRequest) {
       .replace("{content}", cleanContentForPrompt(content))
       .replace("{subjectName}", subjectName || "General");
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const result = await model.generateContent(prompt);
-    const raw = result.response.text().trim();
+    const raw = (await generateText(prompt)).trim();
 
     const code = raw
       .replace(/^```(?:mermaid)?\s*\n?/i, "")

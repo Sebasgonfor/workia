@@ -11,6 +11,20 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Sin config, Firebase revienta con "auth/invalid-api-key", que no dice qué hacer.
+const missing = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/[A-Z]/g, (c) => `_${c}`).toUpperCase()}`);
+
+if (missing.length > 0) {
+  throw new Error(
+    `Falta configurar Firebase. Añade estas variables en .env.local y reinicia el servidor:\n` +
+      missing.map((v) => `  · ${v}`).join("\n") +
+      `\n\nLas encuentras en console.firebase.google.com → tu proyecto → ` +
+      `Configuración del proyecto (⚙️) → Tus apps → Configuración del SDK.`
+  );
+}
+
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const auth = getAuth(app);
