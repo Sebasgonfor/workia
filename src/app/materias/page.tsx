@@ -17,7 +17,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { Select } from "@/components/ui/select";
-import { useSubjects, useCycles } from "@/lib/hooks";
+import { useSubjects, useCycles, useAutoOpenCreate } from "@/lib/hooks";
 import { SUBJECT_COLORS, SUBJECT_EMOJIS } from "@/types";
 import type { CycleKind } from "@/types";
 import { toast } from "sonner";
@@ -189,6 +189,8 @@ export default function MateriasPage() {
     resetForm();
     setShowCreate(true);
   };
+
+  useAutoOpenCreate(openCreate);
 
   const openEdit = (id: string) => {
     const subject = subjects.find((s) => s.id === id);

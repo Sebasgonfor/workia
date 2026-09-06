@@ -22,6 +22,7 @@ import {
   useClasses,
   useSubjectDocuments,
   useClassDocuments,
+  useAutoOpenCreate,
 } from "@/lib/hooks";
 import { DIGITALIZATION_FILTERS } from "@/types";
 import type { DigitalizationFilter } from "@/types";
@@ -61,6 +62,8 @@ export default function DigitalizarPage() {
   // Creation sheet
   const [showCreate, setShowCreate] = useState(false);
   const [step, setStep] = useState<Step>("upload");
+
+  useAutoOpenCreate(() => setShowCreate(true));
 
   // Raw captured images (pre-corner-editing)
   const [rawImages, setRawImages] = useState<RawImage[]>([]);
