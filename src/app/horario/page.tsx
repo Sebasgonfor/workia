@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, MapPin, Clock } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
+import { Select } from "@/components/ui/select";
 import { useSubjects, useSchedule } from "@/lib/hooks";
 import { DAYS_OF_WEEK, SCHEDULE_HOURS } from "@/types";
 import type { ScheduleSlot } from "@/types";
@@ -304,35 +305,31 @@ export default function HorarioPage() {
               <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">
                 Hora inicio
               </label>
-              <select
+              <Select
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {SCHEDULE_HOURS.flatMap((h) =>
+                onChange={setStartTime}
+                options={SCHEDULE_HOURS.flatMap((h) =>
                   ["00", "30"].map((m) => {
                     const val = `${String(h).padStart(2, "0")}:${m}`;
-                    return <option key={val} value={val}>{formatTime(val)}</option>;
+                    return { value: val, label: formatTime(val) };
                   })
                 )}
-              </select>
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">
                 Hora fin
               </label>
-              <select
+              <Select
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {SCHEDULE_HOURS.flatMap((h) =>
+                onChange={setEndTime}
+                options={SCHEDULE_HOURS.flatMap((h) =>
                   ["00", "30"].map((m) => {
                     const val = `${String(h).padStart(2, "0")}:${m}`;
-                    return <option key={val} value={val}>{formatTime(val)}</option>;
+                    return { value: val, label: formatTime(val) };
                   })
                 )}
-              </select>
+              />
             </div>
           </div>
 

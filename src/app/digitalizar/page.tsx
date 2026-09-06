@@ -15,6 +15,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
+import { Select } from "@/components/ui/select";
 import {
   useDigitalizations,
   useSubjects,
@@ -636,34 +637,33 @@ export default function DigitalizarPage() {
         {/* Subject */}
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Materia (opcional)</label>
-          <select
+          <Select
             value={selectedSubjectId || ""}
-            onChange={(e) => { setSelectedSubjectId(e.target.value || null); setSelectedClassId(null); }}
-            className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-          >
-            <option value="">Sin materia</option>
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
-            ))}
-          </select>
+            onChange={(v) => { setSelectedSubjectId(v || null); setSelectedClassId(null); }}
+            placeholder="Sin materia"
+            options={[
+              { value: "", label: "Sin materia" },
+              ...subjects.map((s) => ({ value: s.id, label: `${s.emoji} ${s.name}` })),
+            ]}
+          />
         </div>
 
         {/* Class */}
         {selectedSubjectId && classes.length > 0 && (
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Clase (opcional)</label>
-            <select
+            <Select
               value={selectedClassId || ""}
-              onChange={(e) => setSelectedClassId(e.target.value || null)}
-              className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-            >
-              <option value="">Sin clase</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title} &mdash; {format(c.date, "d MMM", { locale: es })}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setSelectedClassId(v || null)}
+              placeholder="Sin clase"
+              options={[
+                { value: "", label: "Sin clase" },
+                ...classes.map((c) => ({
+                  value: c.id,
+                  label: `${c.title} — ${format(c.date, "d MMM", { locale: es })}`,
+                })),
+              ]}
+            />
           </div>
         )}
 

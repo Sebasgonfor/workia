@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { MermaidChart } from "@/components/ui/mermaid-chart";
+import { Select } from "@/components/ui/select";
 import { useSubjects, useClasses, useBoardEntries } from "@/lib/hooks";
 import { toast } from "sonner";
 import {
@@ -637,23 +638,21 @@ export default function ParcialPage() {
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="text-xs text-muted-foreground">Duracion (min)</label>
-                  <select value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="w-full mt-1 p-2 rounded-lg bg-secondary text-sm">
-                    <option value={30}>30 min</option>
-                    <option value={45}>45 min</option>
-                    <option value={60}>60 min</option>
-                    <option value={90}>90 min</option>
-                    <option value={120}>120 min</option>
-                  </select>
+                  <Select
+                    className="mt-1"
+                    value={String(duration)}
+                    onChange={(v) => setDuration(Number(v))}
+                    options={[30, 45, 60, 90, 120].map((v) => ({ value: String(v), label: `${v} min` }))}
+                  />
                 </div>
                 <div className="flex-1">
                   <label className="text-xs text-muted-foreground">Preguntas</label>
-                  <select value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))} className="w-full mt-1 p-2 rounded-lg bg-secondary text-sm">
-                    <option value={5}>5</option>
-                    <option value={8}>8</option>
-                    <option value={10}>10</option>
-                    <option value={15}>15</option>
-                    <option value={20}>20</option>
-                  </select>
+                  <Select
+                    className="mt-1"
+                    value={String(questionCount)}
+                    onChange={(v) => setQuestionCount(Number(v))}
+                    options={[5, 8, 10, 15, 20].map((v) => ({ value: String(v), label: String(v) }))}
+                  />
                 </div>
               </div>
               <button
