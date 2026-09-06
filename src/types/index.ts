@@ -4,6 +4,7 @@ export interface Subject {
   color: string;
   emoji: string;
   cycleId: string | null;
+  order?: number;
   createdAt: Date;
   updatedAt: Date;
 }

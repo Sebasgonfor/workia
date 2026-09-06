@@ -60,14 +60,15 @@ export function useCycles() {
 
   const addCycle = useCallback(
     async (data: { name: string; kind: CycleKind }) => {
-      if (!user) return;
+      if (!user) return null;
       const order = cycles.length > 0 ? Math.max(...cycles.map((c) => c.order)) + 1 : 0;
-      await addDoc(collection(db, "users", user.uid, "cycles"), {
+      const ref = await addDoc(collection(db, "users", user.uid, "cycles"), {
         ...data,
         order,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      return ref.id;
     },
     [user, cycles]
   );
@@ -99,5 +100,18 @@ export function useCycles() {
     [user]
   );
 
-  return { cycles, loading, addCycle, updateCycle, deleteCycle };
+  // Persists a full reordering: `orderedIds` is the new top-to-bottom order.
+  const reorderCycles = useCallback(
+    async (orderedIds: string[]) => {
+      if (!user) return;
+      const batch = writeBatch(db);
+      orderedIds.forEach((id, index) => {
+        batch.update(doc(db, "users", user.uid, "cycles", id), { order: index });
+      });
+      await batch.commit();
+    },
+    [user]
+  );
+
+  return { cycles, loading, addCycle, updateCycle, deleteCycle, reorderCycles };
 }

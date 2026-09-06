@@ -110,5 +110,22 @@ export function useSubjects() {
     [user]
   );
 
-  return { subjects, loading, addSubject, updateSubject, deleteSubject };
+  // Persists a drag-and-drop reorder within a single group (a cycle, or the
+  // "sin ciclo" bucket). `orderedIds` are only the ids of that group, in
+  // their new visual order — assigning index-based values keeps them
+  // independent from every other group's own order numbers, since sorting
+  // always happens after already filtering by cycleId.
+  const reorderSubjects = useCallback(
+    async (orderedIds: string[]) => {
+      if (!user) return;
+      const batch = writeBatch(db);
+      orderedIds.forEach((id, index) => {
+        batch.update(doc(db, "users", user.uid, "subjects", id), { order: index });
+      });
+      await batch.commit();
+    },
+    [user]
+  );
+
+  return { subjects, loading, addSubject, updateSubject, deleteSubject, reorderSubjects };
 }
