@@ -111,7 +111,10 @@
   width: 236px;
   background: var(--wk-bg-sidebar);
   border-right: 1px solid var(--wk-line);
-  display: flex;
+  /* display is left to Tailwind's "hidden md:flex" on the element itself —
+     setting it here too has the same specificity and, since this stylesheet
+     loads after Tailwind's utilities, silently wins and shows the sidebar
+     on mobile regardless of the "hidden" class. */
   flex-direction: column;
   padding: 14px 10px 10px;
   position: fixed;
