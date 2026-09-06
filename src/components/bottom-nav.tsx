@@ -98,8 +98,6 @@ export function BottomNav() {
   const router = useRouter();
 
   const [moreOpen, setMoreOpen] = useState(false);
-  const [moreRendered, setMoreRendered] = useState(false);
-  const [moreClosing, setMoreClosing] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createSearch, setCreateSearch] = useState("");
@@ -135,22 +133,6 @@ export function BottomNav() {
     setIndicator({ left: el.offsetLeft, width: el.offsetWidth });
   }, [activeSlotIndex]);
 
-  // Mount/unmount the "más" panel with an exit animation, same pattern the
-  // Sheet component uses — instant unmount on close looks like a glitch.
-  useEffect(() => {
-    if (moreOpen) {
-      setMoreRendered(true);
-      setMoreClosing(false);
-    } else if (moreRendered) {
-      setMoreClosing(true);
-      const timer = setTimeout(() => {
-        setMoreRendered(false);
-        setMoreClosing(false);
-      }, 180);
-      return () => clearTimeout(timer);
-    }
-  }, [moreOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const filteredCreateItems = createItems.filter((item) =>
     item.label.toLowerCase().includes(createSearch.trim().toLowerCase())
   );
@@ -166,30 +148,39 @@ export function BottomNav() {
       <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden pb-safe">
         <div className="relative mx-auto max-w-sm px-3 pb-3">
           {/* Backdrop to close the panel by tapping outside it */}
-          {moreRendered && (
+          {moreOpen && (
             <div className="fixed inset-0 z-0" onClick={() => setMoreOpen(false)} />
           )}
 
           {/* Floating row: glass pill (icon-only tabs) + separate FAB */}
-          <div className="relative z-10 flex items-center gap-2.5">
-            {/* Wrapping the pill in its own flex-1 box means the "más" panel
-                (absolute inset-x-0 inside THIS box) always matches the pill's
-                real rendered width via plain flexbox — no JS measuring, so
-                it can't drift out of sync with the FAB or fall short of the
-                grip icon. */}
-            <div className="relative flex-1">
-              {moreRendered && (
-                <div
-                  className={cn(
-                    // Sits flush on the pill (-mb-px overlaps its border by
-                    // a hair, same bg/opacity as the pill) so it reads as
-                    // the pill unfolding upward, not a separate floating
-                    // card.
-                    "absolute inset-x-0 bottom-full -mb-px rounded-t-[28px] rounded-b-2xl border-x border-t border-border/60 bg-card/85 dark:bg-card/60 backdrop-blur-2xl shadow-[0_8px_30px_rgba(0,0,0,0.15),inset_0_1px_0_0_rgba(255,255,255,0.15)] p-3 pb-4",
-                    moreClosing ? "wk-nav-panel-out" : "wk-nav-panel-in"
-                  )}
-                >
-                  <div className="grid grid-cols-3 gap-2.5">
+          <div className="relative z-10 flex items-end gap-2.5">
+            {/* ONE surface (bg/border/shadow/radius all live here) that
+                grows taller when opening — the pill itself extending
+                upward, not a separate card popping in above it. The icon
+                row stays pinned at the bottom; the grid area animates from
+                0 to its natural height via the CSS grid-template-rows
+                trick (no JS measuring needed to animate to "auto").
+                Radius is a FIXED 30px (not "rounded-full" toggled with
+                "rounded-2xl") on purpose: animating border-radius from
+                9999px down means it stays huge for most of the transition
+                (browsers interpolate the raw px value, and it only visibly
+                shrinks once it drops below half the box's height/width) —
+                that's the black "blob" that flashed before settling. A
+                constant 30px already reads as a full pill at the closed
+                ~60px height and as a nicely rounded rectangle once tall,
+                with nothing to animate or overshoot. */}
+            <div className="flex-1 flex flex-col overflow-hidden rounded-[30px] bg-card/85 dark:bg-card/60 backdrop-blur-2xl border border-border/60 shadow-[0_8px_30px_rgba(0,0,0,0.15),inset_0_1px_0_0_rgba(255,255,255,0.15)]">
+              <div
+                className="grid transition-[grid-template-rows] duration-300 ease-out"
+                style={{ gridTemplateRows: moreOpen ? "1fr" : "0fr" }}
+              >
+                <div className="overflow-hidden">
+                  <div
+                    className={cn(
+                      "grid grid-cols-3 gap-2.5 px-3 pt-3 pb-1 transition-opacity duration-200",
+                      moreOpen ? "opacity-100 delay-100" : "opacity-0"
+                    )}
+                  >
                     {moreTabs.map((tab) => {
                       const isActive =
                         pathname === tab.href || pathname.startsWith(tab.href + "/");
@@ -198,6 +189,7 @@ export function BottomNav() {
                           key={tab.href}
                           href={tab.href}
                           onClick={() => setMoreOpen(false)}
+                          tabIndex={moreOpen ? 0 : -1}
                           className={cn(
                             "flex flex-col items-center gap-1.5 py-2.5 rounded-xl transition-colors touch-target",
                             isActive ? "bg-secondary/60" : "active:bg-secondary/40"
@@ -217,17 +209,17 @@ export function BottomNav() {
                     })}
                   </div>
                 </div>
-              )}
+              </div>
 
             <nav
-              className="relative w-full flex items-center justify-between gap-0.5 px-1.5 py-1.5 rounded-full bg-card/85 dark:bg-card/60 backdrop-blur-2xl border border-border/60 shadow-[0_8px_30px_rgba(0,0,0,0.15),inset_0_1px_0_0_rgba(255,255,255,0.15)]"
+              className="relative w-full flex items-center justify-between gap-0.5 px-1.5 py-1.5"
             >
               {/* The sliding active-pill — behind the icons, one shared
                   element animating between slots instead of each icon
                   cutting its own background on/off. */}
               <span
                 aria-hidden="true"
-                className="absolute left-0 top-1.5 bottom-1.5 rounded-full bg-primary transition-[transform,width,opacity] duration-300 ease-out"
+                className="absolute left-0 top-1.5 bottom-1.5 rounded-full bg-primary transition-[transform,width,opacity] duration-150 ease-out"
                 style={{
                   width: indicator ? indicator.width : 0,
                   transform: `translateX(${indicator ? indicator.left : 0}px)`,
