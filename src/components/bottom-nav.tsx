@@ -115,12 +115,16 @@ export function BottomNav() {
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
 
   const activeSlotIndex = (() => {
+    // While the panel is open, the grip is what's "selected" regardless of
+    // which route you're actually on — otherwise opening it from /inicio
+    // left the indicator sitting on Home instead of following you to grip.
+    if (moreOpen) return mainTabs.length + 1;
     if (pathname === "/inicio") return 0;
     const tabIndex = mainTabs.findIndex(
       (tab) => pathname === tab.href || pathname.startsWith(tab.href + "/")
     );
     if (tabIndex !== -1) return tabIndex + 1;
-    if (isMoreActive || moreOpen) return mainTabs.length + 1;
+    if (isMoreActive) return mainTabs.length + 1;
     return null;
   })();
 
@@ -130,7 +134,10 @@ export function BottomNav() {
       setIndicator(null);
       return;
     }
-    setIndicator({ left: el.offsetLeft, width: el.offsetWidth });
+    // A touch wider than the icon's own 36px box — matching it exactly
+    // looked too tight/cramped around the glyph.
+    const PAD = 6;
+    setIndicator({ left: el.offsetLeft - PAD, width: el.offsetWidth + PAD * 2 });
   }, [activeSlotIndex]);
 
   const filteredCreateItems = createItems.filter((item) =>
@@ -236,7 +243,7 @@ export function BottomNav() {
                 <span
                   ref={(el) => { slotRefs.current[0] = el; }}
                   className={cn(
-                    "w-9 h-9 rounded-full flex items-center justify-center transition-colors",
+                    "relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors",
                     pathname === "/inicio"
                       ? "text-primary-foreground"
                       : "text-muted-foreground active:text-foreground"
@@ -259,7 +266,7 @@ export function BottomNav() {
                     <span
                       ref={(el) => { slotRefs.current[i + 1] = el; }}
                       className={cn(
-                        "w-9 h-9 rounded-full flex items-center justify-center transition-colors",
+                        "relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors",
                         isActive
                           ? "text-primary-foreground"
                           : "text-muted-foreground active:text-foreground"
@@ -280,7 +287,7 @@ export function BottomNav() {
                 <span
                   ref={(el) => { slotRefs.current[mainTabs.length + 1] = el; }}
                   className={cn(
-                    "w-9 h-9 rounded-full flex items-center justify-center transition-colors",
+                    "relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors",
                     isMoreActive || moreOpen
                       ? "text-primary-foreground"
                       : "text-muted-foreground active:text-foreground"
