@@ -1,4 +1,5 @@
 export { useSubjects } from "./useSubjects";
+export { useCycles } from "./useCycles";
 export { useClasses } from "./useClasses";
 export { useBoardEntries } from "./useBoardEntries";
 export { useTasks } from "./useTasks";

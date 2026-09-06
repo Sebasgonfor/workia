@@ -59,9 +59,10 @@ export function useSubjects() {
   }, [user]);
 
   const addSubject = useCallback(
-    async (data: Pick<Subject, "name" | "color" | "emoji">) => {
+    async (data: Pick<Subject, "name" | "color" | "emoji"> & { cycleId?: string | null }) => {
       if (!user) return;
       await addDoc(collection(db, "users", user.uid, "subjects"), {
+        cycleId: null,
         ...data,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -71,7 +72,7 @@ export function useSubjects() {
   );
 
   const updateSubject = useCallback(
-    async (id: string, data: Partial<Pick<Subject, "name" | "color" | "emoji">>) => {
+    async (id: string, data: Partial<Pick<Subject, "name" | "color" | "emoji" | "cycleId">>) => {
       if (!user) return;
       await updateDoc(doc(db, "users", user.uid, "subjects", id), {
         ...data,

@@ -3,6 +3,18 @@ export interface Subject {
   name: string;
   color: string;
   emoji: string;
+  cycleId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CycleKind = "semestre" | "trimestre" | "año" | "otro";
+
+export interface Cycle {
+  id: string;
+  name: string;
+  kind: CycleKind;
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
