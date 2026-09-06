@@ -316,27 +316,36 @@ export function BottomNav() {
         open={createOpen}
         onClose={() => { setCreateOpen(false); setCreateSearch(""); }}
         title="Crear"
+        centerTitle
       >
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="w-4 h-4 text-muted-foreground/60 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={createSearch}
-              onChange={(e) => setCreateSearch(e.target.value)}
-              placeholder="Busca que quieres crear..."
-              className="w-full pl-10 pr-9 py-3 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            {createSearch && (
-              <button
-                onClick={() => setCreateSearch("")}
-                aria-label="Limpiar busqueda"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-secondary/80 flex items-center justify-center"
-              >
-                <X className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-            )}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-muted-foreground/60 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={createSearch}
+                onChange={(e) => setCreateSearch(e.target.value)}
+                placeholder="Busca que quieres crear..."
+                className="w-full pl-10 pr-9 py-3 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {createSearch && (
+                <button
+                  onClick={() => setCreateSearch("")}
+                  aria-label="Limpiar busqueda"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-secondary/80 flex items-center justify-center"
+                >
+                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => { setCreateOpen(false); setCreateSearch(""); }}
+              className="shrink-0 text-sm font-medium text-primary active:opacity-60"
+            >
+              Cancelar
+            </button>
           </div>
 
           <div className="space-y-1">
