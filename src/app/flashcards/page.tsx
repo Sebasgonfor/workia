@@ -17,6 +17,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
+import { Select } from "@/components/ui/select";
 import { useSubjects, useFlashcards, useClasses } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth-context";
 import { getDocs, collection, query, where } from "firebase/firestore";
@@ -486,16 +487,15 @@ export default function FlashcardsPage() {
         <div className="space-y-3.5">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
-            <select
+            <Select
               value={newSubjectId}
-              onChange={(e) => setNewSubjectId(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-            >
-              <option value="">Seleccionar...</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
-              ))}
-            </select>
+              onChange={setNewSubjectId}
+              placeholder="Seleccionar..."
+              options={[
+                { value: "", label: "Seleccionar..." },
+                ...subjects.map((s) => ({ value: s.id, label: `${s.emoji} ${s.name}` })),
+              ]}
+            />
           </div>
 
           <div>
@@ -556,34 +556,34 @@ export default function FlashcardsPage() {
         <div className="space-y-3.5">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
-            <select
+            <Select
               value={genSubjectId}
-              onChange={(e) => { setGenSubjectId(e.target.value); setGenClassId(""); setGenContent(""); }}
-              className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-            >
-              <option value="">Seleccionar...</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
-              ))}
-            </select>
+              onChange={(v) => { setGenSubjectId(v); setGenClassId(""); setGenContent(""); }}
+              placeholder="Seleccionar..."
+              options={[
+                { value: "", label: "Seleccionar..." },
+                ...subjects.map((s) => ({ value: s.id, label: `${s.emoji} ${s.name}` })),
+              ]}
+            />
           </div>
 
           {genSubjectId && genClasses.length > 0 && (
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Cargar desde clase</label>
               <div className="flex gap-2">
-                <select
+                <Select
                   value={genClassId}
-                  onChange={(e) => setGenClassId(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-                >
-                  <option value="">Seleccionar clase...</option>
-                  {genClasses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.title} &mdash; {c.date.toLocaleDateString("es-CO", { day: "numeric", month: "short" })}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setGenClassId}
+                  placeholder="Seleccionar clase..."
+                  className="flex-1 min-w-0"
+                  options={[
+                    { value: "", label: "Seleccionar clase..." },
+                    ...genClasses.map((c) => ({
+                      value: c.id,
+                      label: `${c.title} — ${c.date.toLocaleDateString("es-CO", { day: "numeric", month: "short" })}`,
+                    })),
+                  ]}
+                />
                 <button
                   onClick={handleLoadFromClass}
                   disabled={!genClassId || loadingClassEntries}

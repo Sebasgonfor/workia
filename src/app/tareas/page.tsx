@@ -18,6 +18,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
+import { Select } from "@/components/ui/select";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { useSubjects, useTasks, useSchedule } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth-context";
@@ -594,13 +595,15 @@ export default function TareasPage() {
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Materia</label>
-            <select
-              value={subjectId} onChange={(e) => setSubjectId(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm"
-            >
-              <option value="">Seleccionar...</option>
-              {subjects.map((s) => <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>)}
-            </select>
+            <Select
+              value={subjectId}
+              onChange={setSubjectId}
+              placeholder="Seleccionar..."
+              options={[
+                { value: "", label: "Seleccionar..." },
+                ...subjects.map((s) => ({ value: s.id, label: `${s.emoji} ${s.name}` })),
+              ]}
+            />
           </div>
 
           {/* Two dates side by side */}

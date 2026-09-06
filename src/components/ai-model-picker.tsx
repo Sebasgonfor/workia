@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Cpu, Eye, Type, Loader2, RotateCcw, Zap, AlertTriangle, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { ProviderId, ProviderInfo } from "@/lib/ai/catalog";
+import { Select } from "@/components/ui/select";
 
 interface ProviderWithKey extends ProviderInfo {
   hasKey: boolean;
@@ -52,10 +53,6 @@ function Row({
   // Para visión solo tiene sentido ofrecer proveedores multimodales.
   const usable = providers.filter((p) => (isVision ? p.supportsVision : true));
 
-  const selectClass =
-    "w-full text-sm rounded-lg bg-secondary/60 border border-border px-3 py-2.5 " +
-    "outline-none focus:border-primary/60 transition-colors disabled:opacity-50";
-
   return (
     <div className="p-3.5 rounded-xl bg-card border border-border">
       <div className="flex items-center gap-2 mb-3">
@@ -79,19 +76,18 @@ function Row({
       </div>
 
       <label className="block text-[10px] text-muted-foreground mb-1">Proveedor</label>
-      <select
-        aria-label={isVision ? "Proveedor para imágenes y audio" : "Proveedor para texto"}
+      <Select
+        ariaLabel={isVision ? "Proveedor para imágenes y audio" : "Proveedor para texto"}
         value={provider}
-        onChange={(e) => onProviderChange(e.target.value as ProviderId)}
-        className={`${selectClass} mb-2.5`}
-      >
-        {usable.map((p) => (
-          <option key={p.id} value={p.id} disabled={!p.hasKey}>
-            {p.label}
-            {p.hasKey ? "" : " — sin API key"}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => onProviderChange(v as ProviderId)}
+        className="mb-2.5"
+        options={usable.map((p) => ({
+          value: p.id,
+          label: p.label,
+          description: p.hasKey ? undefined : "sin API key",
+          disabled: !p.hasKey,
+        }))}
+      />
 
       <label className="block text-[10px] text-muted-foreground mb-1">Modelo</label>
 
@@ -115,27 +111,24 @@ function Row({
             value={model}
             onChange={(e) => onModelChange(e.target.value.trim())}
             placeholder="Escribe el nombre del modelo"
-            className={selectClass}
+            className="w-full text-sm rounded-lg bg-secondary/60 border border-border px-3 py-2.5 outline-none focus:border-primary/60 transition-colors disabled:opacity-50"
           />
         </>
       )}
 
       {modelState.status === "ready" && (
-        <select
-          aria-label={isVision ? "Modelo para imágenes y audio" : "Modelo para texto"}
+        <Select
+          ariaLabel={isVision ? "Modelo para imágenes y audio" : "Modelo para texto"}
           value={model}
-          onChange={(e) => onModelChange(e.target.value)}
-          className={selectClass}
-        >
-          {!modelState.models.some((m) => m.id === model) && (
-            <option value={model}>{model || "— elige un modelo —"}</option>
-          )}
-          {modelState.models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.id}
-            </option>
-          ))}
-        </select>
+          onChange={onModelChange}
+          placeholder="— elige un modelo —"
+          options={[
+            ...(model && !modelState.models.some((m) => m.id === model)
+              ? [{ value: model, label: model }]
+              : []),
+            ...modelState.models.map((m) => ({ value: m.id, label: m.id })),
+          ]}
+        />
       )}
 
       {info && (
