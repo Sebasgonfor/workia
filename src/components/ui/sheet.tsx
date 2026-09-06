@@ -124,7 +124,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
           </div>
         </div>
         {/* Content — scrollable */}
-        <div className="flex-1 overflow-y-auto px-4 pb-6 overscroll-contain pb-safe-sheet md:px-6 md:pb-6">
+        <div className="flex-1 overflow-y-auto px-4 pb-6 overscroll-contain pb-safe-sheet md:px-6 md:pb-6 no-scrollbar">
           {children}
         </div>
       </div>

@@ -59,9 +59,10 @@ export function useSubjects() {
   }, [user]);
 
   const addSubject = useCallback(
-    async (data: Pick<Subject, "name" | "color" | "emoji">) => {
+    async (data: Pick<Subject, "name" | "color" | "emoji"> & { cycleId?: string | null }) => {
       if (!user) return;
       await addDoc(collection(db, "users", user.uid, "subjects"), {
+        cycleId: null,
         ...data,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -71,7 +72,7 @@ export function useSubjects() {
   );
 
   const updateSubject = useCallback(
-    async (id: string, data: Partial<Pick<Subject, "name" | "color" | "emoji">>) => {
+    async (id: string, data: Partial<Pick<Subject, "name" | "color" | "emoji" | "cycleId">>) => {
       if (!user) return;
       await updateDoc(doc(db, "users", user.uid, "subjects", id), {
         ...data,
@@ -109,5 +110,22 @@ export function useSubjects() {
     [user]
   );
 
-  return { subjects, loading, addSubject, updateSubject, deleteSubject };
+  // Persists a drag-and-drop reorder within a single group (a cycle, or the
+  // "sin ciclo" bucket). `orderedIds` are only the ids of that group, in
+  // their new visual order — assigning index-based values keeps them
+  // independent from every other group's own order numbers, since sorting
+  // always happens after already filtering by cycleId.
+  const reorderSubjects = useCallback(
+    async (orderedIds: string[]) => {
+      if (!user) return;
+      const batch = writeBatch(db);
+      orderedIds.forEach((id, index) => {
+        batch.update(doc(db, "users", user.uid, "subjects", id), { order: index });
+      });
+      await batch.commit();
+    },
+    [user]
+  );
+
+  return { subjects, loading, addSubject, updateSubject, deleteSubject, reorderSubjects };
 }
