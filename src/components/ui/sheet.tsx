@@ -9,9 +9,12 @@ interface SheetProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** Centers the title, with the close button floating over it instead of
+   *  sharing the row — for sheets that read more like a dialog than a form. */
+  centerTitle?: boolean;
 }
 
-export function Sheet({ open, onClose, title, children }: SheetProps) {
+export function Sheet({ open, onClose, title, children, centerTitle }: SheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [rendered, setRendered] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -113,11 +116,19 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
           <div className="flex items-center justify-center pt-2.5 pb-0.5 md:hidden">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
           </div>
-          <div className="flex items-center justify-between px-4 py-2 md:px-6 md:py-4 md:border-b md:border-border">
+          <div
+            className={cn(
+              "relative flex items-center px-4 py-2 md:px-6 md:py-4 md:border-b md:border-border",
+              centerTitle ? "justify-center" : "justify-between"
+            )}
+          >
             <h2 className="text-base font-semibold md:text-lg">{title}</h2>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center active:bg-secondary/80 hover:bg-secondary/80 touch-target"
+              className={cn(
+                "w-8 h-8 rounded-full bg-secondary flex items-center justify-center active:bg-secondary/80 hover:bg-secondary/80 touch-target",
+                centerTitle && "absolute right-4 md:right-6"
+              )}
             >
               <X className="w-4 h-4" />
             </button>

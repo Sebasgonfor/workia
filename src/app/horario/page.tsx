@@ -6,7 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { Select } from "@/components/ui/select";
-import { useSubjects, useSchedule } from "@/lib/hooks";
+import { useSubjects, useSchedule, useAutoOpenCreate } from "@/lib/hooks";
 import { DAYS_OF_WEEK, SCHEDULE_HOURS } from "@/types";
 import type { ScheduleSlot } from "@/types";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,8 @@ export default function HorarioPage() {
     resetForm();
     setShowSheet(true);
   };
+
+  useAutoOpenCreate(openCreate);
 
   const openEdit = (slot: ScheduleSlot) => {
     setSubjectId(slot.subjectId);

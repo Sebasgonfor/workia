@@ -18,7 +18,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { MarkdownMath } from "@/components/ui/markdown-math";
 import { Select } from "@/components/ui/select";
-import { useSubjects, useFlashcards, useClasses } from "@/lib/hooks";
+import { useSubjects, useFlashcards, useClasses, useAutoOpenCreate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth-context";
 import { getDocs, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -49,6 +49,8 @@ export default function FlashcardsPage() {
   const [flipped, setFlipped] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
+
+  useAutoOpenCreate(() => setShowCreate(true));
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 

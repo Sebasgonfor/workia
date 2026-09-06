@@ -20,7 +20,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Confirm } from "@/components/ui/confirm";
 import { Select } from "@/components/ui/select";
 import { MarkdownMath } from "@/components/ui/markdown-math";
-import { useSubjects, useTasks, useSchedule } from "@/lib/hooks";
+import { useSubjects, useTasks, useSchedule, useAutoOpenCreate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth-context";
 import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -184,6 +184,8 @@ export default function TareasPage() {
   };
 
   const openCreate = () => { resetForm(); setShowSheet(true); };
+
+  useAutoOpenCreate(openCreate);
 
   const openEdit = (task: Task) => {
     setTitle(task.title);
