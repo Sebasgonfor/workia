@@ -1969,6 +1969,19 @@ export default function BoardPage() {
               {saving ? "Guardando..." : editingId ? "Guardar cambios" : entryType === "task" ? "Crear tarea" : "Crear entrada"}
             </button>
           )}
+
+          {/* Hidden input for attaching images to notes */}
+          <input
+            ref={noteImageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleNoteImageUpload(file);
+              e.target.value = "";
+            }}
+            className="hidden"
+          />
         </div>
       </Sheet>
 
@@ -2020,18 +2033,6 @@ export default function BoardPage() {
 
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => handleScanFiles(e.target.files)} className="hidden" />
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={(e) => handleScanFiles(e.target.files)} className="hidden" />
-          {/* Hidden input for attaching images to notes */}
-          <input
-            ref={noteImageInputRef}
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleNoteImageUpload(file);
-              e.target.value = "";
-            }}
-            className="hidden"
-          />
 
           {/* Scan type */}
           <div>
