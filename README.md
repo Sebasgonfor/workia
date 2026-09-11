@@ -194,6 +194,13 @@ Toda la inteligencia corre vía **Gemini 2.0 Flash** desde routes en `src/app/ap
 2. **Context-aware** — Las llamadas reciben el contenido de la clase + nombre de materia + documentos de referencia.
 3. **Pipelines compuestos** — El Kit de Estudio hace una sola llamada que genera resumen + flashcards + quiz + conceptos.
 4. **Validación + filtros** — `content-cleaner.ts` sanitiza outputs antes de persistir.
+5. **BYOK (opcional)** — cada usuario puede conectar su propia API key de
+   Gemini desde Perfil (cifrada en Firestore, nunca se expone en claro).
+   Con la key propia activada, sus llamadas corren contra su cuota en vez
+   de la del servidor. Ver `specs/08-voice-agent-byok.md`.
+6. **Tutor de voz** (`/voz`) — conversación en tiempo real por audio vía
+   Gemini Live API. Requiere key BYOK propia (el audio en vivo es caro y
+   no se ofrece contra la key compartida del servidor).
 
 ---
 
@@ -208,6 +215,8 @@ Specs detalladas en `specs/`:
 - ✅ `05` Study Kit pipeline
 - ✅ `06` Knowledge Graph
 - ✅ `07` Gap Detection
+- 🚧 `08` BYOK + Tutor de voz (ver `PLAN-voice-byok.md` — falta probar
+  con credenciales reales de Firebase Admin + Gemini Live)
 - 🚧 Desktop/Tablet responsive (ver `PLAN.md`)
 
 ---

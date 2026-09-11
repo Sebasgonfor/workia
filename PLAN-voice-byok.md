@@ -3,7 +3,13 @@
 > Spec de referencia: [`specs/08-voice-agent-byok.md`](./specs/08-voice-agent-byok.md)
 > Este doc trackea el avance paso a paso para no perder el hilo entre sesiones.
 
-## Estado: 🚧 En progreso — Fases 1-3 hechas (BYOK base lista), sigue Fase 4 (voz)
+## Estado: 🚧 Implementación completa (Fases 1-8), sin probar con credenciales reales
+
+Todo el código de este spec está escrito y pasa `tsc --noEmit` limpio,
+pero **nada se probó en ejecución real** — este entorno no tenía
+credenciales de Firebase Admin, Firestore, ni una key de Gemini con
+acceso a Live API. Ver "Antes de dar esto por terminado" al final del
+documento antes de considerarlo listo para producción.
 
 ---
 
@@ -158,19 +164,48 @@ antes de meterse con voz.
       si se quiere version contextual (pasar `?subject=` por query param
       y ajustar el prompt, o abrir como modal con esa clase precargada).
 
-## Fase 8 — Pulido
+## Fase 8 — Pulido ✅ (lo que se podía cerrar sin credenciales reales)
 
-- [ ] Mapeo de errores de conexión Live/WS a mensajes legibles (toast).
-- [ ] Revisar costos reales con uso de prueba (confirmar que corre contra
-      la key del usuario, no la del servidor).
-- [ ] Actualizar `README.md` con instrucciones de BYOK + tutor de voz.
+- [x] Mapeo de errores de conexión Live/WS a mensajes legibles (toast) —
+      ya cubierto en `voice-agent.tsx` (`onError` → `setErrorMsg` + toast)
+      y en las rutas (`live-token`, `user-key` devuelven mensajes claros).
+- [ ] Revisar costos reales con uso de prueba — **no se pudo hacer sin
+      credenciales**. Cuando pruebes con tu cuenta real: confirma en
+      aistudio.google.com que el consumo aparece bajo TU key (BYOK) y no
+      bajo `GOOGLE_AI_API_KEY` del servidor.
+- [x] Actualizar `README.md` con instrucciones de BYOK + tutor de voz
+      (sección "Cómo trabaja la IA" + roadmap).
 
 ---
 
-## Decisiones abiertas (a resolver antes o durante la implementación)
-1. ¿El tutor de voz vive en su propia pestaña de nav, o como modal dentro
-   de cada materia/clase? (afecta Fase 7)
-2. ¿Se permite fallback a la key del servidor para voz en algún caso (ej.
-   trial limitado), o es estrictamente BYOK-only como dice el spec?
-3. ¿Dónde en Perfil va el bloque de BYOK? (revisar layout actual de
-   `perfil/page.tsx` antes de la Fase 3)
+## Decisiones tomadas durante la implementación
+1. Tutor de voz en su propia pestaña (`/voz`), no modal por materia —
+   más simple, consistente con Quiz/Dominio/Parcial.
+2. **BYOK-only** para voz, sin fallback a la key del servidor — así lo
+   pide el spec, se mantuvo tal cual (403 explícito si no hay key propia).
+3. Bloque de BYOK dentro de `AiModelPicker` (que ya vive en Perfil), no un
+   componente/sección aparte — menos que mantener, mismo lugar donde el
+   usuario ya configura IA.
+
+## ⚠️ Antes de dar esto por terminado (requiere credenciales reales)
+
+Nada de lo implementado se ejecutó de verdad en este entorno. Antes de
+mergear/desplegar a producción, con credenciales reales:
+
+1. **Config de servidor**: crear la service account de Firebase Admin,
+   poner `FIREBASE_ADMIN_*` y `SECRETS_ENCRYPTION_KEY` en `.env.local` (o
+   el entorno de despliegue).
+2. **BYOK end-to-end**: guardar una key real desde Perfil, confirmar que
+   rechaza keys inválidas, generar un quiz y verificar en
+   aistudio.google.com que el consumo aparece bajo esa key.
+3. **Voz end-to-end**: con esa misma key, abrir `/voz`, dar permiso de
+   mic, confirmar que conecta, que se escucha al tutor, que el barge-in
+   corta la reproducción, y que el modelo (`DEFAULT_LIVE_MODEL` en
+   `gemini-live.ts`) sigue existiendo — si Google lo retiró, ajustar ahí.
+4. **Rollout pendiente de Fase 2**: aplicar `optionalUserId` +
+   `authHeader()` al resto de rutas de IA (ver lista en Fase 2) para que
+   BYOK no quede limitado solo a generar quiz.
+5. Firestore rules: añadir una regla explícita que **bloquee** el acceso
+   de cliente a `users/{userId}/secrets/**` (hoy nadie la lee/escribe
+   desde el cliente, pero conviene que las reglas lo digan explícitamente
+   en vez de depender de que ningún código cliente la toque).
