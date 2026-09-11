@@ -3,22 +3,28 @@
 > Spec de referencia: [`specs/08-voice-agent-byok.md`](./specs/08-voice-agent-byok.md)
 > Este doc trackea el avance paso a paso para no perder el hilo entre sesiones.
 
-## Estado: 🔲 No iniciado
+## Estado: 🚧 En progreso — Fase 1 hecha, Fase 2 en curso
 
 ---
 
-## Fase 1 — BYOK: guardar la key del usuario
+## Fase 1 — BYOK: guardar la key del usuario ✅
 
-- [ ] Confirmar si ya existe inicialización de Firebase Admin en el repo;
-      si no, crear `src/lib/firebase-admin.ts`.
-- [ ] Añadir `SECRETS_ENCRYPTION_KEY` a `.env.local` (documentar en README
-      qué es y cómo generarla: `openssl rand -hex 32`).
-- [ ] Crear `src/lib/ai/user-key.ts` con `getUserGeminiKey`,
+- [x] Confirmar si ya existe inicialización de Firebase Admin en el repo;
+      si no, crear `src/lib/firebase-admin.ts`. → No existía, se creó.
+      Verifica identidad vía ID token (`Authorization: Bearer`), no había
+      ningún patrón de auth server-side en el repo (todo corría por
+      Firestore rules + SDK cliente); es nuevo para este spec.
+- [x] Añadir `SECRETS_ENCRYPTION_KEY` a `.env.local` (documentado en README,
+      cómo generarla: `openssl rand -hex 32`).
+- [x] Crear `src/lib/ai/user-key.ts` con `getUserGeminiKey`,
       `saveUserGeminiKey`, `deleteUserGeminiKey` (AES-256-GCM).
-- [ ] Crear `src/app/api/ai/user-key/route.ts` (`GET` / `POST` / `DELETE`),
+- [x] Crear `src/app/api/ai/user-key/route.ts` (`GET` / `POST` / `DELETE`),
       con validación real contra Gemini antes de guardar.
 - [ ] Probar manualmente: guardar key válida, guardar key inválida (debe
       rechazar con 400), borrar, GET refleja estado correcto.
+      **Pendiente**: requiere credenciales reales de Firebase Admin
+      (service account) que no existen en este entorno — no se puede
+      probar end-to-end sin ellas. El typecheck (`tsc --noEmit`) pasa limpio.
 
 ## Fase 2 — BYOK: usar la key del usuario en las llamadas existentes
 

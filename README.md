@@ -152,6 +152,17 @@ GOOGLE_AI_API_KEY=
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
+
+# BYOK (opcional — permite que cada usuario use su propia key de Gemini,
+# ver specs/08-voice-agent-byok.md). Requiere una service account de
+# Firebase Admin (console.firebase.google.com → Configuración del
+# proyecto → Cuentas de servicio → Generar nueva clave privada).
+FIREBASE_ADMIN_PROJECT_ID=
+FIREBASE_ADMIN_CLIENT_EMAIL=
+FIREBASE_ADMIN_PRIVATE_KEY=
+# Clave para cifrar las API keys de los usuarios en Firestore. Generar con:
+#   openssl rand -hex 32
+SECRETS_ENCRYPTION_KEY=
 ```
 
 ### Comandos
