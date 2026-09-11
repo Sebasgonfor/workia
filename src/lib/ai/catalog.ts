@@ -29,7 +29,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: "gemini",
     label: "Google Gemini",
     supportsVision: true,
-    note: "Gratis 1500 req/día. El mejor para fotos y audio.",
+    note: "Gratis 1500 req/día. El mejor para fotos y audio. Puedes conectar tu propia key en Perfil (BYOK).",
     keyUrl: "https://aistudio.google.com/apikey",
     keyEnv: "GOOGLE_AI_API_KEY",
   },

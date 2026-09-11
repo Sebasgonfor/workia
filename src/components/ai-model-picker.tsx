@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Cpu, Eye, Type, Loader2, RotateCcw, Zap, AlertTriangle, Check } from "lucide-react";
+import { Cpu, Eye, Type, Loader2, RotateCcw, Zap, AlertTriangle, Check, KeyRound, Trash2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import type { ProviderId, ProviderInfo } from "@/lib/ai/catalog";
 import { Select } from "@/components/ui/select";
+import { authHeader } from "@/lib/ai/client-auth-header";
 
 interface ProviderWithKey extends ProviderInfo {
   hasKey: boolean;
@@ -15,6 +16,141 @@ interface Selection {
   textModel: string;
   visionProvider: ProviderId;
   visionModel: string;
+  useOwnKey?: boolean;
+}
+
+/**
+ * BYOK: el usuario pega su propia API key de Gemini (gratis en
+ * aistudio.google.com/apikey). Se cifra en el servidor y nunca vuelve a
+ * salir en claro — este bloque solo sabe si hay una guardada o no.
+ * Ver specs/08-voice-agent-byok.md.
+ */
+function GeminiByokPanel({
+  hasKey,
+  useOwnKey,
+  onChangeUseOwnKey,
+  onKeyChange,
+}: {
+  hasKey: boolean;
+  useOwnKey: boolean;
+  onChangeUseOwnKey: (v: boolean) => void;
+  onKeyChange: (hasKey: boolean) => void;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  const handleSaveKey = async () => {
+    if (!apiKey.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/ai/user-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({ apiKey: apiKey.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo guardar la key");
+      setApiKey("");
+      onKeyChange(true);
+      toast.success("Tu API key de Gemini quedó conectada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo guardar la key");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveKey = async () => {
+    setRemoving(true);
+    try {
+      const res = await fetch("/api/ai/user-key", {
+        method: "DELETE",
+        headers: await authHeader(),
+      });
+      if (!res.ok) throw new Error("No se pudo quitar la key");
+      onKeyChange(false);
+      if (useOwnKey) onChangeUseOwnKey(false);
+      toast.success("Key eliminada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo quitar la key");
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <div className="p-3.5 rounded-xl bg-card border border-border mb-2.5">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-500/10">
+          <KeyRound className="w-3.5 h-3.5 text-emerald-500" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-tight">Tu propia API key de Gemini</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">
+            Tus llamadas corren contra tu propia cuota, no la del servidor
+          </p>
+        </div>
+      </div>
+
+      {hasKey ? (
+        <div className="mt-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+            <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+              <Check className="w-3.5 h-3.5" /> Key conectada
+            </span>
+            <button
+              onClick={handleRemoveKey}
+              disabled={removing}
+              aria-label="Quitar API key"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-destructive disabled:opacity-40 transition-colors"
+            >
+              {removing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          <label className="flex items-center gap-2 text-xs px-0.5">
+            <input
+              type="checkbox"
+              checked={useOwnKey}
+              onChange={(e) => onChangeUseOwnKey(e.target.checked)}
+              className="w-4 h-4 rounded accent-primary"
+            />
+            Usar mi key en vez de la del servidor
+          </label>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="AIza..."
+            aria-label="API key de Gemini"
+            className="w-full text-sm rounded-lg bg-secondary/60 border border-border px-3 py-2.5 outline-none focus:border-primary/60 transition-colors"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveKey}
+              disabled={saving || !apiKey.trim()}
+              className="flex-1 flex items-center justify-center gap-2 p-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 active:scale-[0.98] transition-transform"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+              Conectar
+            </button>
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 px-3 rounded-lg bg-card border border-border text-xs text-muted-foreground"
+            >
+              Crear key gratis <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface ModelOption {
@@ -147,6 +283,7 @@ export function AiModelPicker() {
   const [dirty, setDirty] = useState(false);
   const [textModels, setTextModels] = useState<ModelState>({ status: "idle" });
   const [visionModels, setVisionModels] = useState<ModelState>({ status: "idle" });
+  const [byokHasKey, setByokHasKey] = useState(false);
 
   // Carga inicial: catálogo + selección activa
   useEffect(() => {
@@ -159,6 +296,7 @@ export function AiModelPicker() {
         if (cancelled) return;
         setProviders(data.providers);
         setSelection(data.active);
+        setByokHasKey(Boolean(data.byok?.hasKey));
       } catch {
         if (!cancelled) toast.error("No se pudo cargar la configuración de IA");
       } finally {
@@ -285,6 +423,13 @@ export function AiModelPicker() {
           </p>
         </div>
       )}
+
+      <GeminiByokPanel
+        hasKey={byokHasKey}
+        useOwnKey={Boolean(selection.useOwnKey)}
+        onChangeUseOwnKey={(v) => update({ useOwnKey: v })}
+        onKeyChange={setByokHasKey}
+      />
 
       <div className="space-y-2.5">
         <Row

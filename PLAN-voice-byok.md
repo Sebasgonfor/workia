@@ -3,7 +3,7 @@
 > Spec de referencia: [`specs/08-voice-agent-byok.md`](./specs/08-voice-agent-byok.md)
 > Este doc trackea el avance paso a paso para no perder el hilo entre sesiones.
 
-## Estado: 🚧 En progreso — Fase 1 hecha, Fase 2 en curso
+## Estado: 🚧 En progreso — Fases 1-3 hechas (BYOK base lista), sigue Fase 4 (voz)
 
 ---
 
@@ -58,19 +58,32 @@
 - [x] Verificado con `tsc --noEmit` (limpio) que sin key de usuario nada
       se rompe — el flujo cae al comportamiento de siempre.
 
-## Fase 3 — BYOK: UI
+## Fase 3 — BYOK: UI ✅
 
-- [ ] Bloque "Tu propia API key de Gemini" en `ai-model-picker.tsx` (o
-      sección nueva en `perfil/page.tsx`, definir cuál según layout actual
-      de Perfil).
-- [ ] Input + guardar + estado "✓ Conectada" + botón quitar.
-- [ ] Toggle "usar mi key" persistido en la cookie `workia_ai_models`
-      existente (`useOwnKey`).
-- [ ] Actualizar nota de Gemini en `src/lib/ai/catalog.ts`.
-- [ ] Probar flujo completo end-to-end desde la UI.
+- [x] Bloque "Tu propia API key de Gemini" — se agregó dentro de
+      `ai-model-picker.tsx` (que ya vive en Perfil) como `GeminiByokPanel`,
+      en vez de crear un componente/sección separada.
+- [x] Input + guardar + estado "✓ Key conectada" + botón quitar.
+- [x] Toggle "usar mi key en vez de la del servidor", persistido en la
+      cookie `workia_ai_models` existente (`useOwnKey`), junto con el
+      resto de la selección (mismo botón "Guardar" de siempre).
+- [x] Actualizar nota de Gemini en `src/lib/ai/catalog.ts`.
+- [ ] Probar flujo completo end-to-end desde la UI. **Pendiente**: no se
+      pudo levantar `npm run dev` con Firebase/Firestore reales en este
+      entorno (sin credenciales) — verificado solo con `tsc --noEmit`
+      (limpio). Falta que lo pruebes tú con tus credenciales reales:
+      1. Entra a Perfil, pega una key de aistudio.google.com/apikey.
+      2. Debe validar contra Gemini antes de guardar (prueba también con
+         una key inválida — debe rechazar con mensaje claro).
+      3. Activa el toggle "usar mi key" y guarda.
+      4. Genera un quiz (único flujo con BYOK conectado hasta ahora, ver
+         pendiente de Fase 2) y confirma que corre con tu key, no la del
+         servidor (puedes verificarlo revisando el uso en
+         aistudio.google.com con tu cuenta).
 
-**Checkpoint:** con Fases 1-3 cerradas, BYOK de Gemini funciona para todo
-el uso de texto/visión existente. Es un punto natural para pausar/entregar
+**Checkpoint:** con Fases 1-3 hechas (con los pendientes anotados arriba:
+rollout a más rutas + prueba manual con credenciales reales), BYOK de
+Gemini tiene la base funcionando. Es un punto natural para pausar/entregar
 antes de meterse con voz.
 
 ---
