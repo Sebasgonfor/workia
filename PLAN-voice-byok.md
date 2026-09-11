@@ -106,22 +106,44 @@ antes de meterse con voz.
       efectivamente abra una sesión Live (la API es `@experimental`, puede
       tener comportamiento distinto al documentado en el `.d.ts`).
 
-## Fase 5 — Voz: wrapper del SDK
+## Fase 5 — Voz: wrapper del SDK ✅ (implementado, no probado)
 
-- [ ] Crear `src/lib/ai/live/gemini-live.ts` con `connectLiveSession`
-      (conexión WS, envío de audio, recepción de audio/transcript/turno).
-- [ ] Confirmar en la doc vigente del SDK: nombre del modelo Live actual,
-      sample rate exacto de input/output, formato de mensajes de
-      interrupción (barge-in).
+- [x] Crear `src/lib/ai/live/gemini-live.ts` con `connectLiveSession`
+      (conexión WS vía `ai.live.connect`, `sendRealtimeInput` para audio,
+      `sendClientContent` para texto, callbacks de audio/transcript/turno/
+      interrupción).
+- [ ] Confirmar en la doc vigente del SDK: nombre del modelo Live actual
+      (usé `gemini-2.5-flash-native-audio-preview-09-2025`, **verificar
+      que sigue existiendo** — Google retira modelos Live seguido), sample
+      rate exacto de input/output (usé 16kHz in / 24kHz out, estándar de
+      Gemini Live pero no verificado contra una sesión real), formato de
+      mensajes de interrupción (mapeado desde `serverContent.interrupted`,
+      sin confirmar contra tráfico real).
+      **Pendiente de validar con credenciales reales.**
 
-## Fase 6 — Voz: componente de UI
+## Fase 6 — Voz: componente de UI ✅ (implementado, no probado)
 
-- [ ] `src/components/voice-agent.tsx`: captura de mic vía
-      `AudioWorkletNode`, cola de reproducción con `AudioContext`,
-      máquina de estados (idle/connecting/listening/thinking/speaking/error).
-- [ ] Manejo de barge-in.
-- [ ] CTA de "conecta tu key" cuando `byok.hasKey === false`.
-- [ ] Reconexión automática si expira el ephemeral token a mitad de sesión.
+- [x] `src/components/voice-agent.tsx`: captura de mic vía
+      `AudioWorkletNode` (worklet en `public/audio/pcm-recorder-worklet.js`,
+      convierte Float32→PCM16 en el hilo de audio), cola de reproducción
+      con `AudioContext` (scheduling por `currentTime`, sin cortes entre
+      chunks), máquina de estados
+      (idle/connecting/listening/speaking/error).
+- [x] Manejo de barge-in: al recibir `onInterrupted`, vacía el playhead de
+      reproducción y vuelve a "listening".
+- [x] CTA de "conecta tu key" cuando el usuario no tiene BYOK — antes de
+      mostrar el botón de mic.
+- [ ] Reconexión automática si expira el ephemeral token a mitad de
+      sesión — **no implementado**. Hoy si el token expira, la sesión
+      simplemente falla (`onError`) y el usuario tiene que tocar de nuevo
+      el botón (que sí pide un token nuevo). Es una mejora de UX, no un
+      bloqueante funcional, pendiente si se nota molesto en uso real.
+- [ ] **Nada de esto se probó en un navegador real** (sin key de Gemini
+      con Live API ni micrófono en este entorno) — solo compila
+      (`tsc --noEmit` limpio). Antes de dar por buena la Fase 6 hay que
+      probarlo manualmente: permiso de mic, latencia real, calidad de
+      audio, y sobre todo si `audioWorklet.addModule` carga bien el
+      archivo estático servido desde `public/`.
 
 ## Fase 7 — Voz: integración en la app
 
