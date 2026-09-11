@@ -88,13 +88,23 @@ antes de meterse con voz.
 
 ---
 
-## Fase 4 — Voz: ephemeral tokens
+## Fase 4 — Voz: ephemeral tokens ✅ (implementado, no probado end-to-end)
 
-- [ ] Crear `src/app/api/ai/live-token/route.ts`: valida que el usuario
+- [x] Crear `src/app/api/ai/live-token/route.ts`: valida que el usuario
       tenga key propia (403 si no), genera ephemeral token vía
-      `ai.authTokens.create`, lo devuelve con expiración.
+      `ai.authTokens.create({ config: { uses, expireTime,
+      newSessionExpireTime } })` — nota: va anidado en `config`, no en el
+      top-level (así lo exige el tipo `CreateAuthTokenParameters` del SDK
+      `@google/genai@2.18.0`). Requiere `httpOptions: { apiVersion:
+      "v1alpha" }` en el cliente que crea el token — es donde vive esta
+      feature en el SDK actual (marcada `@experimental`).
 - [ ] Probar que el token generado sirve para abrir una sesión Live desde
-      un script/cliente de prueba simple.
+      un script/cliente de prueba simple. **Pendiente**: no se pudo probar
+      sin una key real de Gemini con acceso a Live API — verificado solo
+      por tipos (`tsc --noEmit` limpio) y lectura de la definición del SDK.
+      Riesgo real a validar cuando haya credenciales: que el modelo/token
+      efectivamente abra una sesión Live (la API es `@experimental`, puede
+      tener comportamiento distinto al documentado en el `.d.ts`).
 
 ## Fase 5 — Voz: wrapper del SDK
 
