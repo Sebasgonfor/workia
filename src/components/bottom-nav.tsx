@@ -20,6 +20,7 @@ import {
   Search,
   Camera,
   X,
+  Mic,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ const moreTabs = [
   { href: "/horario", label: "Horario", icon: Clock, accent: "amber" },
   { href: "/digitalizar", label: "Digitalizar", icon: FileOutput, accent: "emerald" },
   { href: "/quiz", label: "Quiz", icon: HelpCircle, accent: "rose" },
+  { href: "/voz", label: "Voz", icon: Mic, accent: "violet" },
   { href: "/dominio", label: "Dominio", icon: Trophy, accent: "indigo" },
   { href: "/parcial", label: "Parcial", icon: ClipboardList, accent: "stone" },
 ] as const;

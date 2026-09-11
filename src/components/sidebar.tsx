@@ -15,6 +15,7 @@ import {
   FileOutput,
   Trophy,
   ClipboardList,
+  Mic,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -86,6 +87,7 @@ export function Sidebar() {
     { href: "/quiz", label: "Quiz", icon: HelpCircle },
     { href: "/dominio", label: "Dominio", icon: Trophy },
     { href: "/parcial", label: "Parcial", icon: ClipboardList },
+    { href: "/voz", label: "Tutor de voz", icon: Mic },
   ];
 
   const isActive = (href: string) =>

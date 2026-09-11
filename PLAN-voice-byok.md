@@ -145,13 +145,18 @@ antes de meterse con voz.
       audio, y sobre todo si `audioWorklet.addModule` carga bien el
       archivo estático servido desde `public/`.
 
-## Fase 7 — Voz: integración en la app
+## Fase 7 — Voz: integración en la app ✅ (parcial)
 
-- [ ] Crear `src/app/voz/page.tsx`.
-- [ ] Decidir y agregar entrada de navegación (`bottom-nav.tsx` /
-      `sidebar-nav.tsx`) o acceso como modal desde una clase/materia.
-- [ ] Pasar contexto de materia como `systemInstruction` cuando se abre
-      desde `materias/[id]/[classId]`.
+- [x] Crear `src/app/voz/page.tsx`.
+- [x] Entrada de navegación: tab "Voz" en `bottom-nav.tsx` (dentro de
+      "más") y "Tutor de voz" en `sidebar.tsx` (desktop). Se optó por
+      pestaña propia en vez de modal por clase/materia — más simple de
+      cablear y consistente con cómo viven Quiz/Dominio/Parcial hoy.
+- [ ] Contexto de materia como `systemInstruction` al abrir desde
+      `materias/[id]/[classId]` — **no implementado**. Hoy `VozPage` usa
+      un `systemInstruction` genérico de "tutor universitario". Pendiente
+      si se quiere version contextual (pasar `?subject=` por query param
+      y ajustar el prompt, o abrir como modal con esa clase precargada).
 
 ## Fase 8 — Pulido
 
