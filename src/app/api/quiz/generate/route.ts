@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, parseAiJson } from "@/lib/ai";
+import { optionalUserId } from "@/lib/firebase-admin";
 import { buildDocumentContext, type DocRef } from "@/app/api/_utils/document-context";
 
 const PROMPT = `Eres un profesor universitario experto en crear evaluaciones de estudio de alta calidad.
@@ -103,7 +104,8 @@ export async function POST(req: NextRequest) {
       prompt = `${prompt}\n\n${documentContext.contextText}`;
     }
 
-    const text = await generateText({ prompt, images: documentContext.images });
+    const userId = await optionalUserId(req);
+    const text = await generateText({ prompt, images: documentContext.images }, { userId });
 
     let parsed;
     try {

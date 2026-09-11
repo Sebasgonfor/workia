@@ -90,6 +90,8 @@ export interface AiSelection {
   textModel: string;
   visionProvider: ProviderId;
   visionModel: string;
+  /** BYOK: usar la key de Gemini del propio usuario en vez de la del servidor. */
+  useOwnKey?: boolean;
 }
 
 export const AI_SELECTION_COOKIE = "workia_ai_models";
@@ -134,6 +136,7 @@ export function validateSelection(raw: unknown): SelectionResult {
   check("visionProvider", isProviderId);
   check("textModel", isValidModelId);
   check("visionModel", isValidModelId);
+  check("useOwnKey", (val): val is boolean => typeof val === "boolean");
 
   return { selection, invalid };
 }

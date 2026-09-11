@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getConfiguredProviders } from "@/lib/ai";
+import { getUserKeyStatus } from "@/lib/ai/user-key";
+import { optionalUserId } from "@/lib/firebase-admin";
 import {
   AI_SELECTION_COOKIE,
   PROVIDERS,
@@ -36,11 +38,17 @@ export async function GET(req: NextRequest) {
 
   const defaults = envDefaults();
 
+  const userId = await optionalUserId(req);
+  const byok = userId
+    ? await getUserKeyStatus(userId).catch(() => ({ hasKey: false }))
+    : { hasKey: false };
+
   return NextResponse.json({
     providers: PROVIDERS.map((p) => ({ ...p, hasKey: configured[p.id] ?? false })),
     defaults,
     saved,
     active: { ...defaults, ...saved },
+    byok,
   });
 }
 
@@ -72,6 +80,8 @@ export async function POST(req: NextRequest) {
   const configured = getConfiguredProviders();
   for (const key of ["textProvider", "visionProvider"] as const) {
     const provider = selection[key];
+    // Con BYOK activo, Gemini no necesita key de servidor: usa la del usuario.
+    if (selection.useOwnKey && provider === "gemini") continue;
     if (provider && !configured[provider]) {
       return NextResponse.json(
         { error: `El proveedor "${provider}" no tiene su API key configurada en el servidor` },

@@ -26,6 +26,11 @@ export interface GenOptions {
   capability?: AiCapability;
   /** Saltarse el fallback automático (útil para tests). */
   noFallback?: boolean;
+  /**
+   * Uid del usuario autenticado. Si tiene su propia key de Gemini guardada
+   * (BYOK, ver src/lib/ai/user-key.ts), se usa esa en vez de la del servidor.
+   */
+  userId?: string;
 }
 
 export interface AiProvider {

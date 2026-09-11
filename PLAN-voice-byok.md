@@ -26,18 +26,37 @@
       (service account) que no existen en este entorno — no se puede
       probar end-to-end sin ellas. El typecheck (`tsc --noEmit`) pasa limpio.
 
-## Fase 2 — BYOK: usar la key del usuario en las llamadas existentes
+## Fase 2 — BYOK: usar la key del usuario en las llamadas existentes ✅ (patrón listo, falta rollout)
 
-- [ ] Extender `buildProvider` en `src/lib/ai/index.ts` para aceptar
-      `userApiKey` y no cachear proveedores por-usuario en el `Map` global.
-- [ ] Propagar `opts.userId` por `generateText` / `generateJSON` /
-      `streamText` → `resolveProvider`.
-- [ ] Actualizar las rutas API que ya conocen al usuario autenticado
-      (quiz/generate, flashcards/generate, transcribe, etc.) para pasar
-      `userId`.
-- [ ] `GET /api/ai/config` añade `byok: { hasKey }` a la respuesta.
-- [ ] Verificar que sin key de usuario todo sigue funcionando igual que
-      hoy (fallback a `GOOGLE_AI_API_KEY` del servidor, sin regresiones).
+- [x] Extender `buildProvider` en `src/lib/ai/index.ts` para aceptar
+      `userApiKey` — nunca se cachea en el `Map` global (comentario en el
+      código explica por qué: sería fuga de credenciales entre usuarios).
+- [x] Propagar `opts.userId` por `generateText` / `generateJSON` /
+      `streamText` → `resolveProvider` (ahora async).
+- [x] `useOwnKey` añadido a `AiSelection`/`catalog.ts` — BYOK es opt-in
+      por usuario, no automático solo por tener key guardada.
+- [x] `describeConfig()` y `/api/ai/health` actualizados a async.
+- [x] `GET /api/ai/config` añade `byok: { hasKey }` a la respuesta, vía
+      `optionalUserId` (no rompe si no hay sesión).
+- [x] `POST /api/ai/config` ya no exige `GOOGLE_AI_API_KEY` de servidor
+      cuando `useOwnKey: true` y el proveedor es gemini.
+- [x] Creado `src/lib/ai/client-auth-header.ts` — helper de cliente para
+      mandar `Authorization: Bearer <idToken>` en los fetch.
+- [x] **Un caso de referencia end-to-end**: `api/ai/quiz/generate` +
+      su call site en `materias/[id]/[classId]/page.tsx` ya pasan
+      `userId`/`authHeader()`. Sirve de plantilla para el resto.
+- [ ] **Pendiente — rollout al resto de rutas**: el mismo patrón (2 líneas:
+      `optionalUserId(req)` en la ruta + `authHeader()` en el fetch del
+      cliente) falta aplicarlo a las demás rutas que llaman a
+      `generateText`/`generateJSON`/`streamText`: flashcards/generate,
+      transcribe, digitalize (+ detect), scan, task-solver, notes-chat,
+      feynman, socratic, study-kit, gaps/detect, quiz/progressive,
+      connections, diagrams, mind-map, knowledge-graph. No se tocaron
+      todas en este paso para no mezclar un cambio mecánico grande con el
+      resto del trabajo — es la primera tarea a retomar si se sigue esta
+      fase.
+- [x] Verificado con `tsc --noEmit` (limpio) que sin key de usuario nada
+      se rompe — el flujo cae al comportamiento de siempre.
 
 ## Fase 3 — BYOK: UI
 

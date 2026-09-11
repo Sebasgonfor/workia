@@ -7,7 +7,7 @@ import { describeConfig, generateText } from "@/lib/ai";
  *   GET /api/ai/health?ping=1 → además hace una llamada real al modelo de texto
  */
 export async function GET(req: Request) {
-  const config = describeConfig();
+  const config = await describeConfig();
   const ping = new URL(req.url).searchParams.get("ping");
 
   if (!ping) return NextResponse.json({ config });

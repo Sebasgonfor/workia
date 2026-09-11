@@ -47,6 +47,7 @@ import { DynamicBoardTab } from "@/components/dynamic-board-tab";
 import { ClassDocuments } from "@/components/class-documents";
 import { NotesChatPanel } from "@/components/notes-chat-panel";
 import { useSubjects, useClasses, useBoardEntries, useFlashcards, useTasks, useQuizzes, useSubjectDocuments } from "@/lib/hooks";
+import { authHeader } from "@/lib/ai/client-auth-header";
 import { FeynmanMode } from "@/components/study/feynman-mode";
 import { SocraticTutor } from "@/components/study/socratic-tutor";
 import { StudyKitGenerator } from "@/components/study/study-kit-generator";
@@ -403,7 +404,7 @@ export default function BoardPage() {
     try {
       const response = await fetch("/api/quiz/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({
           content: entry.content,
           subjectName: subject?.name || "General",

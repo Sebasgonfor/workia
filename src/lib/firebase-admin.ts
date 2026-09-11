@@ -57,6 +57,16 @@ export async function requireUserId(req: Request): Promise<string> {
 
 export class AuthError extends Error {}
 
+/** Como `requireUserId`, pero devuelve `undefined` en vez de lanzar. Para
+ * rutas donde la identidad es opcional (p.ej. mostrar el estado de BYOK). */
+export async function optionalUserId(req: Request): Promise<string | undefined> {
+  try {
+    return await requireUserId(req);
+  } catch {
+    return undefined;
+  }
+}
+
 export function adminDb() {
   return getFirestore(getAdminApp());
 }

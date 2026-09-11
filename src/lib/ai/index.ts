@@ -5,6 +5,7 @@ import type { AiCapability, AiImage, AiMessage, AiProvider, GenOptions } from ".
 import { AiProviderError } from "./types";
 import { parseAiJson } from "./parse-json";
 import { AI_SELECTION_COOKIE, parseSelection, type AiSelection } from "./catalog";
+import { getUserGeminiKey } from "./user-key";
 
 export type { AiImage, AiMessage, GenOptions } from "./types";
 export { AiProviderError } from "./types";
@@ -72,7 +73,18 @@ const GEMINI_DEFAULT_MODEL = "gemini-3.5-flash";
 
 const cache = new Map<string, AiProvider>();
 
-function buildProvider(providerName: string, model?: string): AiProvider {
+/**
+ * `userApiKey` (BYOK) nunca se cachea en el `Map` global: son credenciales
+ * por-usuario y el mapa vive para toda la vida del proceso, así que
+ * cachearlas ahí sería un riesgo de fuga entre usuarios además de un
+ * problema de memoria sin límite. Se construye un provider nuevo cada vez;
+ * el SDK de Gemini es liviano de instanciar.
+ */
+function buildProvider(providerName: string, model?: string, userApiKey?: string): AiProvider {
+  if (providerName === "gemini" && userApiKey) {
+    return createGeminiProvider(userApiKey, model || GEMINI_DEFAULT_MODEL);
+  }
+
   const key = `${providerName}:${model ?? ""}`;
   const cached = cache.get(key);
   if (cached) return cached;
@@ -117,19 +129,34 @@ function readSelectionCookie(): Partial<AiSelection> {
   }
 }
 
-function resolveProvider(capability: AiCapability): AiProvider {
+/** BYOK solo aplica a Gemini (es el único proveedor que este spec cubre). */
+async function resolveUserApiKey(providerName: string, userId?: string): Promise<string | undefined> {
+  if (!userId || providerName !== "gemini") return undefined;
+  try {
+    return (await getUserGeminiKey(userId)) ?? undefined;
+  } catch {
+    // Firebase Admin sin configurar, o Firestore caído: no debe tumbar la
+    // llamada de IA, solo hace que se use la key del servidor como siempre.
+    return undefined;
+  }
+}
+
+async function resolveProvider(capability: AiCapability, userId?: string): Promise<AiProvider> {
   const selection = readSelectionCookie();
 
-  if (capability === "vision") {
-    return buildProvider(
-      selection.visionProvider || process.env.AI_VISION_PROVIDER || "gemini",
-      selection.visionModel || process.env.AI_VISION_MODEL
-    );
-  }
-  return buildProvider(
-    selection.textProvider || process.env.AI_TEXT_PROVIDER || "gemini",
-    selection.textModel || process.env.AI_TEXT_MODEL
-  );
+  const providerName =
+    capability === "vision"
+      ? selection.visionProvider || process.env.AI_VISION_PROVIDER || "gemini"
+      : selection.textProvider || process.env.AI_TEXT_PROVIDER || "gemini";
+  const model =
+    capability === "vision"
+      ? selection.visionModel || process.env.AI_VISION_MODEL
+      : selection.textModel || process.env.AI_TEXT_MODEL;
+
+  const userApiKey = selection.useOwnKey
+    ? await resolveUserApiKey(providerName, userId)
+    : undefined;
+  return buildProvider(providerName, model, userApiKey);
 }
 
 /** Qué proveedores tienen su key puesta en el servidor. Nunca expone los valores. */
@@ -201,7 +228,7 @@ async function withFallback<T>(
   run: (provider: AiProvider) => Promise<T>
 ): Promise<T> {
   const capability = inferCapability(messages, opts);
-  const primary = resolveProvider(capability);
+  const primary = await resolveProvider(capability, opts.userId);
 
   try {
     return await runWithRetries(primary, run);
@@ -303,20 +330,20 @@ export function aiErrorMessage(err: unknown): string {
 }
 
 /** Qué proveedor/modelo está activo. Útil para diagnóstico. */
-export function describeConfig() {
-  const safe = (fn: () => AiProvider) => {
+export async function describeConfig(userId?: string) {
+  const safe = async (fn: () => Promise<AiProvider>) => {
     try {
-      const p = fn();
+      const p = await fn();
       return { provider: p.name, model: p.model, ok: true as const };
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
   };
   return {
-    text: safe(() => resolveProvider("text")),
-    vision: safe(() => resolveProvider("vision")),
+    text: await safe(() => resolveProvider("text", userId)),
+    vision: await safe(() => resolveProvider("vision", userId)),
     fallback: process.env.AI_FALLBACK_PROVIDER
-      ? safe(() => resolveFallback("text") ?? (() => { throw new Error("no disponible"); })())
+      ? await safe(async () => resolveFallback("text") ?? (() => { throw new Error("no disponible"); })())
       : null,
   };
 }
