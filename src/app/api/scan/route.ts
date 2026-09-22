@@ -229,6 +229,10 @@ export async function POST(req: NextRequest) {
       prompt += `\n\nAPUNTES PREVIOS DE ESTA CLASE (úsalos como contexto del tema para enriquecer el output, no los repitas literalmente):\n${notesContext}`;
     }
 
+    prompt += `
+
+FUENTE PRINCIPAL: las primeras ${images.length} imagen(es) adjuntas son el escaneo del usuario y son la ÚNICA fuente del contenido. Cualquier documento o apunte previo es solo contexto de apoyo: nunca lo uses para reemplazar ni cambiar el tema de lo que se ve en las imágenes. Si el contenido de las imágenes no corresponde a la materia seleccionada, respeta las imágenes y marca subjectConfidence como "low".`;
+
     // Build document context from subject library
     const documentContext = await buildDocumentContext(subjectDocuments || []);
     if (documentContext.contextText) {
