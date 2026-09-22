@@ -1,20 +1,31 @@
 "use client";
 
 import { useId } from "react";
+import type { MaterialKind } from "@/lib/class-material";
 
-export type FileKind = "pdf" | "docx" | "pptx" | "txt";
-
-export const MATERIAL_FORMATS: readonly { kind: FileKind; app: string }[] = [
-  { kind: "pdf", app: "PDF" },
-  { kind: "docx", app: "Word" },
-  { kind: "pptx", app: "PowerPoint" },
-  { kind: "txt", app: "Texto plano" },
+export const MATERIAL_FORMATS: readonly { kind: MaterialKind; ext: string; app: string }[] = [
+  { kind: "pdf", ext: ".pdf", app: "PDF" },
+  { kind: "docx", ext: ".docx", app: "Word" },
+  { kind: "pptx", ext: ".pptx", app: "PowerPoint" },
+  { kind: "xlsx", ext: ".xlsx", app: "Excel" },
+  { kind: "vtt", ext: ".vtt / .srt", app: "Zoom, Meet, Teams" },
+  { kind: "odt", ext: ".odt", app: "LibreOffice Writer" },
+  { kind: "odp", ext: ".odp", app: "LibreOffice Impress" },
+  { kind: "txt", ext: ".txt", app: "Texto plano" },
+  { kind: "md", ext: ".md", app: "Markdown" },
+  { kind: "csv", ext: ".csv", app: "Datos CSV" },
 ];
 
 const SIZE = "w-7 h-7 shrink-0";
 
+const TILE_LETTERS = {
+  W: "M4.6 12.2h1.9l1.2 6.4 1.4-6.4h1.7l1.4 6.4 1.2-6.4h1.9l-2.1 8.6h-1.8l-1.4-6.2-1.4 6.2H6.7z",
+  P: "M6.4 12.2h3.6c2 0 3.3 1.1 3.3 2.9s-1.3 3-3.3 3H8.3v2.7H6.4zm1.9 1.6v2.7h1.5c.9 0 1.5-.5 1.5-1.35s-.6-1.35-1.5-1.35z",
+  X: "M5.6 12.2h2.2l1.8 3 1.8-3h2.2l-2.9 4.3 3 4.3h-2.2l-1.9-3.1-1.9 3.1H5.5l3-4.3z",
+} as const;
+
 /** White letter tile that sits on the front-left of Fluent-style app icons. */
-function LetterTile({ id, from, to, letter }: { id: string; from: string; to: string; letter: "W" | "P" }) {
+function LetterTile({ id, from, to, letter }: { id: string; from: string; to: string; letter: keyof typeof TILE_LETTERS }) {
   return (
     <>
       <defs>
@@ -24,17 +35,7 @@ function LetterTile({ id, from, to, letter }: { id: string; from: string; to: st
         </linearGradient>
       </defs>
       <rect x="1" y="8" width="17" height="17" rx="2.5" fill={`url(#${id})`} />
-      {letter === "W" ? (
-        <path
-          d="M4.6 12.2h1.9l1.2 6.4 1.4-6.4h1.7l1.4 6.4 1.2-6.4h1.9l-2.1 8.6h-1.8l-1.4-6.2-1.4 6.2H6.7z"
-          fill="#fff"
-        />
-      ) : (
-        <path
-          d="M6.4 12.2h3.6c2 0 3.3 1.1 3.3 2.9s-1.3 3-3.3 3H8.3v2.7H6.4zm1.9 1.6v2.7h1.5c.9 0 1.5-.5 1.5-1.35s-.6-1.35-1.5-1.35z"
-          fill="#fff"
-        />
-      )}
+      <path d={TILE_LETTERS[letter]} fill="#fff" />
     </>
   );
 }
@@ -52,6 +53,21 @@ function WordIcon() {
   );
 }
 
+function ExcelIcon() {
+  const id = useId();
+  return (
+    <svg viewBox="0 0 32 32" className={SIZE} aria-hidden="true">
+      <path d="M10 3h19a2 2 0 0 1 2 2v5.5H8V5a2 2 0 0 1 2-2z" fill="#21A366" />
+      <rect x="19.5" y="3" width="11.5" height="7.5" rx="0" fill="#33C481" />
+      <rect x="8" y="10.5" width="11.5" height="9" fill="#107C41" />
+      <rect x="19.5" y="10.5" width="11.5" height="9" fill="#21A366" />
+      <path d="M8 19.5h11.5V29H10a2 2 0 0 1-2-2z" fill="#185C37" />
+      <path d="M19.5 19.5H31V27a2 2 0 0 1-2 2h-9.5z" fill="#107C41" />
+      <LetterTile id={`${id}-t`} from="#18884F" to="#0B6A38" letter="X" />
+    </svg>
+  );
+}
+
 function PowerPointIcon() {
   const id = useId();
   return (
@@ -64,7 +80,8 @@ function PowerPointIcon() {
   );
 }
 
-function PdfIcon() {
+/** Folded page with a colored label tag, used for formats without a single owning app. */
+function TaggedPageIcon({ label, from, to }: { label: string; from: string; to: string }) {
   const id = useId();
   return (
     <svg viewBox="0 0 32 32" className={SIZE} aria-hidden="true">
@@ -74,15 +91,28 @@ function PdfIcon() {
           <stop offset="1" stopColor="#E9ECF1" />
         </linearGradient>
         <linearGradient id={`${id}-t`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#F2464B" />
-          <stop offset="1" stopColor="#C4161C" />
+          <stop offset="0" stopColor={from} />
+          <stop offset="1" stopColor={to} />
         </linearGradient>
       </defs>
-      <path d="M8 2h14l8 8v18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill={`url(#${id}-p)`} stroke="#D3D8E0" strokeWidth="0.75" />
+      <path
+        d="M8 2h14l8 8v18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"
+        fill={`url(#${id}-p)`}
+        stroke="#D3D8E0"
+        strokeWidth="0.75"
+      />
       <path d="M22 2v6a2 2 0 0 0 2 2h6z" fill="#D3D8E0" />
       <rect x="1" y="14" width="22" height="11" rx="2.5" fill={`url(#${id}-t)`} />
-      <text x="12" y="22.6" textAnchor="middle" fontSize="7.4" fontWeight="800" fill="#fff" fontFamily="system-ui, sans-serif">
-        PDF
+      <text
+        x="12"
+        y="22.6"
+        textAnchor="middle"
+        fontSize={label.length > 3 ? 6 : 7.4}
+        fontWeight="800"
+        fill="#fff"
+        fontFamily="system-ui, sans-serif"
+      >
+        {label}
       </text>
     </svg>
   );
@@ -110,15 +140,48 @@ function TextIcon() {
   );
 }
 
+/** Speech bubble with caption lines, for meeting transcripts exported as subtitles. */
+function SubtitlesIcon() {
+  const id = useId();
+  return (
+    <svg viewBox="0 0 32 32" className={SIZE} aria-hidden="true">
+      <defs>
+        <linearGradient id={`${id}-b`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#7B83EB" />
+          <stop offset="1" stopColor="#4B53BC" />
+        </linearGradient>
+      </defs>
+      <path d="M6 4h20a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4H14l-6 5v-5H6a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill={`url(#${id}-b)`} />
+      <rect x="7" y="10" width="11" height="2.2" rx="1.1" fill="#fff" />
+      <rect x="20" y="10" width="5" height="2.2" rx="1.1" fill="#fff" opacity="0.7" />
+      <rect x="7" y="15.5" width="6" height="2.2" rx="1.1" fill="#fff" opacity="0.7" />
+      <rect x="15" y="15.5" width="10" height="2.2" rx="1.1" fill="#fff" />
+    </svg>
+  );
+}
+
 /** Fluent-style app icon for a class material file type. */
-export function FileKindIcon({ kind }: { kind: FileKind }) {
+export function FileKindIcon({ kind }: { kind: MaterialKind }) {
   switch (kind) {
     case "docx":
       return <WordIcon />;
     case "pptx":
       return <PowerPointIcon />;
+    case "xlsx":
+      return <ExcelIcon />;
     case "pdf":
-      return <PdfIcon />;
+      return <TaggedPageIcon label="PDF" from="#F2464B" to="#C4161C" />;
+    case "odt":
+      return <TaggedPageIcon label="ODT" from="#3B8CE8" to="#1F5FBF" />;
+    case "odp":
+      return <TaggedPageIcon label="ODP" from="#F08A3C" to="#C8561B" />;
+    case "md":
+      return <TaggedPageIcon label="MD" from="#4A5361" to="#1F242C" />;
+    case "csv":
+      return <TaggedPageIcon label="CSV" from="#2FB36B" to="#177A43" />;
+    case "vtt":
+    case "srt":
+      return <SubtitlesIcon />;
     default:
       return <TextIcon />;
   }

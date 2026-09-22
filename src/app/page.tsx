@@ -297,21 +297,21 @@ export default function Home() {
           </div>
           <div
             data-anim="reveal"
-            className="mt-10 rounded-2xl border border-[var(--wk-line)] bg-[var(--wk-bg-elev)] p-5 md:flex md:items-center md:gap-8"
+            className="mt-10 rounded-2xl border border-[var(--wk-line)] bg-[var(--wk-bg-elev)] p-5"
           >
-            <div className="md:max-w-xs">
+            <div className="max-w-2xl">
               <h3 className="font-semibold text-[var(--wk-ink)]">Sube el material de tu clase</h3>
               <p className="mt-1 text-sm text-[var(--wk-ink-3)]">
                 ¿Clase virtual o con guía? Suma la transcripción, la guía o las diapositivas y la IA
                 reconstruye la clase completa.
               </p>
             </div>
-            <ul className="mt-4 grid flex-1 grid-cols-2 gap-2 sm:grid-cols-5 md:mt-0">
+            <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {MATERIAL_FORMATS.map((f) => (
                 <li key={f.kind} className="flex items-center gap-2 rounded-xl border border-[var(--wk-line)] px-3 py-2">
                   <FileKindIcon kind={f.kind} />
                   <div className="min-w-0">
-                    <p className="text-xs font-medium leading-tight text-[var(--wk-ink)]">.{f.kind}</p>
+                    <p className="text-xs font-medium leading-tight text-[var(--wk-ink)]">{f.ext}</p>
                     <p className="truncate text-[11px] leading-tight text-[var(--wk-ink-3)]">{f.app}</p>
                   </div>
                 </li>

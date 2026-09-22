@@ -773,7 +773,7 @@ export default function BoardPage() {
     if (!files || files.length === 0) return;
     const incoming = Array.from(files);
     const valid = incoming.filter((f) => getMaterialKind(f) !== null);
-    if (valid.length < incoming.length) toast.error("Solo se aceptan archivos .txt, .pdf, .docx o .pptx");
+    if (valid.length < incoming.length) toast.error("Algunos archivos tienen un formato no soportado");
     const next = [...scanMaterials, ...valid];
     if (next.reduce((sum, f) => sum + f.size, 0) > MAX_CLASS_MATERIAL_BYTES) {
       toast.error("El material de la clase supera los 3 MB en total");
@@ -2244,7 +2244,7 @@ export default function BoardPage() {
                     <div key={f.kind} className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-secondary/40 border border-border">
                       <FileKindIcon kind={f.kind} />
                       <div className="min-w-0">
-                        <p className="text-xs font-medium leading-tight">.{f.kind}</p>
+                        <p className="text-xs font-medium leading-tight">{f.ext}</p>
                         <p className="text-[10px] text-muted-foreground leading-tight truncate">{f.app}</p>
                       </div>
                     </div>
