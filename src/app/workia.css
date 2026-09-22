@@ -1162,9 +1162,13 @@ html:has(.wk-landing) { scroll-behavior: smooth; }
 .wks-paper {
   position: relative; height: 76%; aspect-ratio: 3 / 3.4; padding: 7% 5.5%;
   display: flex; flex-direction: column; justify-content: space-between;
-  background: var(--wk-bg-elev); border-radius: 6px; box-shadow: var(--wk-shadow-md);
-  background-image: repeating-linear-gradient(transparent 0 15px, color-mix(in oklch, var(--wk-sky) 18%, transparent) 15px 16px);
+  /* Always a real (light) sheet of paper, whatever the theme. */
+  --paper-ink: oklch(0.78 0.012 280);
+  background-color: oklch(0.995 0.004 85); border-radius: 6px;
+  box-shadow: 0 2px 4px oklch(0.2 0.01 280 / 0.12), 0 10px 28px oklch(0.2 0.01 280 / 0.18);
+  background-image: repeating-linear-gradient(transparent 0 15px, oklch(0.68 0.12 230 / 0.2) 15px 16px);
 }
+.wks-paper .wks-ink { background: var(--paper-ink); }
 .wks-corner { position: absolute; width: 14px; height: 14px; border: 2.5px solid var(--wk-brand); }
 .wks-corner-tl { top: -5px; left: -5px; border-right: 0; border-bottom: 0; border-radius: 4px 0 0 0; }
 .wks-corner-tr { top: -5px; right: -5px; border-left: 0; border-bottom: 0; border-radius: 0 4px 0 0; }

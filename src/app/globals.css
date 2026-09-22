@@ -285,3 +285,19 @@
 /* Inline mode for titles */
 .markdown-math-inline { display: inline; }
 .markdown-math-inline .katex { font-size: 1.1em; }
+
+/* Theme switch (lib/theme-context.tsx): the new theme is revealed by a
+   circle animated in JS, so turn off the default cross-fade. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+/* Fallback when View Transitions are unsupported: fade colors briefly. */
+.wk-theme-fade,
+.wk-theme-fade *,
+.wk-theme-fade *::before,
+.wk-theme-fade *::after {
+  transition: background-color .45s ease, color .45s ease, border-color .45s ease,
+    fill .45s ease, stroke .45s ease, box-shadow .45s ease !important;
+}

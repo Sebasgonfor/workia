@@ -27,6 +27,7 @@ import { useTheme } from "@/lib/theme-context";
 import { useLandingAnimations } from "@/components/landing/use-landing-animations";
 import { FeatureCarousel } from "@/components/landing/feature-carousel";
 import { WorkiaMark } from "@/components/workia-mark";
+import { AutoHeight } from "@/components/ui/auto-height";
 import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
 
 const STEPS = [
@@ -385,7 +386,11 @@ export default function Home() {
         }
         centerTitle
       >
-        {authMode && <AuthPanel mode={authMode} onModeChange={setAuthMode} />}
+        {authMode && (
+          <AutoHeight>
+            <AuthPanel mode={authMode} onModeChange={setAuthMode} />
+          </AutoHeight>
+        )}
       </Sheet>
     </div>
   );

@@ -110,7 +110,7 @@ export function AuthPanel({
             Si existe una cuenta con ese correo, te llegará el enlace en unos minutos. Revisa también spam.
           </p>
         )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-sm text-destructive animate-in fade-in duration-200">{error}</p>}
         <button
           type="submit"
           disabled={busy !== null}
@@ -135,15 +135,23 @@ export function AuthPanel({
   return (
     <div className="space-y-4 pt-2">
       {/* Login / Signup tabs */}
-      <div className="grid grid-cols-2 p-1 rounded-xl bg-secondary text-sm font-medium">
+      <div className="relative grid grid-cols-2 p-1 rounded-xl bg-secondary text-sm font-medium">
+        {/* Active tab background slides between the two options. */}
+        <span
+          aria-hidden
+          className={cn(
+            "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-card shadow-sm transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)]",
+            isSignup && "translate-x-full"
+          )}
+        />
         {(["login", "signup"] as const).map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => switchMode(m)}
             className={cn(
-              "h-9 rounded-lg transition-colors",
-              mode === m ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
+              "relative h-9 rounded-lg transition-colors duration-300",
+              mode === m ? "text-foreground" : "text-muted-foreground"
             )}
           >
             {m === "login" ? "Iniciar sesión" : "Crear cuenta"}
@@ -170,12 +178,13 @@ export function AuthPanel({
       <form onSubmit={handleSubmit} className="space-y-3">
         {isSignup && (
           <input
+            key="name"
             type="text"
             autoComplete="name"
             placeholder="Tu nombre"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className={inputClass}
+            className={cn(inputClass, "animate-in fade-in slide-in-from-top-2 duration-300")}
           />
         )}
         <input
@@ -209,7 +218,7 @@ export function AuthPanel({
         </div>
 
         {!isSignup && (
-          <div className="flex justify-end">
+          <div className="flex justify-end animate-in fade-in duration-300">
             <button
               type="button"
               onClick={() => switchMode("reset")}
@@ -220,7 +229,7 @@ export function AuthPanel({
           </div>
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-sm text-destructive animate-in fade-in duration-200">{error}</p>}
 
         <button
           type="submit"
