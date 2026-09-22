@@ -280,6 +280,28 @@ export default function Home() {
               </div>
             ))}
           </div>
+          <div data-anim="reveal" className="mt-12">
+            <h3 className="font-semibold text-[17px]">Trabaja con lo que ya tienes</h3>
+            <p className="mt-1 text-[14px] leading-relaxed wkl-muted max-w-2xl">
+              Guías, diapositivas, lecturas, hojas de cálculo o la transcripción de una clase virtual:
+              súbelo en el formato que venga y Workia lo convierte en apuntes, tareas y material de estudio.
+            </p>
+          </div>
+          <div data-anim="reveal" className="wkl-marquee mt-5">
+            {[0, 1].map((copy) => (
+              <ul key={copy} className="wkl-marquee-track" aria-hidden={copy === 1}>
+                {[...MATERIAL_FORMATS, null].map((f) => (
+                  <li key={f?.kind ?? "canva"} className="wkl-format-chip">
+                    {f ? <FileKindIcon kind={f.kind} /> : <CanvaIcon />}
+                    <div>
+                      <p className="text-[13px] font-medium leading-tight text-[var(--wk-ink)]">{f ? f.ext : "Canva"}</p>
+                      <p className="text-[11px] leading-tight text-[var(--wk-ink-3)]">{f ? f.app : "Exporta a PDF o PPTX"}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -294,36 +316,6 @@ export default function Home() {
           </p>
           <div data-anim="reveal" className="mt-10">
             <FeatureCarousel features={FEATURES} />
-          </div>
-          <div
-            data-anim="reveal"
-            className="mt-10 rounded-2xl border border-[var(--wk-line)] bg-[var(--wk-bg-elev)] p-5"
-          >
-            <div className="max-w-2xl">
-              <h3 className="font-semibold text-[var(--wk-ink)]">Sube el material de tu clase</h3>
-              <p className="mt-1 text-sm text-[var(--wk-ink-3)]">
-                ¿Clase virtual o con guía? Suma la transcripción, la guía o las diapositivas y la IA
-                reconstruye la clase completa.
-              </p>
-            </div>
-            <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {MATERIAL_FORMATS.map((f) => (
-                <li key={f.kind} className="flex items-center gap-2 rounded-xl border border-[var(--wk-line)] px-3 py-2">
-                  <FileKindIcon kind={f.kind} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium leading-tight text-[var(--wk-ink)]">{f.ext}</p>
-                    <p className="truncate text-[11px] leading-tight text-[var(--wk-ink-3)]">{f.app}</p>
-                  </div>
-                </li>
-              ))}
-              <li className="col-span-2 flex items-center gap-2 rounded-xl border border-[var(--wk-line)] px-3 py-2 sm:col-span-1">
-                <CanvaIcon />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium leading-tight text-[var(--wk-ink)]">Canva</p>
-                  <p className="text-[11px] leading-tight text-[var(--wk-ink-3)]">Exporta a PDF o PPTX</p>
-                </div>
-              </li>
-            </ul>
           </div>
         </div>
       </section>
