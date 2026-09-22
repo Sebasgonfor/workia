@@ -160,6 +160,16 @@ function SubtitlesIcon() {
   );
 }
 
+/** Markdown mark: "M" plus a down arrow, no tile so it sits on any theme. */
+function MarkdownIcon() {
+  return (
+    <svg viewBox="0 0 32 32" className={SIZE} aria-hidden="true">
+      <path d="M2 24V8h3.8l4 5.6 4-5.6h3.8v16h-3.8v-10l-4 5.5-4-5.5v10z" fill="#2F81F7" />
+      <path d="M21.6 8h4.2v8.6h4L23.7 24l-6.1-7.4h4z" fill="#2F81F7" />
+    </svg>
+  );
+}
+
 /** Fluent-style app icon for a class material file type. */
 export function FileKindIcon({ kind }: { kind: MaterialKind }) {
   switch (kind) {
@@ -176,7 +186,7 @@ export function FileKindIcon({ kind }: { kind: MaterialKind }) {
     case "odp":
       return <TaggedPageIcon label="ODP" from="#F08A3C" to="#C8561B" />;
     case "md":
-      return <TaggedPageIcon label="MD" from="#4A5361" to="#1F242C" />;
+      return <MarkdownIcon />;
     case "csv":
       return <TaggedPageIcon label="CSV" from="#2FB36B" to="#177A43" />;
     case "vtt":
