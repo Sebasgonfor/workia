@@ -62,6 +62,7 @@ import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
 import type { BoardEntry, Task, Flashcard, Quiz } from "@/types";
 import { toast } from "sonner";
 import { compressImageToBase64 } from "@/lib/utils";
+import { CanvaIcon, FileKindIcon, MATERIAL_FORMATS } from "@/components/file-kind-icon";
 import { CLASS_MATERIAL_ACCEPT, MAX_CLASS_MATERIAL_BYTES, getMaterialKind, readClassMaterial } from "@/lib/class-material";
 
 /** Error thrown when our API returns a known error message (safe to show to user) */
@@ -2250,9 +2251,7 @@ export default function BoardPage() {
                   ))}
                 </div>
                 <div className="mt-1.5 flex items-center gap-2 px-2.5 py-2 rounded-xl bg-secondary/40 border border-border">
-                  <span className="w-7 h-7 shrink-0 rounded-lg bg-gradient-to-br from-cyan-400 to-violet-500 flex items-center justify-center text-white text-[13px] font-bold italic">
-                    C
-                  </span>
+                  <CanvaIcon />
                   <p className="text-[11px] text-muted-foreground leading-tight">
                     <span className="font-medium text-foreground">Canva</span>: exporta tu diseño como PDF o PPTX.
                   </p>
@@ -2851,30 +2850,3 @@ function ScanImagePreview({
   );
 }
 
-const MATERIAL_FORMATS = [
-  { kind: "pdf", app: "PDF" },
-  { kind: "docx", app: "Word" },
-  { kind: "pptx", app: "PowerPoint" },
-  { kind: "txt", app: "Texto plano" },
-] as const;
-
-const FILE_KIND_STYLES: Record<(typeof MATERIAL_FORMATS)[number]["kind"], { bg: string; label: string }> = {
-  pdf: { bg: "bg-red-600", label: "PDF" },
-  docx: { bg: "bg-blue-600", label: "W" },
-  pptx: { bg: "bg-orange-600", label: "P" },
-  txt: { bg: "bg-zinc-500", label: "TXT" },
-};
-
-function FileKindIcon({ kind }: { kind: keyof typeof FILE_KIND_STYLES }) {
-  const { bg, label } = FILE_KIND_STYLES[kind];
-  return (
-    <span
-      aria-hidden="true"
-      className={`w-7 h-7 shrink-0 rounded-lg ${bg} flex items-center justify-center text-white font-bold shadow-sm ${
-        label.length > 1 ? "text-[8px] tracking-tight" : "text-[13px]"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}

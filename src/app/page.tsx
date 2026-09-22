@@ -27,6 +27,7 @@ import { useTheme } from "@/lib/theme-context";
 import { useLandingAnimations } from "@/components/landing/use-landing-animations";
 import { FeatureCarousel } from "@/components/landing/feature-carousel";
 import { WorkiaMark } from "@/components/workia-mark";
+import { CanvaIcon, FileKindIcon, MATERIAL_FORMATS } from "@/components/file-kind-icon";
 import { AutoHeight } from "@/components/ui/auto-height";
 import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
 
@@ -293,6 +294,36 @@ export default function Home() {
           </p>
           <div data-anim="reveal" className="mt-10">
             <FeatureCarousel features={FEATURES} />
+          </div>
+          <div
+            data-anim="reveal"
+            className="mt-10 rounded-2xl border border-[var(--wk-line)] bg-[var(--wk-bg-elev)] p-5 md:flex md:items-center md:gap-8"
+          >
+            <div className="md:max-w-xs">
+              <h3 className="font-semibold text-[var(--wk-ink)]">Sube el material de tu clase</h3>
+              <p className="mt-1 text-sm text-[var(--wk-ink-3)]">
+                ¿Clase virtual o con guía? Suma la transcripción, la guía o las diapositivas y la IA
+                reconstruye la clase completa.
+              </p>
+            </div>
+            <ul className="mt-4 grid flex-1 grid-cols-2 gap-2 sm:grid-cols-5 md:mt-0">
+              {MATERIAL_FORMATS.map((f) => (
+                <li key={f.kind} className="flex items-center gap-2 rounded-xl border border-[var(--wk-line)] px-3 py-2">
+                  <FileKindIcon kind={f.kind} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium leading-tight text-[var(--wk-ink)]">.{f.kind}</p>
+                    <p className="truncate text-[11px] leading-tight text-[var(--wk-ink-3)]">{f.app}</p>
+                  </div>
+                </li>
+              ))}
+              <li className="col-span-2 flex items-center gap-2 rounded-xl border border-[var(--wk-line)] px-3 py-2 sm:col-span-1">
+                <CanvaIcon />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium leading-tight text-[var(--wk-ink)]">Canva</p>
+                  <p className="text-[11px] leading-tight text-[var(--wk-ink-3)]">Exporta a PDF o PPTX</p>
+                </div>
+              </li>
+            </ul>
           </div>
         </div>
       </section>
