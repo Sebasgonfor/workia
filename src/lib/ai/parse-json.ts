@@ -16,36 +16,36 @@ function sanitizeAiJson(raw: string): string {
   //    Walk through the string tracking whether we're inside a JSON string.
   let out = "";
   let inString = false;
+  const simpleEscapes = new Set(['"', "\\", "/", "b", "f", "n", "r", "t"]);
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    const next = text[i + 1];
-
-    if (ch === '"' && (i === 0 || text[i - 1] !== "\\")) {
-      inString = !inString;
-      out += ch;
-      continue;
-    }
 
     if (!inString) {
+      if (ch === '"') inString = true;
       out += ch;
       continue;
     }
 
     // Inside a JSON string value:
+    if (ch === '"') { inString = false; out += ch; continue; }
     if (ch === "\n") { out += "\\n"; continue; }
     if (ch === "\r") { out += "\\r"; continue; }
     if (ch === "\t") { out += "\\t"; continue; }
 
-    // Handle backslash sequences
     if (ch === "\\") {
-      // Valid JSON escapes: " \ / b f n r t uXXXX
-      const validEscapes = new Set(['"', "\\", "/", "b", "f", "n", "r", "t", "u"]);
-      if (next && !validEscapes.has(next)) {
-        // Invalid escape like \i, \s, \p, \v, \d, \x, \( etc → double the backslash
-        // so LaTeX \int becomes \\int in JSON which decodes to \int
-        out += "\\\\";
+      const next = text[i + 1];
+      const isUnicode = next === "u" && /^[0-9a-fA-F]{4}$/.test(text.slice(i + 2, i + 6));
+      // \f and \b followed by a letter are LaTeX (\frac, \beta), not control chars.
+      const isLatexFB = (next === "f" || next === "b") && /[a-zA-Z]/.test(text[i + 2] ?? "");
+      if (next !== undefined && (isUnicode || (simpleEscapes.has(next) && !isLatexFB))) {
+        // Valid escape: copy both chars so the escaped char is never re-interpreted.
+        out += ch + next;
+        i++;
         continue;
       }
+      // Invalid escape (\int, \underbrace, \(...) → double it so it decodes to a literal backslash.
+      out += "\\\\";
+      continue;
     }
 
     out += ch;
