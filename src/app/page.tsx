@@ -27,6 +27,7 @@ import { useTheme } from "@/lib/theme-context";
 import { useLandingAnimations } from "@/components/landing/use-landing-animations";
 import { FeatureCarousel } from "@/components/landing/feature-carousel";
 import { WorkiaMark } from "@/components/workia-mark";
+import { CanvaIcon, FileKindIcon, MATERIAL_FORMATS } from "@/components/file-kind-icon";
 import { AutoHeight } from "@/components/ui/auto-height";
 import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
 
@@ -279,6 +280,28 @@ export default function Home() {
               </div>
             ))}
           </div>
+          <div data-anim="reveal" className="mt-12">
+            <h3 className="font-semibold text-[17px]">Trabaja con lo que ya tienes</h3>
+            <p className="mt-1 text-[14px] leading-relaxed wkl-muted max-w-2xl">
+              Guías, diapositivas, lecturas, hojas de cálculo o la transcripción de una clase virtual:
+              súbelo en el formato que venga y Workia lo convierte en apuntes, tareas y material de estudio.
+            </p>
+          </div>
+          <div data-anim="reveal" className="wkl-marquee mt-5">
+            {[0, 1].map((copy) => (
+              <ul key={copy} className="wkl-marquee-track" aria-hidden={copy === 1}>
+                {[...MATERIAL_FORMATS, null].map((f) => (
+                  <li key={f?.kind ?? "canva"} className="wkl-format-chip">
+                    {f ? <FileKindIcon kind={f.kind} /> : <CanvaIcon />}
+                    <div>
+                      <p className="text-[13px] font-medium leading-tight text-[var(--wk-ink)]">{f ? f.ext : "Canva"}</p>
+                      <p className="text-[11px] leading-tight text-[var(--wk-ink-3)]">{f ? f.app : "Exporta a PDF o PPTX"}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -367,7 +390,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="wkl-container py-8 pb-safe flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px] wkl-muted">
+      <footer className="wkl-container py-8 pb-safe-sheet flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px] wkl-muted">
         <span className="flex items-center gap-2">
           <WorkiaMark className="w-4 h-4" /> Workia — Tu asistente académico inteligente
         </span>
