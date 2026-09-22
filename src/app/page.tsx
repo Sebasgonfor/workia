@@ -26,6 +26,7 @@ import {
 import { Sheet } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme-context";
 import { useLandingAnimations } from "@/components/landing/use-landing-animations";
+import { FeatureCarousel } from "@/components/landing/feature-carousel";
 import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
 
 const STEPS = [
@@ -291,16 +292,8 @@ export default function Home() {
             Leer y subrayar da la sensación de aprender. Workia te hace recordar, explicar y
             practicar, que es lo que realmente fija el conocimiento.
           </p>
-          <div data-anim="stagger" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-10">
-            {FEATURES.map((f) => (
-              <div key={f.title} className={`wkl-feature ${f.tone}`}>
-                <span className="wkl-feature-icon">
-                  <f.icon className="w-[18px] h-[18px]" />
-                </span>
-                <h3 className="font-semibold text-[15px] mt-4 mb-1.5">{f.title}</h3>
-                <p className="text-[13.5px] leading-relaxed wkl-muted">{f.desc}</p>
-              </div>
-            ))}
+          <div data-anim="reveal" className="mt-10">
+            <FeatureCarousel features={FEATURES} />
           </div>
         </div>
       </section>
