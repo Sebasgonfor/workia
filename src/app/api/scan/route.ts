@@ -187,16 +187,16 @@ RESPONDE SOLO CON JSON VÁLIDO (sin markdown wrapping, sin backticks):
   "rawText": "transcripción completa"
 }`;
 
-const MAX_TRANSCRIPT_CHARS = 200_000;
+const MAX_MATERIAL_CHARS = 200_000;
 
 export const maxDuration = 60; // Allow up to 60s for Gemini processing
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { images = [], transcript, type, subjectName, existingSubjects, currentDate, subjectDocuments, existingNotes } = body as {
+    const { images = [], materials = [], type, subjectName, existingSubjects, currentDate, subjectDocuments, existingNotes } = body as {
       images?: string[];
-      transcript?: { name: string; text?: string; pdf?: string };
+      materials?: { name: string; text?: string; pdf?: string }[];
       type: "auto" | "notes" | "task";
       subjectName?: string;
       existingSubjects: string[];
@@ -205,12 +205,16 @@ export async function POST(req: NextRequest) {
       existingNotes?: string[];
     };
 
-    const transcriptText = transcript?.text?.trim().slice(0, MAX_TRANSCRIPT_CHARS) || "";
-    const transcriptPdf = transcript?.pdf?.includes(",") ? transcript.pdf.split(",")[1] : "";
-    const hasTranscript = Boolean(transcriptText || transcriptPdf);
+    const textMaterials = materials
+      .filter((m) => m.text?.trim())
+      .map((m) => ({ name: m.name, text: m.text!.trim().slice(0, MAX_MATERIAL_CHARS) }));
+    const pdfMaterials = materials
+      .filter((m) => m.pdf?.includes(","))
+      .map((m) => ({ name: m.name, data: m.pdf!.split(",")[1] }));
+    const hasMaterials = textMaterials.length > 0 || pdfMaterials.length > 0;
 
-    if (images.length === 0 && !hasTranscript) {
-      return NextResponse.json({ error: "No se enviaron imágenes ni transcripción" }, { status: 400 });
+    if (images.length === 0 && !hasMaterials) {
+      return NextResponse.json({ error: "No se enviaron imágenes ni material de la clase" }, { status: 400 });
     }
 
     let prompt: string;
@@ -238,23 +242,23 @@ export async function POST(req: NextRequest) {
 
     const sources: string[] = [];
     if (images.length > 0) sources.push(`las primeras ${images.length} imagen(es) adjuntas (escaneo del usuario)`);
-    if (transcriptPdf) sources.push(`el PDF adjunto justo después de las imágenes, que es la transcripción de la clase "${transcript?.name}"`);
-    if (transcriptText) sources.push(`la TRANSCRIPCIÓN DE LA CLASE incluida al final de este prompt`);
+    if (pdfMaterials.length > 0) {
+      const names = pdfMaterials.map((m) => `"${m.name}"`).join(", ");
+      sources.push(`los ${pdfMaterials.length} PDF(s) adjuntos justo después de las imágenes (material de la clase: ${names})`);
+    }
+    if (textMaterials.length > 0) sources.push(`el MATERIAL DE LA CLASE incluido al final de este prompt`);
 
     prompt += `
 
 FUENTE PRINCIPAL: ${sources.join(" y ")} son la ÚNICA fuente del contenido. Cualquier documento o apunte previo es solo contexto de apoyo: nunca lo uses para reemplazar ni cambiar el tema de la fuente principal. Si el contenido no corresponde a la materia seleccionada, respeta la fuente principal y marca subjectConfidence como "low".`;
 
-    if (hasTranscript) {
+    if (hasMaterials) {
       prompt += `
 
-TRANSCRIPCIÓN DE CLASE VIRTUAL: la transcripción es lo que el profesor dijo en voz alta. Úsala para reconstruir la explicación completa, extraer tareas o fechas mencionadas oralmente, y completar los huecos de lo visible en las imágenes. Ignora muletillas, saludos y conversación no académica. En "rawText" resume lo relevante en vez de copiar la transcripción entera.`;
+MATERIAL DE LA CLASE: puede ser la transcripción de una clase virtual (lo que el profesor dijo en voz alta), la guía de la clase o las diapositivas presentadas. Úsalo para reconstruir la explicación completa, extraer tareas o fechas mencionadas, y completar los huecos de lo visible en las imágenes. En transcripciones, ignora muletillas, saludos y conversación no académica. En "rawText" resume lo relevante en vez de copiar el material entero.`;
     }
-    if (transcriptText) {
-      prompt += `
-
-TRANSCRIPCIÓN DE LA CLASE (${transcript?.name}):
-${transcriptText}`;
+    for (const m of textMaterials) {
+      prompt += `\n\nMATERIAL DE LA CLASE (${m.name}):\n${m.text}`;
     }
 
     // Build document context from subject library
@@ -271,9 +275,9 @@ ${transcriptText}`;
         return { data: base64, mimeType };
       });
 
-    if (transcriptPdf) imageParts.push({ data: transcriptPdf, mimeType: "application/pdf" });
+    for (const m of pdfMaterials) imageParts.push({ data: m.data, mimeType: "application/pdf" });
 
-    if (imageParts.length === 0 && !transcriptText) {
+    if (imageParts.length === 0 && textMaterials.length === 0) {
       return NextResponse.json({ error: "No se pudieron procesar las imágenes" }, { status: 400 });
     }
 
