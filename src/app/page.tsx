@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
-  BookOpen,
   Brain,
   CalendarDays,
   Camera,
@@ -27,6 +26,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme-context";
 import { useLandingAnimations } from "@/components/landing/use-landing-animations";
 import { FeatureCarousel } from "@/components/landing/feature-carousel";
+import { WorkiaMark } from "@/components/workia-mark";
 import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
 
 const STEPS = [
@@ -153,9 +153,7 @@ export default function Home() {
       <header data-anim="nav" className="wkl-nav pt-safe-bar">
         <div className="wkl-container flex items-center justify-between h-14">
           <a href="#" className="flex items-center gap-2 font-semibold text-[17px]">
-            <span className="wkl-logo">
-              <BookOpen className="w-4 h-4" />
-            </span>
+            <WorkiaMark className="w-7 h-7" />
             Workia
           </a>
           <nav className="hidden md:flex items-center gap-7 text-sm wkl-muted">
@@ -370,7 +368,7 @@ export default function Home() {
 
       <footer className="wkl-container py-8 pb-safe flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px] wkl-muted">
         <span className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4" /> Workia — Tu asistente académico inteligente
+          <WorkiaMark className="w-4 h-4" /> Workia — Tu asistente académico inteligente
         </span>
         <span>© {new Date().getFullYear()} Workia</span>
       </footer>
