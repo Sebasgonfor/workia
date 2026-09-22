@@ -4,6 +4,7 @@ import { RefObject, useEffect, useLayoutEffect } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
+import { isSplashPlaying, SPLASH_DONE_EVENT } from "@/components/splash-intro";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -35,7 +36,11 @@ export function useLandingAnimations(rootRef: RefObject<HTMLElement>, enabled: b
       const title = q("[data-anim='hero-title']")[0] as HTMLElement | undefined;
       const split = title ? SplitText.create(title, { type: "words", mask: "words" }) : null;
 
-      const intro = gsap.timeline({ defaults: { ease: "power3.out" } });
+      // Wait for the app splash intro (first visit in the session) to finish.
+      const waitForSplash = isSplashPlaying();
+      const intro = gsap.timeline({ defaults: { ease: "power3.out" }, paused: waitForSplash });
+      const playIntro = () => intro.play();
+      if (waitForSplash) window.addEventListener(SPLASH_DONE_EVENT, playIntro, { once: true });
       intro
         .from(q("[data-anim='nav']"), { yPercent: -100, opacity: 0, duration: 0.6 })
         .from(q("[data-anim='hero-item']")[0], { y: 16, opacity: 0, duration: 0.5 }, "-=0.25");
@@ -136,7 +141,10 @@ export function useLandingAnimations(rootRef: RefObject<HTMLElement>, enabled: b
         });
       }
 
-      return () => split?.revert();
+      return () => {
+        window.removeEventListener(SPLASH_DONE_EVENT, playIntro);
+        split?.revert();
+      };
     });
 
     // Desktop only: the hero cards tilt slightly toward the pointer.

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { ThemeToaster } from "@/components/theme-toaster";
+import { SplashIntro } from "@/components/splash-intro";
 import "./globals.css";
 import "./workia.css";
 
@@ -35,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
         {/* Workia dashboard typography */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -50,6 +51,12 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('workia-theme');if(t==='dark'){document.documentElement.classList.add('dark');}else if(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.classList.add('dark');}}catch(e){}})();`,
           }}
         />
+        {/* Splash intro plays once per session; skip it before first paint otherwise. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var h=document.documentElement;try{if(sessionStorage.getItem('workia-splash')==='1'||matchMedia('(prefers-reduced-motion: reduce)').matches){h.dataset.wkSplash='skip';}}catch(e){h.dataset.wkSplash='skip';}})();`,
+          }}
+        />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link
           rel="stylesheet"
@@ -58,6 +65,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background">
+        <SplashIntro />
         <ThemeProvider>
           <AuthProvider>
             <main className="mx-auto max-w-lg md:max-w-none wk-with-sidebar min-h-screen">

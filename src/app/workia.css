@@ -931,11 +931,6 @@
   -webkit-backdrop-filter: saturate(1.4) blur(14px);
   border-bottom: 1px solid var(--wk-line);
 }
-.wkl-logo {
-  width: 28px; height: 28px; border-radius: 8px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--wk-brand); color: white;
-}
 
 /* Buttons */
 .wkl-btn-primary, .wkl-btn-outline, .wkl-btn-ghost, .wkl-btn-invert, .wkl-btn-invert-ghost {
@@ -1267,4 +1262,47 @@ html:has(.wk-landing) { scroll-behavior: smooth; }
 .wks-col span { font-size: 9.5px; color: var(--wk-ink-3); }
 @media (max-width: 480px) {
   .wkc-scene { aspect-ratio: 16 / 12.5; }
+}
+
+/* ============================================================
+   LOGO + SPLASH INTRO (src/components/splash-intro.tsx)
+   ============================================================ */
+.wk-mark-bg { fill: var(--wk-brand); }
+
+.wk-splash {
+  position: fixed; inset: 0; z-index: 1000;
+  display: grid; place-items: center;
+  background: var(--wk-bg); overflow: hidden;
+}
+html[data-wk-splash="skip"] .wk-splash { display: none; }
+.wk-splash-stage { position: relative; display: flex; flex-direction: column; align-items: center; }
+.wk-splash-mark {
+  position: relative; width: 96px; height: 96px;
+  /* Off-screen until GSAP takes over, so the first paint shows nothing. */
+  transform: translateX(-100vw);
+  will-change: transform;
+}
+.wk-splash-logo {
+  position: relative; width: 100%; height: 100%;
+  filter: drop-shadow(0 12px 28px color-mix(in oklch, var(--wk-brand) 45%, transparent));
+}
+/* Speed lines trailing behind the square while it runs. */
+.wk-splash-trail {
+  position: absolute; right: 100%; top: 22%; bottom: 22%; width: 120px;
+  display: flex; flex-direction: column; justify-content: space-between; margin-right: 10px;
+}
+.wk-splash-trail i {
+  display: block; height: 4px; border-radius: 4px; transform-origin: right center;
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--wk-brand) 60%, transparent));
+}
+.wk-splash-trail i:nth-child(2) { width: 100%; margin-left: 0; }
+.wk-splash-trail i:nth-child(1), .wk-splash-trail i:nth-child(3) { width: 70%; margin-left: 30%; }
+.wk-splash-shadow {
+  width: 84px; height: 10px; margin-top: 10px; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklch, var(--wk-ink) 35%, transparent), transparent);
+  opacity: 0;
+}
+.wk-splash-name {
+  margin-top: 14px; font-family: 'Instrument Serif', Georgia, serif; font-size: 34px;
+  letter-spacing: -0.01em; color: var(--wk-ink);
 }
