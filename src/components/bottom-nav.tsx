@@ -86,6 +86,18 @@ const createItems = [
   },
 ] as const;
 
+type Indicator = { left: number; width: number };
+
+// Each page renders its own AppShell, so the nav remounts on every route
+// change. Remember where the active pill was (module scope survives the
+// remount) so the new nav starts from there and slides to the new tab,
+// instead of growing in from the far left.
+let lastIndicator: Indicator | null = null;
+
+// A touch wider than the icon's own 36px box — matching it exactly
+// looked too tight/cramped around the glyph.
+const INDICATOR_PAD = 6;
+
 function accentStyle(accent: string) {
   return {
     background: `var(--wk-${accent}-soft)`,
@@ -112,13 +124,25 @@ export function BottomNav() {
   // interaction that makes switching tabs feel alive instead of a hard cut.
   // Slot order matches render order: 0 = home, 1..n = mainTabs, last = grip.
   const slotRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+  const [indicator, setIndicatorState] = useState<Indicator | null>(lastIndicator);
+  // First nav ever (nothing remembered yet): place the pill without sliding.
+  const [instant, setInstant] = useState(lastIndicator === null);
+  // Slot tapped but whose page hasn't loaded yet — it owns the pill meanwhile.
+  const [pendingSlot, setPendingSlot] = useState<number | null>(null);
 
-  const activeSlotIndex = (() => {
+  const setIndicator = (next: Indicator | null) => {
+    if (next) lastIndicator = next;
+    setIndicatorState(next);
+  };
+  const measure = (i: number): Indicator | null => {
+    const el = slotRefs.current[i];
+    return el ? { left: el.offsetLeft - INDICATOR_PAD, width: el.offsetWidth + INDICATOR_PAD * 2 } : null;
+  };
+
+  const routeSlotIndex = (() => {
     // While the panel is open, the grip is what's "selected" regardless of
     // which route you're actually on — otherwise opening it from /inicio
     // left the indicator sitting on Home instead of following you to grip.
-    if (moreOpen) return mainTabs.length + 1;
     if (pathname === "/inicio") return 0;
     const tabIndex = mainTabs.findIndex(
       (tab) => pathname === tab.href || pathname.startsWith(tab.href + "/")
@@ -127,17 +151,27 @@ export function BottomNav() {
     if (isMoreActive) return mainTabs.length + 1;
     return null;
   })();
+  // While the panel is open the grip is what's "selected" regardless of the
+  // route — otherwise opening it from /inicio left the pill on Home.
+  const activeSlotIndex = moreOpen ? mainTabs.length + 1 : pendingSlot ?? routeSlotIndex;
+  // Only the slot under the pill gets the light icon color; the others stay
+  // muted (a white icon off the pill is invisible on the light nav).
+  const isSlotActive = (i: number) => activeSlotIndex === i;
+
+  // The tapped tab's page has loaded: the route is the source of truth again.
+  useEffect(() => setPendingSlot(null), [pathname]);
+
+  // Start moving the pill the moment a tab is tapped, not when the new page
+  // finishes loading.
+  const selectSlot = (i: number) => {
+    setMoreOpen(false);
+    setPendingSlot(i);
+  };
 
   useEffect(() => {
-    const el = activeSlotIndex !== null ? slotRefs.current[activeSlotIndex] : null;
-    if (!el) {
-      setIndicator(null);
-      return;
-    }
-    // A touch wider than the icon's own 36px box — matching it exactly
-    // looked too tight/cramped around the glyph.
-    const PAD = 6;
-    setIndicator({ left: el.offsetLeft - PAD, width: el.offsetWidth + PAD * 2 });
+    setIndicator(activeSlotIndex !== null ? measure(activeSlotIndex) : null);
+    if (instant) requestAnimationFrame(() => setInstant(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSlotIndex]);
 
   const filteredCreateItems = createItems.filter((item) =>
@@ -195,7 +229,7 @@ export function BottomNav() {
                         <Link
                           key={tab.href}
                           href={tab.href}
-                          onClick={() => setMoreOpen(false)}
+                          onClick={() => selectSlot(mainTabs.length + 1)}
                           tabIndex={moreOpen ? 0 : -1}
                           className={cn(
                             "flex flex-col items-center gap-1.5 py-2.5 rounded-xl transition-colors touch-target",
@@ -226,8 +260,9 @@ export function BottomNav() {
                   cutting its own background on/off. */}
               <span
                 aria-hidden="true"
-                className="absolute left-0 top-1.5 bottom-1.5 rounded-full bg-primary transition-[transform,width,opacity] duration-150 ease-out"
+                className="absolute left-0 top-1.5 bottom-1.5 rounded-full bg-primary transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(.3,1.25,.5,1)]"
                 style={{
+                  transition: instant ? "none" : undefined,
                   width: indicator ? indicator.width : 0,
                   transform: `translateX(${indicator ? indicator.left : 0}px)`,
                   opacity: indicator ? 1 : 0,
@@ -238,29 +273,30 @@ export function BottomNav() {
               <Link
                 href="/inicio"
                 aria-label="Inicio"
+                onClick={() => selectSlot(0)}
                 className="flex-1 flex items-center justify-center py-1.5 touch-target"
               >
                 <span
                   ref={(el) => { slotRefs.current[0] = el; }}
                   className={cn(
                     "relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors",
-                    pathname === "/inicio"
+                    isSlotActive(0)
                       ? "text-primary-foreground"
                       : "text-muted-foreground active:text-foreground"
                   )}
                 >
-                  <Home className={cn("w-[18px] h-[18px]", pathname === "/inicio" && "stroke-[2.5px]")} />
+                  <Home className={cn("w-[18px] h-[18px]", isSlotActive(0) && "stroke-[2.5px]")} />
                 </span>
               </Link>
 
               {mainTabs.map((tab, i) => {
-                const isActive =
-                  pathname === tab.href || pathname.startsWith(tab.href + "/");
+                const isActive = isSlotActive(i + 1);
                 return (
                   <Link
                     key={tab.href}
                     href={tab.href}
                     aria-label={tab.label}
+                    onClick={() => selectSlot(i + 1)}
                     className="flex-1 flex items-center justify-center py-1.5 touch-target"
                   >
                     <span
@@ -288,7 +324,7 @@ export function BottomNav() {
                   ref={(el) => { slotRefs.current[mainTabs.length + 1] = el; }}
                   className={cn(
                     "relative z-10 w-9 h-9 rounded-full flex items-center justify-center transition-colors",
-                    isMoreActive || moreOpen
+                    isSlotActive(mainTabs.length + 1)
                       ? "text-primary-foreground"
                       : "text-muted-foreground active:text-foreground"
                   )}
