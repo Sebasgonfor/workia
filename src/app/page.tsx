@@ -390,7 +390,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="wkl-container py-8 pb-safe flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px] wkl-muted">
+      <footer className="wkl-container py-8 pb-safe-sheet flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px] wkl-muted">
         <span className="flex items-center gap-2">
           <WorkiaMark className="w-4 h-4" /> Workia — Tu asistente académico inteligente
         </span>
