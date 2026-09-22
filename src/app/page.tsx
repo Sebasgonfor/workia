@@ -2,12 +2,124 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { BookOpen, Sparkles, ScanLine, Bell } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ArrowRight,
+  BookOpen,
+  Brain,
+  CalendarDays,
+  Camera,
+  Check,
+  FileText,
+  GraduationCap,
+  KeyRound,
+  Layers,
+  LineChart,
+  MessageCircle,
+  MonitorSmartphone,
+  ScanLine,
+  Sparkles,
+  Target,
+} from "lucide-react";
+import { Sheet } from "@/components/ui/sheet";
+import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
+
+const STEPS = [
+  {
+    icon: Camera,
+    title: "Escanea tu cuaderno",
+    desc: "Toma una foto a tus apuntes, sube un PDF o graba la clase. Workia detecta los bordes, corrige la perspectiva y extrae el texto.",
+  },
+  {
+    icon: Sparkles,
+    title: "La IA los enriquece",
+    desc: "Tus notas se organizan por materia y clase, con definiciones, ejemplos, fórmulas y conexiones entre conceptos.",
+  },
+  {
+    icon: Target,
+    title: "Estudia activamente",
+    desc: "Repasa con flashcards, ponte a prueba con quizzes y simulacros, y mide cuánto dominas cada tema antes del parcial.",
+  },
+];
+
+const FEATURES = [
+  {
+    icon: ScanLine,
+    tone: "wk-c-violet",
+    title: "Escanear y digitalizar",
+    desc: "Convierte hojas de cuaderno en PDFs limpios y texto que puedes buscar.",
+  },
+  {
+    icon: Sparkles,
+    tone: "wk-c-indigo",
+    title: "Tablero dinámico",
+    desc: "Apuntes enriquecidos con IA, fórmulas en KaTeX, mapas mentales y diagramas.",
+  },
+  {
+    icon: Layers,
+    tone: "wk-c-emerald",
+    title: "Flashcards inteligentes",
+    desc: "Generadas desde tus notas y con repaso espaciado para que no se te olvide nada.",
+  },
+  {
+    icon: FileText,
+    tone: "wk-c-amber",
+    title: "Quizzes y simulacros",
+    desc: "Preguntas con dificultad progresiva y exámenes completos con calificación automática.",
+  },
+  {
+    icon: Brain,
+    tone: "wk-c-rose",
+    title: "Modo Feynman y tutor socrático",
+    desc: "Explica un tema con tus palabras y la IA te dice qué acertaste, qué faltó y qué está mal.",
+  },
+  {
+    icon: MessageCircle,
+    tone: "wk-c-sky",
+    title: "Chat con tus apuntes",
+    desc: "Pregúntale lo que quieras al contenido de cada clase y resuelve tareas paso a paso.",
+  },
+  {
+    icon: CalendarDays,
+    tone: "wk-c-stone",
+    title: "Tareas, horario y recordatorios",
+    desc: "Las tareas se extraen al escanear y te avisamos antes de cada entrega.",
+  },
+  {
+    icon: LineChart,
+    tone: "wk-c-violet",
+    title: "Métricas de dominio",
+    desc: "Mira tu progreso por materia, tu mapa de conocimiento y los huecos a reforzar.",
+  },
+];
+
+const FAQS = [
+  {
+    q: "¿Qué es Workia?",
+    a: "Es un asistente académico con inteligencia artificial. Digitaliza tus apuntes, los organiza por materia y clase, y los convierte en herramientas de estudio activo: flashcards, quizzes, simulacros de parcial y sesiones guiadas con la IA.",
+  },
+  {
+    q: "¿En qué dispositivos funciona?",
+    a: "En cualquier navegador del celular o del computador. Además puedes instalarla como app desde el navegador (“Agregar a pantalla de inicio”) para abrirla como cualquier otra aplicación.",
+  },
+  {
+    q: "Me registré con Google, ¿cómo entro desde otro dispositivo sin poner mi cuenta de Google?",
+    a: "Entra una vez con Google, ve a Perfil → “Acceso con correo” y crea una contraseña. Desde ese momento puedes entrar en cualquier dispositivo con tu correo y esa contraseña, y sigues viendo exactamente los mismos apuntes, materias y tareas.",
+  },
+  {
+    q: "¿Puedo registrarme solo con correo?",
+    a: "Sí. Toca “Crear cuenta”, escribe tu nombre, correo y una contraseña. Te enviaremos un correo para verificar tu cuenta.",
+  },
+  {
+    q: "¿Mis apuntes son privados?",
+    a: "Sí. Todo queda asociado a tu cuenta y solo tú puedes verlo cuando inicias sesión.",
+  },
+];
 
 export default function Home() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
 
   useEffect(() => {
     if (user && !loading) {
@@ -25,84 +137,250 @@ export default function Home() {
 
   if (user) return null;
 
-  return (
-    <div className="flex flex-col min-h-screen px-6 py-12 pt-safe md:flex-row md:items-center md:justify-center md:gap-16 md:px-12 md:ml-[-14rem]">
-      {/* Hero */}
-      <div className="flex-1 flex flex-col items-center justify-center text-center md:max-w-md md:items-start md:text-left">
-        <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-          <BookOpen className="w-10 h-10 text-primary" />
-        </div>
-        <h1 className="text-4xl font-bold tracking-tight mb-2">Workia</h1>
-        <p className="text-muted-foreground text-lg mb-10">
-          Tu asistente académico inteligente
-        </p>
+  const openAuth = (mode: AuthMode) => setAuthMode(mode);
 
-        {/* Features */}
-        <div className="w-full space-y-4 mb-12 md:mb-0">
-          {[
-            {
-              icon: ScanLine,
-              title: "Escanea tu cuaderno",
-              desc: "La IA extrae tareas y organiza apuntes",
-            },
-            {
-              icon: Sparkles,
-              title: "Apuntes enriquecidos",
-              desc: "Complementa y estructura con inteligencia artificial",
-            },
-            {
-              icon: Bell,
-              title: "Nunca olvides una tarea",
-              desc: "Notificaciones inteligentes antes de cada entrega",
-            },
-          ].map((feature) => (
-            <div
-              key={feature.title}
-              className="flex items-start gap-4 text-left p-4 rounded-xl bg-card border border-border"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <feature.icon className="w-5 h-5 text-primary" />
+  return (
+    <div className="wk-landing">
+      {/* ── Nav ───────────────────────────────────────────── */}
+      <header className="wkl-nav pt-safe-bar">
+        <div className="wkl-container flex items-center justify-between h-14">
+          <a href="#" className="flex items-center gap-2 font-semibold text-[17px]">
+            <span className="wkl-logo">
+              <BookOpen className="w-4 h-4" />
+            </span>
+            Workia
+          </a>
+          <nav className="hidden md:flex items-center gap-7 text-sm wkl-muted">
+            <a href="#como-funciona" className="hover:text-[var(--wk-ink)]">Cómo funciona</a>
+            <a href="#funciones" className="hover:text-[var(--wk-ink)]">Funciones</a>
+            <a href="#dispositivos" className="hover:text-[var(--wk-ink)]">Multi-dispositivo</a>
+            <a href="#preguntas" className="hover:text-[var(--wk-ink)]">Preguntas</a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <button onClick={() => openAuth("login")} className="wkl-btn-ghost">
+              Entrar
+            </button>
+            <button onClick={() => openAuth("signup")} className="wkl-btn-primary hidden sm:inline-flex">
+              Crear cuenta
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Hero ──────────────────────────────────────────── */}
+      <section className="wkl-hero">
+        <div className="wkl-container grid gap-12 md:grid-cols-[1.1fr_1fr] md:items-center">
+          <div>
+            <span className="wkl-eyebrow">
+              <GraduationCap className="w-3.5 h-3.5" />
+              Tu asistente académico con IA
+            </span>
+            <h1 className="wkl-h1">
+              Tus apuntes, convertidos en <em>dominio real</em>.
+            </h1>
+            <p className="wkl-lead">
+              Toma una foto a tu cuaderno y Workia lo digitaliza, lo enriquece con inteligencia
+              artificial y lo transforma en flashcards, quizzes y simulacros de parcial. Todo tu
+              semestre, organizado en un solo lugar.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
+              <button onClick={() => openAuth("signup")} className="wkl-btn-primary wkl-btn-lg">
+                Empezar ahora
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => openAuth("login")} className="wkl-btn-outline wkl-btn-lg">
+                Ya tengo cuenta
+              </button>
+            </div>
+            <ul className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-[13px] wkl-muted">
+              {["Celular y computador", "Se instala como app", "Entra con Google o correo"].map((t) => (
+                <li key={t} className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-[var(--wk-emerald)]" />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Product preview */}
+          <div className="wkl-preview" aria-hidden>
+            <div className="wkl-card wkl-card-note">
+              <div className="flex items-center justify-between mb-3">
+                <span className="wkl-chip wk-c-violet">Cálculo II · Clase 12</span>
+                <ScanLine className="w-4 h-4 wkl-muted" />
               </div>
-              <div>
-                <p className="font-medium text-sm">{feature.title}</p>
-                <p className="text-muted-foreground text-sm">{feature.desc}</p>
+              <p className="wkl-serif text-[22px] leading-tight mb-2">Integración por partes</p>
+              <p className="wkl-mono text-[13px] mb-3">∫ u dv = uv − ∫ v du</p>
+              <div className="space-y-1.5">
+                <div className="wkl-line w-[92%]" />
+                <div className="wkl-line w-[78%]" />
+                <div className="wkl-line w-[85%]" />
+              </div>
+              <div className="wkl-ai-note">
+                <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>Tip IA: elige como <b>u</b> la función que se simplifica al derivar (regla LIATE).</span>
               </div>
             </div>
-          ))}
+
+            <div className="wkl-card wkl-card-flash">
+              <span className="wkl-chip wk-c-emerald">Flashcard</span>
+              <p className="text-[14px] font-medium mt-3">¿Cuándo conviene integrar por partes?</p>
+              <div className="flex gap-1.5 mt-3">
+                {["Otra vez", "Difícil", "Bien", "Fácil"].map((l, i) => (
+                  <span key={l} className={`wkl-pill ${i === 2 ? "wkl-pill-on" : ""}`}>{l}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="wkl-card wkl-card-mastery">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] wkl-muted">Dominio · Cálculo II</span>
+                <span className="text-[13px] font-semibold">78%</span>
+              </div>
+              <div className="wkl-bar mt-2">
+                <div style={{ width: "78%" }} />
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Sign in — right side on desktop */}
-      <div className="md:w-80 md:flex md:flex-col md:items-center">
-        <button
-          onClick={signInWithGoogle}
-          className="w-full py-4 px-6 rounded-xl bg-white text-black font-semibold text-base flex items-center justify-center gap-3 active:scale-[0.98] transition-transform hover:shadow-lg hover:shadow-primary/10"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
-          </svg>
-          Continuar con Google
-        </button>
+      {/* ── Cómo funciona ─────────────────────────────────── */}
+      <section id="como-funciona" className="wkl-section">
+        <div className="wkl-container">
+          <p className="wkl-kicker">Cómo funciona</p>
+          <h2 className="wkl-h2">De la hoja de cuaderno al examen, en tres pasos.</h2>
+          <div className="grid gap-4 md:grid-cols-3 mt-10">
+            {STEPS.map((step, i) => (
+              <div key={step.title} className="wkl-step">
+                <div className="flex items-center justify-between mb-5">
+                  <span className="wkl-step-icon">
+                    <step.icon className="w-5 h-5" />
+                  </span>
+                  <span className="wkl-mono text-[12px] wkl-muted">0{i + 1}</span>
+                </div>
+                <h3 className="font-semibold text-[17px] mb-2">{step.title}</h3>
+                <p className="text-[14px] leading-relaxed wkl-muted">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          Tus datos quedan seguros en tu cuenta de Google
-        </p>
-      </div>
+      {/* ── Funciones ─────────────────────────────────────── */}
+      <section id="funciones" className="wkl-section wkl-section-sunk">
+        <div className="wkl-container">
+          <p className="wkl-kicker">Funciones</p>
+          <h2 className="wkl-h2">No es otra app de notas. Es un sistema de estudio activo.</h2>
+          <p className="wkl-lead max-w-2xl">
+            Leer y subrayar da la sensación de aprender. Workia te hace recordar, explicar y
+            practicar, que es lo que realmente fija el conocimiento.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-10">
+            {FEATURES.map((f) => (
+              <div key={f.title} className={`wkl-feature ${f.tone}`}>
+                <span className="wkl-feature-icon">
+                  <f.icon className="w-[18px] h-[18px]" />
+                </span>
+                <h3 className="font-semibold text-[15px] mt-4 mb-1.5">{f.title}</h3>
+                <p className="text-[13.5px] leading-relaxed wkl-muted">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Multi-dispositivo ─────────────────────────────── */}
+      <section id="dispositivos" className="wkl-section">
+        <div className="wkl-container grid gap-10 md:grid-cols-2 md:items-center">
+          <div>
+            <p className="wkl-kicker">Tu cuenta, en cualquier lugar</p>
+            <h2 className="wkl-h2">Entra desde cualquier dispositivo, sin tener que usar tu Google en él.</h2>
+            <p className="wkl-lead">
+              ¿En el computador de la biblioteca o en el celular de alguien más? Si te registraste
+              con Google, crea una contraseña en tu perfil y quedará vinculada a la misma cuenta.
+              Luego entra solo con tu correo y esa contraseña.
+            </p>
+          </div>
+          <ol className="space-y-3">
+            {[
+              { icon: GoogleIcon, title: "Entra con Google", desc: "En tu dispositivo de siempre, como lo haces hoy." },
+              { icon: KeyRound, title: "Crea tu contraseña", desc: "Ve a Perfil → Acceso con correo y elige una contraseña." },
+              { icon: MonitorSmartphone, title: "Úsala donde quieras", desc: "En otro dispositivo, toca Entrar y usa tu correo y contraseña." },
+            ].map((s, i) => (
+              <li key={s.title} className="wkl-link-step">
+                <span className="wkl-link-num">{i + 1}</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-[15px]">{s.title}</p>
+                  <p className="text-[13.5px] wkl-muted">{s.desc}</p>
+                </div>
+                <s.icon className="w-5 h-5 wkl-muted shrink-0" />
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* ── Preguntas ─────────────────────────────────────── */}
+      <section id="preguntas" className="wkl-section wkl-section-sunk">
+        <div className="wkl-container max-w-3xl">
+          <p className="wkl-kicker">Preguntas frecuentes</p>
+          <h2 className="wkl-h2">Lo que suelen preguntar.</h2>
+          <div className="mt-8 space-y-2">
+            {FAQS.map((f) => (
+              <details key={f.q} className="wkl-faq">
+                <summary>{f.q}</summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA final ─────────────────────────────────────── */}
+      <section className="wkl-section">
+        <div className="wkl-container">
+          <div className="wkl-cta">
+            <h2 className="wkl-h2 !mb-3">
+              Empieza este semestre con <em>otra</em> forma de estudiar.
+            </h2>
+            <p className="opacity-80 max-w-xl mx-auto">
+              Crea tu cuenta en segundos con Google o con tu correo.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mt-7">
+              <button onClick={() => openAuth("signup")} className="wkl-btn-invert wkl-btn-lg">
+                Crear mi cuenta
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => openAuth("login")} className="wkl-btn-invert-ghost wkl-btn-lg">
+                Iniciar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer className="wkl-container py-8 pb-safe flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px] wkl-muted">
+        <span className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4" /> Workia — Tu asistente académico inteligente
+        </span>
+        <span>© {new Date().getFullYear()} Workia</span>
+      </footer>
+
+      <Sheet
+        open={authMode !== null}
+        onClose={() => setAuthMode(null)}
+        title={
+          authMode === "signup"
+            ? "Crea tu cuenta"
+            : authMode === "reset"
+              ? "Recuperar contraseña"
+              : "Hola de nuevo"
+        }
+        centerTitle
+      >
+        {authMode && <AuthPanel mode={authMode} onModeChange={setAuthMode} />}
+      </Sheet>
     </div>
   );
 }

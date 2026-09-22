@@ -64,7 +64,7 @@ No es otra app de notas. Es un sistema de **estudio activo** integrado de extrem
 | Framework | Next.js 14 (App Router) + React 18 |
 | Lenguaje | TypeScript 5.7 |
 | Estilos | Tailwind CSS + `tailwindcss-animate` + `class-variance-authority` |
-| Auth & DB | Firebase Auth (Google) + Firestore |
+| Auth & DB | Firebase Auth (Google + correo/contraseña) + Firestore |
 | IA | Google Gemini 2.0 Flash (`@google/generative-ai`) |
 | Markdown / Math | `react-markdown` + `remark-math` + `rehype-katex` |
 | Iconos | `lucide-react` |
@@ -153,6 +153,10 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 ```
+
+### Métodos de inicio de sesión
+
+En Firebase Console → **Authentication → Sign-in method** habilita **Google** y **Correo electrónico/contraseña**. Deja activa la opción por defecto *una cuenta por dirección de correo*: así, cuando alguien que entró con Google crea una contraseña en **Perfil → Acceso con correo**, ambas formas de entrar quedan vinculadas a la misma cuenta.
 
 ### Comandos
 

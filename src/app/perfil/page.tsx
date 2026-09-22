@@ -13,6 +13,7 @@ import { LogOut, User, Mail, BookOpen, CheckSquare, Clock, TrendingUp, Bell, Bel
 import { toast } from "sonner";
 import { useTheme } from "@/lib/theme-context";
 import { AiModelPicker } from "@/components/ai-model-picker";
+import { PasswordAccess } from "@/components/password-access";
 
 export default function PerfilPage() {
   const { user, signOut } = useAuth();
@@ -152,6 +153,9 @@ export default function PerfilPage() {
             </div>
           </div>
         )}
+
+        {/* Email + password access (for other devices) */}
+        <PasswordAccess />
 
         {/* AI model selection */}
         <AiModelPicker />
