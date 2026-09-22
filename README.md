@@ -78,6 +78,7 @@ No es otra app de notas. Es un sistema de **estudio activo** integrado de extrem
 | PDF | `jspdf` |
 | Imágenes | `sharp` + Cloudinary |
 | Toasts | `sonner` |
+| Animaciones (landing) | `gsap` (ScrollTrigger + SplitText) |
 
 ---
 

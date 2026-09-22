@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme-context";
+import { useLandingAnimations } from "@/components/landing/use-landing-animations";
 import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
 
 const STEPS = [
@@ -124,6 +125,8 @@ export default function Home() {
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useLandingAnimations(rootRef, !loading && !user);
 
   useEffect(() => {
     if (user && !loading) {
@@ -144,9 +147,9 @@ export default function Home() {
   const openAuth = (mode: AuthMode) => setAuthMode(mode);
 
   return (
-    <div className="wk-landing">
+    <div ref={rootRef} className="wk-landing">
       {/* ── Nav ───────────────────────────────────────────── */}
-      <header className="wkl-nav pt-safe-bar">
+      <header data-anim="nav" className="wkl-nav pt-safe-bar">
         <div className="wkl-container flex items-center justify-between h-14">
           <a href="#" className="flex items-center gap-2 font-semibold text-[17px]">
             <span className="wkl-logo">
@@ -183,19 +186,19 @@ export default function Home() {
       <section className="wkl-hero">
         <div className="wkl-container grid gap-12 md:grid-cols-[1.1fr_1fr] md:items-center">
           <div>
-            <span className="wkl-eyebrow">
+            <span data-anim="hero-item" className="wkl-eyebrow">
               <GraduationCap className="w-3.5 h-3.5" />
               Tu asistente académico con IA
             </span>
-            <h1 className="wkl-h1">
+            <h1 data-anim="hero-title" className="wkl-h1">
               Tus apuntes, convertidos en <em>dominio real</em>.
             </h1>
-            <p className="wkl-lead">
+            <p data-anim="hero-item" className="wkl-lead">
               Toma una foto a tu cuaderno y Workia lo digitaliza, lo enriquece con inteligencia
               artificial y lo transforma en flashcards, quizzes y simulacros de parcial. Todo tu
               semestre, organizado en un solo lugar.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 mt-8">
+            <div data-anim="hero-item" className="flex flex-col sm:flex-row gap-3 mt-8">
               <button onClick={() => openAuth("signup")} className="wkl-btn-primary wkl-btn-lg">
                 Empezar ahora
                 <ArrowRight className="w-4 h-4" />
@@ -204,7 +207,7 @@ export default function Home() {
                 Ya tengo cuenta
               </button>
             </div>
-            <ul className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-[13px] wkl-muted">
+            <ul data-anim="hero-item" className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-[13px] wkl-muted">
               {["Celular y computador", "Se instala como app", "Entra con Google o correo"].map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-[var(--wk-emerald)]" />
@@ -215,7 +218,7 @@ export default function Home() {
           </div>
 
           {/* Product preview */}
-          <div className="wkl-preview" aria-hidden>
+          <div data-anim="preview" className="wkl-preview" aria-hidden>
             <div className="wkl-card wkl-card-note">
               <div className="flex items-center justify-between mb-3">
                 <span className="wkl-chip wk-c-violet">Cálculo II · Clase 12</span>
@@ -247,10 +250,10 @@ export default function Home() {
             <div className="wkl-card wkl-card-mastery">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] wkl-muted">Dominio · Cálculo II</span>
-                <span className="text-[13px] font-semibold">78%</span>
+                <span data-anim="pct" className="text-[13px] font-semibold">78%</span>
               </div>
               <div className="wkl-bar mt-2">
-                <div style={{ width: "78%" }} />
+                <div data-anim="bar" style={{ width: "78%" }} />
               </div>
             </div>
           </div>
@@ -260,9 +263,9 @@ export default function Home() {
       {/* ── Cómo funciona ─────────────────────────────────── */}
       <section id="como-funciona" className="wkl-section">
         <div className="wkl-container">
-          <p className="wkl-kicker">Cómo funciona</p>
-          <h2 className="wkl-h2">De la hoja de cuaderno al examen, en tres pasos.</h2>
-          <div className="grid gap-4 md:grid-cols-3 mt-10">
+          <p data-anim="reveal" className="wkl-kicker">Cómo funciona</p>
+          <h2 data-anim="reveal" className="wkl-h2">De la hoja de cuaderno al examen, en tres pasos.</h2>
+          <div data-anim="stagger" className="grid gap-4 md:grid-cols-3 mt-10">
             {STEPS.map((step, i) => (
               <div key={step.title} className="wkl-step">
                 <div className="flex items-center justify-between mb-5">
@@ -282,13 +285,13 @@ export default function Home() {
       {/* ── Funciones ─────────────────────────────────────── */}
       <section id="funciones" className="wkl-section wkl-section-sunk">
         <div className="wkl-container">
-          <p className="wkl-kicker">Funciones</p>
-          <h2 className="wkl-h2">No es otra app de notas. Es un sistema de estudio activo.</h2>
-          <p className="wkl-lead max-w-2xl">
+          <p data-anim="reveal" className="wkl-kicker">Funciones</p>
+          <h2 data-anim="reveal" className="wkl-h2">No es otra app de notas. Es un sistema de estudio activo.</h2>
+          <p data-anim="reveal" className="wkl-lead max-w-2xl">
             Leer y subrayar da la sensación de aprender. Workia te hace recordar, explicar y
             practicar, que es lo que realmente fija el conocimiento.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-10">
+          <div data-anim="stagger" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-10">
             {FEATURES.map((f) => (
               <div key={f.title} className={`wkl-feature ${f.tone}`}>
                 <span className="wkl-feature-icon">
@@ -306,15 +309,15 @@ export default function Home() {
       <section id="dispositivos" className="wkl-section">
         <div className="wkl-container grid gap-10 md:grid-cols-2 md:items-center">
           <div>
-            <p className="wkl-kicker">Tu cuenta, en cualquier lugar</p>
-            <h2 className="wkl-h2">Entra desde cualquier dispositivo, sin tener que usar tu Google en él.</h2>
-            <p className="wkl-lead">
+            <p data-anim="reveal" className="wkl-kicker">Tu cuenta, en cualquier lugar</p>
+            <h2 data-anim="reveal" className="wkl-h2">Entra desde cualquier dispositivo, sin tener que usar tu Google en él.</h2>
+            <p data-anim="reveal" className="wkl-lead">
               ¿En el computador de la biblioteca o en el celular de alguien más? Si te registraste
               con Google, crea una contraseña en tu perfil y quedará vinculada a la misma cuenta.
               Luego entra solo con tu correo y esa contraseña.
             </p>
           </div>
-          <ol className="space-y-3">
+          <ol data-anim="stagger" className="space-y-3">
             {[
               { icon: GoogleIcon, title: "Entra con Google", desc: "En tu dispositivo de siempre, como lo haces hoy." },
               { icon: KeyRound, title: "Crea tu contraseña", desc: "Ve a Perfil → Acceso con correo y elige una contraseña." },
@@ -336,9 +339,9 @@ export default function Home() {
       {/* ── Preguntas ─────────────────────────────────────── */}
       <section id="preguntas" className="wkl-section wkl-section-sunk">
         <div className="wkl-container max-w-3xl">
-          <p className="wkl-kicker">Preguntas frecuentes</p>
-          <h2 className="wkl-h2">Lo que suelen preguntar.</h2>
-          <div className="mt-8 space-y-2">
+          <p data-anim="reveal" className="wkl-kicker">Preguntas frecuentes</p>
+          <h2 data-anim="reveal" className="wkl-h2">Lo que suelen preguntar.</h2>
+          <div data-anim="stagger" className="mt-8 space-y-2">
             {FAQS.map((f) => (
               <details key={f.q} className="wkl-faq">
                 <summary>{f.q}</summary>
@@ -352,7 +355,7 @@ export default function Home() {
       {/* ── CTA final ─────────────────────────────────────── */}
       <section className="wkl-section">
         <div className="wkl-container">
-          <div className="wkl-cta">
+          <div data-anim="cta" className="wkl-cta">
             <h2 className="wkl-h2 !mb-3">
               Empieza este semestre con <em>otra</em> forma de estudiar.
             </h2>
