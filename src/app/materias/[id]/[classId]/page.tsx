@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Plus,
@@ -29,6 +30,7 @@ import {
   CalendarCheck,
   Clock,
   ChevronRight,
+  ChevronLeft,
   Bot,
   FolderOpen,
   MessageCircle,
@@ -255,6 +257,10 @@ export default function BoardPage() {
   // Scan state
   const [showScan, setShowScan] = useState(false);
   const [scanType, setScanType] = useState<ScanType>("auto");
+  const [scanUseSubjectContext, setScanUseSubjectContext] = useState(false);
+  const [scanPreviewIndex, setScanPreviewIndex] = useState<number | null>(null);
+  const [scanSelectedDocs, setScanSelectedDocs] = useState<Set<string>>(new Set());
+  const [scanUsePrevNotes, setScanUsePrevNotes] = useState(false);
   const [scanImages, setScanImages] = useState<{ url: string; file: File }[]>([]);
   const [processing, setProcessing] = useState(false);
   const [processStep, setProcessStep] = useState("");
@@ -494,6 +500,9 @@ export default function BoardPage() {
     // Snapshot images before they may be cleared
     const imageSnapshot = [...scanImages];
     const scanTypeSnapshot = scanType;
+    const useContextSnapshot = scanUseSubjectContext;
+    const docsSnapshot = subjectDocuments.filter((d) => scanSelectedDocs.has(d.url));
+    const usePrevNotesSnapshot = scanUseSubjectContext && scanUsePrevNotes;
 
     try {
       const base64Images = await Promise.all(imageSnapshot.map((img) => compressImageToBase64(img.file)));
@@ -507,11 +516,15 @@ export default function BoardPage() {
           subjectName: subject?.name,
           existingSubjects: subjects.map((s) => s.name),
           currentDate: new Date().toISOString().split("T")[0],
-          subjectDocuments: subjectDocuments.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name })),
-          existingNotes: entries
-            .filter((e) => e.type === "notes" && e.content.trim().length > 30)
-            .slice(0, 5)
-            .map((e) => e.content),
+          subjectDocuments: useContextSnapshot
+            ? docsSnapshot.map((d) => ({ url: d.url, fileType: d.fileType, name: d.name }))
+            : [],
+          existingNotes: usePrevNotesSnapshot
+            ? entries
+                .filter((e) => e.type === "notes" && e.content.trim().length > 30)
+                .slice(0, 5)
+                .map((e) => e.content)
+            : [],
         }),
       });
 
@@ -1986,8 +1999,19 @@ export default function BoardPage() {
       </Sheet>
 
       {/* Scan Sheet */}
+      {scanPreviewIndex !== null && scanImages[scanPreviewIndex] &&
+        createPortal(
+          <ScanImagePreview
+            urls={scanImages.map((img) => img.url)}
+            index={scanPreviewIndex}
+            onChange={setScanPreviewIndex}
+            onClose={() => setScanPreviewIndex(null)}
+          />,
+          document.body
+        )}
+
       <Sheet open={showScan} onClose={() => setShowScan(false)} title="Escanear contenido">
-        <div className="space-y-4">
+        <div className="space-y-4 pt-2">
           {/* Images */}
           {scanImages.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-border bg-card/50 p-6 text-center">
@@ -2012,7 +2036,18 @@ export default function BoardPage() {
             <div className="flex flex-wrap gap-2">
               {scanImages.map((img, i) => (
                 <div key={i} className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-border">
-                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setScanPreviewIndex(i)}
+                    aria-label={`Ver imagen ${i + 1}`}
+                    className="w-full h-full group"
+                  >
+                    <img
+                      src={img.url}
+                      alt=""
+                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    />
+                  </button>
                   <button
                     onClick={() => removeScanImage(i)}
                     className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center"
@@ -2054,6 +2089,89 @@ export default function BoardPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Source selector */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Fuente</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { value: false, label: "Solo imágenes" },
+                { value: true, label: "Material de la materia" },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  onClick={() => setScanUseSubjectContext(o.value)}
+                  className={`py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    scanUseSubjectContext === o.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <div
+              className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                scanUseSubjectContext ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+              }`}
+              aria-hidden={!scanUseSubjectContext}
+            >
+              <div className="overflow-hidden">
+              <div className="mt-2 max-h-[186px] overflow-y-auto space-y-1.5 pr-0.5">
+                {[
+                  ...subjectDocuments.map((d) => ({
+                    key: d.url,
+                    label: d.name,
+                    icon: FileText,
+                    checked: scanSelectedDocs.has(d.url),
+                    toggle: () =>
+                      setScanSelectedDocs((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(d.url)) next.delete(d.url);
+                        else next.add(d.url);
+                        return next;
+                      }),
+                  })),
+                  {
+                    key: "__prev-notes",
+                    label: "Apuntes previos de esta clase",
+                    icon: BookOpen,
+                    checked: scanUsePrevNotes,
+                    toggle: () => setScanUsePrevNotes((v) => !v),
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={item.checked}
+                    onClick={item.toggle}
+                    tabIndex={scanUseSubjectContext ? 0 : -1}
+                    className={`group w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left text-xs transition-all active:scale-[0.99] ${
+                      item.checked
+                        ? "border-primary/40 bg-primary/10 text-foreground hover:bg-primary/15 hover:border-primary/60"
+                        : "border-border bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-primary/30"
+                    }`}
+                  >
+                    <item.icon className={`w-4 h-4 shrink-0 ${item.checked ? "text-primary" : ""}`} />
+                    <span className="flex-1 truncate">{item.label}</span>
+                    <span
+                      className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center transition-all ${
+                        item.checked ? "bg-primary text-primary-foreground" : "border border-border group-hover:border-primary/60"
+                      }`}
+                    >
+                      {item.checked && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              </div>
+            </div>
+            {!scanUseSubjectContext && (
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                La IA se basa únicamente en las imágenes que subas.
+              </p>
+            )}
           </div>
 
           {/* Context badge */}
@@ -2567,5 +2685,73 @@ export default function BoardPage() {
         </div>
       </Sheet>
     </AppShell>
+  );
+}
+
+function ScanImagePreview({
+  urls,
+  index,
+  onChange,
+  onClose,
+}: {
+  urls: string[];
+  index: number;
+  onChange: (index: number) => void;
+  onClose: () => void;
+}) {
+  const hasMany = urls.length > 1;
+  const prev = () => onChange((index - 1 + urls.length) % urls.length);
+  const next = () => onChange((index + 1) % urls.length);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      } else if (hasMany && e.key === "ArrowLeft") onChange((index - 1 + urls.length) % urls.length);
+      else if (hasMany && e.key === "ArrowRight") onChange((index + 1) % urls.length);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [index, urls.length, hasMany, onChange, onClose]);
+
+  const navButton =
+    "absolute top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors";
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Vista previa de imagen"
+      className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <img
+        src={urls[index]}
+        alt={`Imagen ${index + 1}`}
+        className="max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+      <button
+        onClick={onClose}
+        aria-label="Cerrar vista previa"
+        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+      >
+        <X className="w-5 h-5" />
+      </button>
+      {hasMany && (
+        <>
+          <button onClick={(e) => { e.stopPropagation(); prev(); }} aria-label="Imagen anterior" className={`${navButton} left-4`}>
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); next(); }} aria-label="Imagen siguiente" className={`${navButton} right-4`}>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+          <span className="absolute bottom-5 left-1/2 -translate-x-1/2 text-xs text-white/80 bg-white/10 px-3 py-1 rounded-full">
+            {index + 1} / {urls.length}
+          </span>
+        </>
+      )}
+    </div>
   );
 }
