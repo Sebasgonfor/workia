@@ -42,7 +42,7 @@ const scan: FeatureScene = {
     return gsap
       .timeline()
       .set($(".wks-paper"), { rotation: -6, scale: 0.92 })
-      .set($(".wks-ink"), { backgroundColor: "var(--wk-ink-4)" })
+      .set($(".wks-ink"), { backgroundColor: "var(--paper-ink)" })
       .fromTo($(".wks-corner"), { scale: 1.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, stagger: 0.08, ease: "back.out(2)" })
       .to($(".wks-paper"), { rotation: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, "+=0.1")
       .fromTo($(".wks-scanbar"), { top: "0%", opacity: 1 }, { top: "100%", duration: 1.3, ease: "sine.inOut" })
