@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { authErrorMessage, useAuth } from "@/lib/auth-context";
@@ -19,6 +19,21 @@ export function PasswordAccess() {
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Arriving from the "Crea tu contraseña" nudge (?crear-contrasena=1): open
+  // the form and bring the card into view.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("crear-contrasena")) return;
+    setOpen(true);
+    requestAnimationFrame(() =>
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    );
+    params.delete("crear-contrasena");
+    const query = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+  }, []);
 
   if (!user?.email) return null;
 
@@ -58,7 +73,14 @@ export function PasswordAccess() {
   };
 
   return (
-    <div className="p-4 rounded-xl bg-card border border-border mb-2.5">
+    <div
+      ref={cardRef}
+      id="acceso-correo"
+      className={cn(
+        "p-4 rounded-xl bg-card border mb-2.5 scroll-mt-24 transition-colors",
+        open && !hasPassword ? "border-primary/50 ring-2 ring-primary/15" : "border-border"
+      )}
+    >
       <div className="flex items-start gap-3">
         <div
           className={cn(
