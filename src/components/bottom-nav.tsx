@@ -21,7 +21,8 @@ import {
   Camera,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { gsap } from "gsap";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/ui/sheet";
 
@@ -88,15 +89,42 @@ const createItems = [
 
 type Indicator = { left: number; width: number };
 
-// Each page renders its own AppShell, so the nav remounts on every route
-// change. Remember where the active pill was (module scope survives the
-// remount) so the new nav starts from there and slides to the new tab,
-// instead of growing in from the far left.
-let lastIndicator: Indicator | null = null;
-
 // A touch wider than the icon's own 36px box — matching it exactly
 // looked too tight/cramped around the glyph.
 const INDICATOR_PAD = 6;
+const PILL_DURATION = 0.42;
+const PILL_EASE = "back.out(1.4)";
+
+// Each page renders its own AppShell, so the nav remounts on every route
+// change — often while the pill is still sliding. Keep the slide itself in
+// module scope (which survives the remount): the new nav replays it and
+// seeks to the elapsed time, so the pill continues from where it visually
+// was instead of jumping to the end or growing in from the far left.
+let pillSlide: { from: Indicator; to: Indicator; start: number } | null = null;
+
+const sameIndicator = (a: Indicator, b: Indicator) =>
+  Math.abs(a.left - b.left) < 0.5 && Math.abs(a.width - b.width) < 0.5;
+
+/** Where the pill is on screen right now, mid-slide included. */
+function pillPosition(now: number): Indicator | null {
+  if (!pillSlide) return null;
+  const { from, to, start } = pillSlide;
+  const p = gsap.utils.clamp(0, 1, (now - start) / 1000 / PILL_DURATION);
+  const e = gsap.parseEase(PILL_EASE)(p);
+  return { left: from.left + (to.left - from.left) * e, width: from.width + (to.width - from.width) * e };
+}
+
+function playPill(el: HTMLElement, seek = 0) {
+  if (!pillSlide) return;
+  const { from, to } = pillSlide;
+  gsap
+    .fromTo(
+      el,
+      { x: from.left, width: from.width },
+      { x: to.left, width: to.width, duration: PILL_DURATION, ease: PILL_EASE, overwrite: true }
+    )
+    .seek(Math.min(seek, PILL_DURATION));
+}
 
 function accentStyle(accent: string) {
   return {
@@ -124,25 +152,16 @@ export function BottomNav() {
   // interaction that makes switching tabs feel alive instead of a hard cut.
   // Slot order matches render order: 0 = home, 1..n = mainTabs, last = grip.
   const slotRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const [indicator, setIndicatorState] = useState<Indicator | null>(lastIndicator);
-  // First nav ever (nothing remembered yet): place the pill without sliding.
-  const [instant, setInstant] = useState(lastIndicator === null);
+  const pillRef = useRef<HTMLSpanElement>(null);
   // Slot tapped but whose page hasn't loaded yet — it owns the pill meanwhile.
   const [pendingSlot, setPendingSlot] = useState<number | null>(null);
 
-  const setIndicator = (next: Indicator | null) => {
-    if (next) lastIndicator = next;
-    setIndicatorState(next);
-  };
   const measure = (i: number): Indicator | null => {
     const el = slotRefs.current[i];
     return el ? { left: el.offsetLeft - INDICATOR_PAD, width: el.offsetWidth + INDICATOR_PAD * 2 } : null;
   };
 
   const routeSlotIndex = (() => {
-    // While the panel is open, the grip is what's "selected" regardless of
-    // which route you're actually on — otherwise opening it from /inicio
-    // left the indicator sitting on Home instead of following you to grip.
     if (pathname === "/inicio") return 0;
     const tabIndex = mainTabs.findIndex(
       (tab) => pathname === tab.href || pathname.startsWith(tab.href + "/")
@@ -168,9 +187,34 @@ export function BottomNav() {
     setPendingSlot(i);
   };
 
-  useEffect(() => {
-    setIndicator(activeSlotIndex !== null ? measure(activeSlotIndex) : null);
-    if (instant) requestAnimationFrame(() => setInstant(false));
+  // Fresh nav (new page): pick the running slide back up where it is now.
+  useLayoutEffect(() => {
+    const el = pillRef.current;
+    if (el && pillSlide) playPill(el, (performance.now() - pillSlide.start) / 1000);
+    return () => {
+      if (el) gsap.killTweensOf(el);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = pillRef.current;
+    if (!el) return;
+    const target = activeSlotIndex !== null ? measure(activeSlotIndex) : null;
+    gsap.set(el, { opacity: target ? 1 : 0 });
+    if (!target) return;
+    // Already heading there (e.g. the slide started on the previous page).
+    if (pillSlide && sameIndicator(pillSlide.to, target)) return;
+
+    const now = performance.now();
+    const from = pillPosition(now);
+    if (!from || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // Very first placement (or reduced motion): no slide.
+      pillSlide = { from: target, to: target, start: 0 };
+      gsap.set(el, { x: target.left, width: target.width });
+      return;
+    }
+    pillSlide = { from, to: target, start: now };
+    playPill(el);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSlotIndex]);
 
@@ -218,8 +262,8 @@ export function BottomNav() {
                 <div className="overflow-hidden">
                   <div
                     className={cn(
-                      "grid grid-cols-3 gap-2.5 px-3 pt-3 pb-1 transition-opacity duration-200",
-                      moreOpen ? "opacity-100 delay-100" : "opacity-0"
+                      "grid grid-cols-3 gap-2.5 px-3 pt-3 pb-1 transition-[opacity,transform] duration-200",
+                      moreOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
                     )}
                   >
                     {moreTabs.map((tab) => {
@@ -259,14 +303,9 @@ export function BottomNav() {
                   element animating between slots instead of each icon
                   cutting its own background on/off. */}
               <span
+                ref={pillRef}
                 aria-hidden="true"
-                className="absolute left-0 top-1.5 bottom-1.5 rounded-full bg-primary transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(.3,1.25,.5,1)]"
-                style={{
-                  transition: instant ? "none" : undefined,
-                  width: indicator ? indicator.width : 0,
-                  transform: `translateX(${indicator ? indicator.left : 0}px)`,
-                  opacity: indicator ? 1 : 0,
-                }}
+                className="absolute left-0 top-1.5 bottom-1.5 w-0 rounded-full bg-primary opacity-0"
               />
 
               {/* Home — pinned leftmost */}
