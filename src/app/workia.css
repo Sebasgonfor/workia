@@ -951,6 +951,7 @@
 .wkl-btn-outline { background: var(--wk-bg-elev); color: var(--wk-ink); border: 1px solid var(--wk-line-2); }
 .wkl-btn-outline:hover { border-color: var(--wk-line-3); }
 .wkl-btn-ghost { color: var(--wk-ink-2); }
+.wkl-btn-icon { width: 36px; padding: 0; }
 .wkl-btn-ghost:hover { background: var(--wk-bg-sunk); color: var(--wk-ink); }
 .wkl-btn-invert { background: white; color: oklch(0.28 0.15 285); }
 .wkl-btn-invert:hover { background: oklch(0.96 0.02 285); }

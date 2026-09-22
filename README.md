@@ -56,7 +56,7 @@ No es otra app de notas. Es un sistema de **estudio activo** integrado de extrem
 - **Análisis de notas** — Carga tus calificaciones, la IA analiza tendencias.
 
 ### 🔐 Cuenta y acceso
-- **Landing pública** — Página de inicio en `/` que explica qué es Workia, cómo funciona y sus funciones, con preguntas frecuentes.
+- **Landing pública** — Página de inicio en `/` que explica qué es Workia, cómo funciona y sus funciones, con preguntas frecuentes. Tiene un botón sol/luna en la barra superior para cambiar entre modo claro y oscuro; la preferencia se guarda y se comparte con el resto de la app (también se cambia en **Perfil → Apariencia**).
 - **Google o correo** — Inicia sesión o crea tu cuenta con Google o con correo y contraseña; incluye recuperación de contraseña.
 - **Acceso desde otro dispositivo** — Si entraste con Google, crea una contraseña en **Perfil → Acceso con correo** y queda vinculada a la misma cuenta. Luego entras en cualquier dispositivo con tu correo, sin usar tu cuenta de Google.
 - **Recordatorio para crear contraseña** — Las cuentas de Google sin contraseña ven un aviso pequeño con acceso directo al formulario; se puede posponer una semana.

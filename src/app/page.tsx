@@ -17,11 +17,14 @@ import {
   LineChart,
   MessageCircle,
   MonitorSmartphone,
+  Moon,
   ScanLine,
   Sparkles,
+  Sun,
   Target,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
+import { useTheme } from "@/lib/theme-context";
 import { AuthPanel, AuthMode, GoogleIcon } from "@/components/auth/auth-panel";
 
 const STEPS = [
@@ -118,6 +121,7 @@ const FAQS = [
 
 export default function Home() {
   const { user, loading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
 
@@ -157,6 +161,14 @@ export default function Home() {
             <a href="#preguntas" className="hover:text-[var(--wk-ink)]">Preguntas</a>
           </nav>
           <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+              className="wkl-btn-ghost wkl-btn-icon"
+            >
+              {theme === "dark" ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+            </button>
             <button onClick={() => openAuth("login")} className="wkl-btn-ghost">
               Entrar
             </button>
