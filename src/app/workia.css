@@ -985,11 +985,11 @@
 .wkl-card {
   background: var(--wk-bg-elev); border: 1px solid var(--wk-line);
   border-radius: var(--wk-r-xl); box-shadow: var(--wk-shadow-lg);
-  padding: 18px; animation: wk-fadeInUp .6s both;
+  padding: 18px;
 }
 .wkl-card-note { position: relative; width: 88%; transform: rotate(-1.5deg); }
-.wkl-card-flash { position: absolute; right: 0; top: 55%; width: 70%; transform: rotate(2deg); animation-delay: .12s; }
-.wkl-card-mastery { position: absolute; left: 4%; bottom: -8px; width: 52%; padding: 14px 16px; animation-delay: .24s; }
+.wkl-card-flash { position: absolute; right: 0; top: 55%; width: 70%; transform: rotate(2deg); }
+.wkl-card-mastery { position: absolute; left: 4%; bottom: -8px; width: 52%; padding: 14px 16px; }
 @media (max-width: 480px) {
   .wkl-preview { min-height: 440px; }
   .wkl-card-note { width: 94%; }
@@ -1041,9 +1041,9 @@
 .wkl-feature {
   background: var(--wk-bg-elev); border: 1px solid var(--wk-line);
   border-radius: var(--wk-r-lg); padding: 20px;
-  transition: transform .2s, box-shadow .2s, border-color .2s;
+  transition: translate .2s, box-shadow .2s, border-color .2s;
 }
-.wkl-feature:hover { transform: translateY(-2px); box-shadow: var(--wk-shadow-md); border-color: var(--wk-line-2); }
+.wkl-feature:hover { translate: 0 -2px; box-shadow: var(--wk-shadow-md); border-color: var(--wk-line-2); }
 .wkl-feature-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--c-soft); color: var(--c-ink); }
 
 .wkl-link-step {
