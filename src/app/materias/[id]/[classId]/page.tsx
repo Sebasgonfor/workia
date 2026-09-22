@@ -262,6 +262,8 @@ export default function BoardPage() {
   const [scanSelectedDocs, setScanSelectedDocs] = useState<Set<string>>(new Set());
   const [scanUsePrevNotes, setScanUsePrevNotes] = useState(false);
   const [scanImages, setScanImages] = useState<{ url: string; file: File }[]>([]);
+  const [scanTranscript, setScanTranscript] = useState<File | null>(null);
+  const transcriptInputRef = useRef<HTMLInputElement>(null);
   const [processing, setProcessing] = useState(false);
   const [processStep, setProcessStep] = useState("");
   const [scanProgress, setScanProgress] = useState(0);
@@ -490,7 +492,7 @@ export default function BoardPage() {
   };
 
   const handleProcess = async () => {
-    if (scanImages.length === 0) { toast.error("Agrega al menos una imagen"); return; }
+    if (scanImages.length === 0 && !scanTranscript) { toast.error("Agrega una imagen o una transcripción"); return; }
 
     // Close the sheet immediately so the user can navigate freely
     setShowScan(false);
@@ -503,15 +505,18 @@ export default function BoardPage() {
     const useContextSnapshot = scanUseSubjectContext;
     const docsSnapshot = subjectDocuments.filter((d) => scanSelectedDocs.has(d.url));
     const usePrevNotesSnapshot = scanUseSubjectContext && scanUsePrevNotes;
+    const transcriptSnapshot = scanTranscript;
 
     try {
       const base64Images = await Promise.all(imageSnapshot.map((img) => compressImageToBase64(img.file)));
+      const transcript = transcriptSnapshot ? await readTranscript(transcriptSnapshot) : undefined;
 
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           images: base64Images,
+          transcript,
           type: scanTypeSnapshot,
           subjectName: subject?.name,
           existingSubjects: subjects.map((s) => s.name),
@@ -757,6 +762,17 @@ export default function BoardPage() {
     setEditNotesTags("");
     scanImages.forEach((img) => URL.revokeObjectURL(img.url));
     setScanImages([]);
+    setScanTranscript(null);
+  };
+
+  const handleTranscriptFile = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const isTxt = file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt");
+    if (!isPdf && !isTxt) { toast.error("Solo se aceptan archivos .txt o .pdf"); return; }
+    if (file.size > MAX_TRANSCRIPT_BYTES) { toast.error("La transcripción supera los 3 MB"); return; }
+    setScanTranscript(file);
   };
 
   const updateTaskField = (idx: number, field: string, value: string | boolean) => {
@@ -2174,6 +2190,40 @@ export default function BoardPage() {
             )}
           </div>
 
+          {/* Class transcript (virtual classes) */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Transcripción de la clase (opcional)</label>
+            {scanTranscript ? (
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-primary/40 bg-primary/10 text-xs">
+                <FileText className="w-4 h-4 shrink-0 text-primary" />
+                <span className="flex-1 truncate">{scanTranscript.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setScanTranscript(null)}
+                  aria-label="Quitar transcripción"
+                  className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => transcriptInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border bg-secondary/40 text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
+              >
+                <Upload className="w-4 h-4" /> Subir .txt o .pdf
+              </button>
+            )}
+            <input
+              ref={transcriptInputRef}
+              type="file"
+              accept=".txt,.pdf,text/plain,application/pdf"
+              onChange={(e) => { handleTranscriptFile(e.target.files); e.target.value = ""; }}
+              className="hidden"
+            />
+          </div>
+
           {/* Context badge */}
           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary/50 border border-border text-xs">
             <span className="text-base">{subject?.emoji}</span>
@@ -2184,7 +2234,7 @@ export default function BoardPage() {
 
           <button
             onClick={handleProcess}
-            disabled={scanImages.length === 0 || processing}
+            disabled={(scanImages.length === 0 && !scanTranscript) || processing}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {processing ? (
@@ -2754,4 +2804,18 @@ function ScanImagePreview({
       )}
     </div>
   );
+}
+
+const MAX_TRANSCRIPT_BYTES = 3 * 1024 * 1024;
+
+async function readTranscript(file: File): Promise<{ name: string; text?: string; pdf?: string }> {
+  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  if (!isPdf) return { name: file.name, text: await file.text() };
+  const pdf = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+  return { name: file.name, pdf };
 }
