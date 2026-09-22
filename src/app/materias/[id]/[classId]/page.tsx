@@ -31,6 +31,7 @@ import {
   Clock,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Bot,
   FolderOpen,
   MessageCircle,
@@ -61,6 +62,7 @@ import { BOARD_ENTRY_TYPES, TASK_TYPES, TASK_PRIORITIES } from "@/types";
 import type { BoardEntry, Task, Flashcard, Quiz } from "@/types";
 import { toast } from "sonner";
 import { compressImageToBase64 } from "@/lib/utils";
+import { CLASS_MATERIAL_ACCEPT, MAX_CLASS_MATERIAL_BYTES, getMaterialKind, readClassMaterial } from "@/lib/class-material";
 
 /** Error thrown when our API returns a known error message (safe to show to user) */
 class ApiError extends Error {}
@@ -262,8 +264,9 @@ export default function BoardPage() {
   const [scanSelectedDocs, setScanSelectedDocs] = useState<Set<string>>(new Set());
   const [scanUsePrevNotes, setScanUsePrevNotes] = useState(false);
   const [scanImages, setScanImages] = useState<{ url: string; file: File }[]>([]);
-  const [scanTranscript, setScanTranscript] = useState<File | null>(null);
-  const transcriptInputRef = useRef<HTMLInputElement>(null);
+  const [scanMaterials, setScanMaterials] = useState<File[]>([]);
+  const [showMaterialFormats, setShowMaterialFormats] = useState(false);
+  const materialInputRef = useRef<HTMLInputElement>(null);
   const [processing, setProcessing] = useState(false);
   const [processStep, setProcessStep] = useState("");
   const [scanProgress, setScanProgress] = useState(0);
@@ -492,7 +495,7 @@ export default function BoardPage() {
   };
 
   const handleProcess = async () => {
-    if (scanImages.length === 0 && !scanTranscript) { toast.error("Agrega una imagen o una transcripción"); return; }
+    if (scanImages.length === 0 && scanMaterials.length === 0) { toast.error("Agrega una imagen o material de la clase"); return; }
 
     // Close the sheet immediately so the user can navigate freely
     setShowScan(false);
@@ -505,18 +508,18 @@ export default function BoardPage() {
     const useContextSnapshot = scanUseSubjectContext;
     const docsSnapshot = subjectDocuments.filter((d) => scanSelectedDocs.has(d.url));
     const usePrevNotesSnapshot = scanUseSubjectContext && scanUsePrevNotes;
-    const transcriptSnapshot = scanTranscript;
+    const materialsSnapshot = [...scanMaterials];
 
     try {
       const base64Images = await Promise.all(imageSnapshot.map((img) => compressImageToBase64(img.file)));
-      const transcript = transcriptSnapshot ? await readTranscript(transcriptSnapshot) : undefined;
+      const materials = await Promise.all(materialsSnapshot.map(readClassMaterial));
 
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           images: base64Images,
-          transcript,
+          materials,
           type: scanTypeSnapshot,
           subjectName: subject?.name,
           existingSubjects: subjects.map((s) => s.name),
@@ -762,17 +765,20 @@ export default function BoardPage() {
     setEditNotesTags("");
     scanImages.forEach((img) => URL.revokeObjectURL(img.url));
     setScanImages([]);
-    setScanTranscript(null);
+    setScanMaterials([]);
   };
 
-  const handleTranscriptFile = (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    const isTxt = file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt");
-    if (!isPdf && !isTxt) { toast.error("Solo se aceptan archivos .txt o .pdf"); return; }
-    if (file.size > MAX_TRANSCRIPT_BYTES) { toast.error("La transcripción supera los 3 MB"); return; }
-    setScanTranscript(file);
+  const handleMaterialFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const incoming = Array.from(files);
+    const valid = incoming.filter((f) => getMaterialKind(f) !== null);
+    if (valid.length < incoming.length) toast.error("Solo se aceptan archivos .txt, .pdf, .docx o .pptx");
+    const next = [...scanMaterials, ...valid];
+    if (next.reduce((sum, f) => sum + f.size, 0) > MAX_CLASS_MATERIAL_BYTES) {
+      toast.error("El material de la clase supera los 3 MB en total");
+      return;
+    }
+    setScanMaterials(next);
   };
 
   const updateTaskField = (idx: number, field: string, value: string | boolean) => {
@@ -2190,36 +2196,75 @@ export default function BoardPage() {
             )}
           </div>
 
-          {/* Class transcript (virtual classes) */}
+          {/* Class material: transcripts, guides, slides */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Transcripción de la clase (opcional)</label>
-            {scanTranscript ? (
-              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-primary/40 bg-primary/10 text-xs">
-                <FileText className="w-4 h-4 shrink-0 text-primary" />
-                <span className="flex-1 truncate">{scanTranscript.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setScanTranscript(null)}
-                  aria-label="Quitar transcripción"
-                  className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Material de la clase (opcional)</label>
+            <div className="space-y-1.5">
+              {scanMaterials.map((file, i) => (
+                <div key={`${file.name}-${i}`} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-primary/40 bg-primary/10 text-xs">
+                  <FileKindIcon kind={getMaterialKind(file) ?? "txt"} />
+                  <span className="flex-1 truncate">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setScanMaterials((prev) => prev.filter((_, j) => j !== i))}
+                    aria-label={`Quitar ${file.name}`}
+                    className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
               <button
                 type="button"
-                onClick={() => transcriptInputRef.current?.click()}
+                onClick={() => materialInputRef.current?.click()}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border bg-secondary/40 text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
               >
-                <Upload className="w-4 h-4" /> Subir .txt o .pdf
+                <Upload className="w-4 h-4" /> Transcripción, guía o diapositivas
               </button>
-            )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMaterialFormats((v) => !v)}
+              aria-expanded={showMaterialFormats}
+              className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Formatos permitidos
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showMaterialFormats ? "rotate-180" : ""}`} />
+            </button>
+            <div
+              className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                showMaterialFormats ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+              }`}
+              aria-hidden={!showMaterialFormats}
+            >
+              <div className="overflow-hidden">
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  {MATERIAL_FORMATS.map((f) => (
+                    <div key={f.kind} className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-secondary/40 border border-border">
+                      <FileKindIcon kind={f.kind} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium leading-tight">.{f.kind}</p>
+                        <p className="text-[10px] text-muted-foreground leading-tight truncate">{f.app}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2 px-2.5 py-2 rounded-xl bg-secondary/40 border border-border">
+                  <span className="w-7 h-7 shrink-0 rounded-lg bg-gradient-to-br from-cyan-400 to-violet-500 flex items-center justify-center text-white text-[13px] font-bold italic">
+                    C
+                  </span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    <span className="font-medium text-foreground">Canva</span>: exporta tu diseño como PDF o PPTX.
+                  </p>
+                </div>
+              </div>
+            </div>
             <input
-              ref={transcriptInputRef}
+              ref={materialInputRef}
               type="file"
-              accept=".txt,.pdf,text/plain,application/pdf"
-              onChange={(e) => { handleTranscriptFile(e.target.files); e.target.value = ""; }}
+              multiple
+              accept={CLASS_MATERIAL_ACCEPT}
+              onChange={(e) => { handleMaterialFiles(e.target.files); e.target.value = ""; }}
               className="hidden"
             />
           </div>
@@ -2234,7 +2279,7 @@ export default function BoardPage() {
 
           <button
             onClick={handleProcess}
-            disabled={(scanImages.length === 0 && !scanTranscript) || processing}
+            disabled={(scanImages.length === 0 && scanMaterials.length === 0) || processing}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {processing ? (
@@ -2806,16 +2851,30 @@ function ScanImagePreview({
   );
 }
 
-const MAX_TRANSCRIPT_BYTES = 3 * 1024 * 1024;
+const MATERIAL_FORMATS = [
+  { kind: "pdf", app: "PDF" },
+  { kind: "docx", app: "Word" },
+  { kind: "pptx", app: "PowerPoint" },
+  { kind: "txt", app: "Texto plano" },
+] as const;
 
-async function readTranscript(file: File): Promise<{ name: string; text?: string; pdf?: string }> {
-  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  if (!isPdf) return { name: file.name, text: await file.text() };
-  const pdf = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-  return { name: file.name, pdf };
+const FILE_KIND_STYLES: Record<(typeof MATERIAL_FORMATS)[number]["kind"], { bg: string; label: string }> = {
+  pdf: { bg: "bg-red-600", label: "PDF" },
+  docx: { bg: "bg-blue-600", label: "W" },
+  pptx: { bg: "bg-orange-600", label: "P" },
+  txt: { bg: "bg-zinc-500", label: "TXT" },
+};
+
+function FileKindIcon({ kind }: { kind: keyof typeof FILE_KIND_STYLES }) {
+  const { bg, label } = FILE_KIND_STYLES[kind];
+  return (
+    <span
+      aria-hidden="true"
+      className={`w-7 h-7 shrink-0 rounded-lg ${bg} flex items-center justify-center text-white font-bold shadow-sm ${
+        label.length > 1 ? "text-[8px] tracking-tight" : "text-[13px]"
+      }`}
+    >
+      {label}
+    </span>
+  );
 }
