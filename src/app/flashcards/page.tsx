@@ -299,7 +299,7 @@ export default function FlashcardsPage() {
                   <button
                     onClick={() => setFlipped(!flipped)}
                     aria-label={flipped ? "Ver pregunta" : "Ver respuesta"}
-                    className={`relative w-full aspect-[3/4] transition-[transform] duration-500 [transform-style:preserve-3d] active:brightness-95 ${
+                    className={`relative w-full aspect-[3/4] transition-[transform] duration-500 motion-reduce:duration-0 [transform-style:preserve-3d] active:brightness-95 ${
                       flipped ? "[transform:rotateY(180deg)]" : ""
                     }`}
                   >
