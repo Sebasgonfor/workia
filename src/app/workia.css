@@ -1323,7 +1323,7 @@ html[data-wk-splash="skip"] .wk-splash { display: none; }
   flex-shrink: 0;
   gap: 12px;
   padding-right: 12px;
-  animation: wkl-marquee 40s linear infinite;
+  animation: wkl-marquee 28s linear infinite;
 }
 .wkl-marquee:hover .wkl-marquee-track { animation-play-state: paused; }
 .wkl-format-chip {
