@@ -254,7 +254,7 @@ export function BottomNav() {
                 constant 30px already reads as a full pill at the closed
                 ~60px height and as a nicely rounded rectangle once tall,
                 with nothing to animate or overshoot. */}
-            <div className="flex-1 flex flex-col overflow-hidden rounded-[30px] bg-card/85 dark:bg-card/60 backdrop-blur-2xl border border-border/60 shadow-[0_8px_30px_rgba(0,0,0,0.15),inset_0_1px_0_0_rgba(255,255,255,0.15)]">
+            <div className="flex-1 flex flex-col overflow-hidden bottom-nav-surface rounded-[30px] bg-card/85 dark:bg-card/60 backdrop-blur-2xl border border-border/60 shadow-[0_8px_30px_rgba(0,0,0,0.15),inset_0_1px_0_0_rgba(255,255,255,0.15)]">
               <div
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
                 style={{ gridTemplateRows: moreOpen ? "1fr" : "0fr" }}

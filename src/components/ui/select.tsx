@@ -137,7 +137,7 @@ export function Select({
           ref={listRef}
           role="listbox"
           aria-label={ariaLabel}
-          className="select-scrollbar absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg bg-card border border-border shadow-lg py-1 animate-in fade-in zoom-in-95 duration-100"
+          className="select-scrollbar absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg bg-card border border-border shadow-lg py-1 origin-top animate-in fade-in zoom-in-95 duration-100"
         >
           {options.map((opt, idx) => (
             <li

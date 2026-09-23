@@ -156,15 +156,15 @@
   animation: fadeInUp 0.28s ease-out both;
 }
 .stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2)  { animation-delay: 45ms; }
-.stagger-children > *:nth-child(3)  { animation-delay: 90ms; }
-.stagger-children > *:nth-child(4)  { animation-delay: 135ms; }
-.stagger-children > *:nth-child(5)  { animation-delay: 180ms; }
-.stagger-children > *:nth-child(6)  { animation-delay: 225ms; }
-.stagger-children > *:nth-child(7)  { animation-delay: 270ms; }
-.stagger-children > *:nth-child(8)  { animation-delay: 315ms; }
-.stagger-children > *:nth-child(9)  { animation-delay: 360ms; }
-.stagger-children > *:nth-child(10) { animation-delay: 405ms; }
+.stagger-children > *:nth-child(2)  { animation-delay: 15ms; }
+.stagger-children > *:nth-child(3)  { animation-delay: 30ms; }
+.stagger-children > *:nth-child(4)  { animation-delay: 45ms; }
+.stagger-children > *:nth-child(5)  { animation-delay: 60ms; }
+.stagger-children > *:nth-child(6)  { animation-delay: 75ms; }
+.stagger-children > *:nth-child(7)  { animation-delay: 90ms; }
+.stagger-children > *:nth-child(8)  { animation-delay: 105ms; }
+.stagger-children > *:nth-child(9)  { animation-delay: 120ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 120ms; }
 
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
@@ -300,4 +300,46 @@
 .wk-theme-fade *::after {
   transition: background-color .45s ease, color .45s ease, border-color .45s ease,
     fill .45s ease, stroke .45s ease, box-shadow .45s ease !important;
+}
+
+/* Reduced motion: drop transform-based entrances, keep a short fade */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .stagger-children > *,
+  .menu-enter,
+  .slide-from-right,
+  .slide-from-left,
+  .ratings-enter {
+    animation: reducedFade 0.15s ease-out both;
+  }
+  .stagger-children > * { animation-delay: 0ms !important; }
+
+  /* tailwindcss-animate (sheet, confirm, select): opacity-only */
+  .animate-in,
+  .animate-out {
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+    --tw-enter-scale: 1 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-enter-rotate: 0 !important;
+    --tw-exit-rotate: 0 !important;
+    --tw-enter-opacity: 0;
+    --tw-exit-opacity: 0;
+  }
+}
+
+@keyframes reducedFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Reduced transparency: solid bottom nav */
+@media (prefers-reduced-transparency: reduce) {
+  .bottom-nav-surface {
+    background-color: hsl(var(--card)) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
 }
